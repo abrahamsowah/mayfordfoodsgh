@@ -1,9 +1,18 @@
-# Local configuration
-config/database.php
+# Node
+node_modules/
+dist/
+
+# Server runtime data (demo-mode SQLite database, session files)
+server/data/
+server/dist/
 
 # Environment files
 .env
 .env.*
 
-# XAMPP / local files
-xampp/
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
