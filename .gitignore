@@ -1,0 +1,9 @@
+# Local configuration
+config/database.php
+
+# Environment files
+.env
+.env.*
+
+# XAMPP / local files
+xampp/
