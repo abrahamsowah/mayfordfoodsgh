@@ -5,11 +5,14 @@ import {
   BadgeCheck,
   Bike,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Home,
+  Link as LinkIcon,
   LayoutDashboard,
   LogOut,
   MapPin,
+  PackageSearch,
   RotateCcw,
   ShieldCheck,
   ShoppingBag,
@@ -60,7 +63,7 @@ const STATUS_TONE: Record<string, 'neutral' | 'brand' | 'flame' | 'success' | 'w
 };
 
 export default function AccountPage() {
-  const { customer, loading, ordersCount } = useCustomer();
+  const { customer, loading, ordersCount, refresh } = useCustomer();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab = (params.get('tab') as Tab) || 'overview';
@@ -102,7 +105,7 @@ export default function AccountPage() {
       </div>
 
       {tab === 'overview' && <Overview />}
-      {tab === 'orders' && <OrdersTab />}
+      {tab === 'orders' && <OrdersTab onOrderChange={() => void refresh()} />}
       {tab === 'addresses' && <AddressesTab />}
       {tab === 'profile' && <ProfileTab />}
     </Section>
@@ -237,7 +240,7 @@ function Overview() {
 /* ------------------------------------------------------------------
    Orders
 ------------------------------------------------------------------ */
-function OrdersTab() {
+function OrdersTab({ onOrderChange }: { onOrderChange?: () => void }) {
   const { addLines } = useCart();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<AccountOrder[]>([]);
@@ -296,6 +299,12 @@ function OrdersTab() {
     <div className="space-y-5">
       {message && <Alert tone="green">{message}</Alert>}
       {error && <Alert tone="red">{error}</Alert>}
+      <ClaimOrderCard
+        onClaimed={() => {
+          void load();
+          onOrderChange?.();
+        }}
+      />
       {orders.length === 0 ? (
         <Card className="p-6">
           <EmptyState
@@ -360,6 +369,84 @@ function OrdersTab() {
         ))
       )}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------
+   Add a past order (guest checkout → account)
+------------------------------------------------------------------ */
+function ClaimOrderCard({ onClaimed }: { onClaimed: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState('');
+  const [phone, setPhone] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setMessage('');
+    setError('');
+    try {
+      await api.post('/customer/orders/claim', { order_code: code.trim(), phone: phone.trim() });
+      setMessage('Order added to your account.');
+      setCode('');
+      setPhone('');
+      onClaimed();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition hover:bg-ink-50"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-3">
+          <IconTile icon={PackageSearch} tone="flame" size="sm" />
+          <span>
+            <span className="block text-[14px] font-extrabold text-ink-900">Add a past order</span>
+            <span className="block text-[12.5px] text-ink-500">Ordered on WhatsApp or as a guest? Bring it into your account.</span>
+          </span>
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <form onSubmit={submit} className="border-t border-ink-100 px-5 py-5">
+          {message && (
+            <div className="mb-4">
+              <Alert tone="green">{message}</Alert>
+            </div>
+          )}
+          {error && (
+            <div className="mb-4">
+              <Alert tone="red">{error}</Alert>
+            </div>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Order code">
+              <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="MF-XXXXXXXXXX" required autoComplete="off" />
+            </Field>
+            <Field label="Phone used to order">
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="024 000 0000" required inputMode="tel" autoComplete="tel" />
+            </Field>
+          </div>
+          <p className="mb-4 text-xs text-ink-400">
+            The code is on the confirmation screen, your receipt and in the tracking link we sent you. We only link an order when both match, so nobody else can add it.
+          </p>
+          <Button type="submit" variant="primary" size="sm" icon={LinkIcon} loading={busy}>
+            Add order
+          </Button>
+        </form>
+      )}
+    </Card>
   );
 }
 

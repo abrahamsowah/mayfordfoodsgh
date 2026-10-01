@@ -7,6 +7,7 @@
  */
 import crypto from 'crypto';
 import path from 'path';
+import { execute, queryOne } from './db';
 import type { NextFunction, Request, Response } from 'express';
 
 /* ------------------------------------------------------------------
@@ -27,19 +28,10 @@ export function isHashed(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.startsWith('scrypt$');
 }
 
-/**
- * Verifies a password against a scrypt hash. Legacy plaintext values (from the
- * original PHP database) still verify so accounts keep working until the
- * boot-time migration rewrites them.
- */
-export function verifyPassword(stored: string | null | undefined, password: string): boolean {
-  if (!stored) return false;
-  if (!isHashed(stored)) {
-    // Legacy plaintext: constant-time compare, migration handles the upgrade.
-    const a = Buffer.from(stored);
-    const b = Buffer.from(password);
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
-  }
+/** Used to burn the same CPU time when an account does not exist. */
+const DUMMY_HASH = hashPassword(`not-a-real-account-${crypto.randomBytes(8).toString('hex')}`);
+
+function verifyHash(stored: string, password: string): boolean {
   const [, n, r, p, saltHex, hashHex] = stored.split('$');
   const salt = Buffer.from(saltHex, 'hex');
   const expected = Buffer.from(hashHex, 'hex');
@@ -49,6 +41,26 @@ export function verifyPassword(stored: string | null | undefined, password: stri
     p: Number(p),
   });
   return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
+/**
+ * Verifies a password against a scrypt hash. Legacy plaintext values (from the
+ * original PHP database) still verify so accounts keep working until the
+ * boot-time migration rewrites them. Unknown accounts still run a real hash
+ * round so response time cannot be used to enumerate emails or usernames.
+ */
+export function verifyPassword(stored: string | null | undefined, password: string): boolean {
+  if (!stored) {
+    verifyHash(DUMMY_HASH, password);
+    return false;
+  }
+  if (!isHashed(stored)) {
+    // Legacy plaintext: constant-time compare, migration handles the upgrade.
+    const a = Buffer.from(stored);
+    const b = Buffer.from(password);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  }
+  return verifyHash(stored, password);
 }
 
 /** Minimum password policy for customer + admin accounts. */
@@ -157,6 +169,50 @@ export function clientIp(req: Request): string {
 export function hashIp(ip: string): string {
   const salt = process.env.IP_HASH_SALT || process.env.SESSION_SECRET || 'mayford-ip-salt';
   return crypto.createHmac('sha256', salt).update(ip).digest('hex').slice(0, 32);
+}
+
+/**
+ * Head of whatever `req.session.regenerate` is on the current session object.
+ * Sessions are rotated whenever privileges change (sign-in, PIN unlock) so a
+ * session id captured before authentication cannot be reused afterwards.
+ */
+export function rotateSession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const session = req.session as unknown as { regenerate?: (cb: (err?: any) => void) => void };
+    if (!session || typeof session.regenerate !== 'function') return resolve();
+    session.regenerate((err) => (err ? reject(err) : resolve()));
+  });
+}
+
+/** `YYYY-MM-DD HH:MM:SS` in server-local time, matching the SQLite datetimes. */
+export function sqlDateTime(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/* ------------------------------------------------------------------
+   Account lockout (works across IPs, unlike the in-memory rate limiter)
+------------------------------------------------------------------ */
+export const LOCKOUT_WINDOW_MINUTES = 15;
+export const LOCKOUT_MAX_FAILURES = 8;
+
+/** Counts recent failed sign-ins for one account, no matter where they came from. */
+export async function recentFailures(scope: string, identifier: string): Promise<number> {
+  try {
+    const since = sqlDateTime(new Date(Date.now() - LOCKOUT_WINDOW_MINUTES * 60_000));
+    const row = await queryOne(
+      'SELECT COUNT(*) AS c FROM login_attempts WHERE scope = ? AND identifier = ? AND success = 0 AND created_at >= ?',
+      [scope, identifier.slice(0, 190), since]
+    );
+    return Number(row?.c || 0);
+  } catch {
+    return 0;
+  }
+}
+
+/** A successful sign-in clears the counter so a legitimate user is never locked out. */
+export async function clearFailures(scope: string, identifier: string): Promise<void> {
+  await execute('DELETE FROM login_attempts WHERE scope = ? AND identifier = ? AND success = 0', [scope, identifier.slice(0, 190)]).catch(() => undefined);
 }
 
 /* ------------------------------------------------------------------

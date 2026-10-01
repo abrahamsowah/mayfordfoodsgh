@@ -22,8 +22,10 @@ import { DIST_DIR, ASSETS_DIR, PUBLIC_DIR, DATA_DIR } from './paths';
 import { DbSessionStore } from './session-store';
 import {
   HttpError,
+  LOCKOUT_MAX_FAILURES,
   allowedOrigins,
   clean,
+  clearFailures,
   clientIp,
   csrfGuard,
   hashPassword,
@@ -31,9 +33,11 @@ import {
   isHashed,
   optionalPhone,
   rateLimit,
+  recentFailures,
   requireEmail,
   requireInt,
   requireText,
+  rotateSession,
   timingSafeStringEqual,
   verifyPassword,
 } from './security';
@@ -266,6 +270,8 @@ app.post(
     const ok = timingSafeStringEqual(pin, expected);
     await logAttempt('admin_pin', clientIp(req), req, ok);
     if (!ok) throw new HttpError(401, 'Invalid PIN');
+    // Fresh session id once the gate is passed (session fixation defence).
+    await rotateSession(req);
     req.session.admin_access = true;
     if (!process.env.ADMIN_PIN) console.warn('[security] Using the default admin PIN. Set ADMIN_PIN in the environment.');
     res.json({ ok: true });
@@ -280,16 +286,23 @@ app.post(
     const username = clean(req.body?.username, 60).toLowerCase();
     const password = String(req.body?.password || '');
     if (!username || !password) throw new HttpError(400, 'Enter your username and password.');
+    if ((await recentFailures('admin_login', username)) >= LOCKOUT_MAX_FAILURES) {
+      throw new HttpError(429, 'Too many failed sign-in attempts for this account. Please try again in a few minutes.');
+    }
     const admin = await queryOne('SELECT * FROM admins WHERE LOWER(username) = ?', [username]);
-    const ok = admin ? verifyPassword(String(admin.password), password) : false;
-    await logAttempt('admin_login', username, req, ok);
+    // verifyPassword runs a real hash round even for unknown usernames, so a
+    // missing account cannot be told apart from a wrong password by timing.
+    const ok = verifyPassword(admin ? String(admin.password) : null, password);
+    await logAttempt('admin_login', username, req, ok && !!admin);
     if (!admin || !ok) throw new HttpError(401, 'Invalid Username or Password');
+    await clearFailures('admin_login', username);
 
     // Upgrade legacy plaintext passwords the first time someone signs in.
     if (!isHashed(String(admin.password))) {
       await execute('UPDATE admins SET password = ? WHERE id = ?', [hashPassword(password), Number(admin.id)]);
     }
 
+    await rotateSession(req);
     req.session.admin_id = Number(admin.id);
     req.session.admin_name = String(admin.admin_name);
     req.session.role = String(admin.role);
@@ -370,9 +383,15 @@ app.get(
 app.get(
   '/api/menu/:id',
   safe(async (req, res) => {
-    const rows = await query('SELECT * FROM menu_items WHERE id = ?', [Number(req.params.id)]);
-    if (rows.length === 0) throw new HttpError(404, 'Food item not found');
-    res.json({ ok: true, item: rows[0] });
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw new HttpError(404, 'Food item not found');
+    const rows = await query('SELECT * FROM menu_items WHERE id = ?', [id]);
+    const item = rows[0];
+    // Dishes pulled from the menu stay invisible to the public — staff still see them.
+    if (!item || (String(item.status) !== 'available' && !req.session?.admin_id)) {
+      throw new HttpError(404, 'Food item not found');
+    }
+    res.json({ ok: true, item });
   })
 );
 
@@ -457,6 +476,7 @@ app.post(
 /** Legacy endpoint used by the original front-end (counts once per day). */
 app.post(
   '/api/visit',
+  rateLimit({ windowMs: 15 * 60_000, max: 120, keyPrefix: 'visit-old', message: 'Too many requests.' }),
   safe(async (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     if (req.cookies?.mayford_visitor !== today) {
@@ -635,6 +655,7 @@ const formLimiter = rateLimit({ windowMs: 60 * 60_000, max: 30, keyPrefix: 'form
 
 app.post(
   '/api/feedback',
+  rateLimit({ windowMs: 15 * 60_000, max: 20, keyPrefix: 'feedback', message: 'You have sent us a lot of messages. Please give us a moment to reply.' }),
   formLimiter,
   safe(async (req, res) => {
     const b = req.body || {};
@@ -661,6 +682,7 @@ app.post(
 
 app.post(
   '/api/ratings',
+  rateLimit({ windowMs: 15 * 60_000, max: 20, keyPrefix: 'rating', message: 'Too many reviews from this device. Please try again later.' }),
   formLimiter,
   safe(async (req, res) => {
     const b = req.body || {};
@@ -684,6 +706,7 @@ app.post(
 
 app.post(
   '/api/catering-bookings',
+  rateLimit({ windowMs: 15 * 60_000, max: 12, keyPrefix: 'catering', message: 'Too many booking requests. Please call us instead.' }),
   formLimiter,
   safe(async (req, res) => {
     const b = req.body || {};
@@ -720,6 +743,7 @@ app.post(
 
 app.post(
   '/api/training-applications',
+  rateLimit({ windowMs: 15 * 60_000, max: 12, keyPrefix: 'training', message: 'Too many applications from this device. Please try again later.' }),
   formLimiter,
   safe(async (req, res) => {
     const b = req.body || {};
@@ -836,6 +860,12 @@ app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
   }
   if (err instanceof HttpError) return res.status(err.status).json({ ok: false, error: err.message });
   if (err?.type === 'entity.parse.failed') return res.status(400).json({ ok: false, error: 'Invalid request body.' });
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ ok: false, error: 'That request was too large. Please shorten it and try again.' });
+  }
+  if (err?.type === 'encoding.unsupported' || err?.type === 'charset.unsupported') {
+    return res.status(415).json({ ok: false, error: 'Unsupported content type.' });
+  }
   console.error('[api] unhandled error:', err);
   if (!IS_PROD) return res.status(500).json({ ok: false, error: String(err?.message || err) });
   return res.status(500).json({ ok: false, error: 'Something went wrong. Please try again.' });

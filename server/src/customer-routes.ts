@@ -6,7 +6,9 @@ import { Router, type Request, type Response } from 'express';
 import { execute, nowSql, query, queryOne } from './db';
 import {
   HttpError,
+  LOCKOUT_MAX_FAILURES,
   clean,
+  clearFailures,
   clientIp,
   hashPassword,
   hashToken,
@@ -14,8 +16,10 @@ import {
   passwordProblem,
   randomToken,
   rateLimit,
+  recentFailures,
   requireEmail,
   requireText,
+  rotateSession,
   verifyPassword,
 } from './security';
 import { recordAudit } from './audit';
@@ -117,11 +121,12 @@ customerRouter.post(
       [full_name, email, phone, hashPassword(password), marketing, nowSql()]
     );
 
-    // Claim any previous guest orders that used the same phone number.
-    if (phone) {
-      await execute('UPDATE orders SET customer_id = ? WHERE customer_id IS NULL AND phone = ?', [created.insertId, phone]);
-    }
-
+    // Guest orders are deliberately NOT attached here. A phone number (or an
+    // unverified email) is not proof that the person signing up owns those
+    // orders, so matching on it would let anyone read someone else's order
+    // history. Customers attach past orders themselves with the order code —
+    // POST /api/customer/orders/claim below.
+    await rotateSession(req);
     req.session.customer_id = created.insertId;
     req.session.customer_name = full_name;
     req.session.customer_email = email;
@@ -152,13 +157,20 @@ customerRouter.post(
   safe(async (req, res) => {
     const email = requireEmail(req.body?.email);
     const password = String(req.body?.password || '');
+    // Per-account lockout so a distributed attack cannot brute force one mailbox.
+    if ((await recentFailures('customer_login', email)) >= LOCKOUT_MAX_FAILURES) {
+      throw new HttpError(429, 'Too many failed sign-in attempts for this account. Please try again in a few minutes or reset your password.');
+    }
     const customer = await queryOne('SELECT * FROM customers WHERE email = ?', [email]);
-    const ok = customer ? verifyPassword(String(customer.password_hash), password) : false;
-    await logAttempt('customer_login', email, req, ok);
-    if (!customer) throw new HttpError(401, 'Email or password is incorrect.');
+    // Always run a hash comparison so response times do not reveal whether the
+    // email exists (account enumeration).
+    const ok = verifyPassword(customer ? String(customer.password_hash) : null, password);
+    await logAttempt('customer_login', email, req, ok && !!customer);
+    if (!customer || !ok) throw new HttpError(401, 'Email or password is incorrect.');
     if (String(customer.status) !== 'active') throw new HttpError(403, 'This account has been disabled. Please contact us on WhatsApp.');
-    if (!ok) throw new HttpError(401, 'Email or password is incorrect.');
+    await clearFailures('customer_login', email);
 
+    await rotateSession(req);
     req.session.customer_id = Number(customer.id);
     req.session.customer_name = String(customer.full_name);
     req.session.customer_email = String(customer.email);
@@ -193,7 +205,7 @@ customerRouter.post(
     const marketing = req.body?.marketing_opt_in ? 1 : 0;
     await execute('UPDATE customers SET full_name = ?, phone = ?, marketing_opt_in = ? WHERE id = ?', [full_name, phone, marketing, id]);
     req.session.customer_name = full_name;
-    if (phone) await execute('UPDATE orders SET customer_id = ? WHERE customer_id IS NULL AND phone = ?', [id, phone]);
+    // No automatic order claiming here either — see the note in /register.
     await recordAudit(req, { action: 'customer.profile_update', entity: 'customer', entityId: id });
     const customer = await queryOne('SELECT * FROM customers WHERE id = ?', [id]);
     res.json({ ok: true, customer: publicCustomer(customer) });
@@ -289,6 +301,37 @@ customerRouter.get(
       orders.push({ ...detail.order, items: detail.items, steps: detail.steps, payment: detail.payment, cancelled: detail.cancelled });
     }
     res.json({ ok: true, orders });
+  })
+);
+
+/**
+ * Attach a past guest order to the signed-in account. Proof of ownership is the
+ * order code (a secret only the person who placed the order was shown, on the
+ * confirmation screen and in their tracking link) plus the phone number it was
+ * placed with. Never matched on the phone alone.
+ */
+customerRouter.post(
+  '/api/customer/orders/claim',
+  requireCustomer,
+  rateLimit({ windowMs: 15 * 60_000, max: 15, keyPrefix: 'claim', message: 'Too many attempts. Please try again later.' }),
+  safe(async (req, res) => {
+    const id = Number(req.session.customer_id);
+    const code = clean(req.body?.order_code, 40).toUpperCase();
+    const phone = optionalPhone(req.body?.phone, 'Phone number');
+    if (!code || !phone) throw new HttpError(400, 'Enter the order code and the phone number used to place it.');
+    const order = await queryOne(
+      'SELECT id, customer_id FROM orders WHERE (order_code = ? OR payment_reference = ?) AND phone = ?',
+      [code, code, phone]
+    );
+    if (!order) throw new HttpError(404, 'We could not match that order code and phone number.');
+    if (order.customer_id && Number(order.customer_id) !== id) {
+      throw new HttpError(409, 'That order is already linked to another account. Contact us on WhatsApp and we will sort it out.');
+    }
+    if (Number(order.customer_id) === id) throw new HttpError(409, 'That order is already in your account.');
+    await execute('UPDATE orders SET customer_id = ? WHERE id = ? AND customer_id IS NULL', [id, Number(order.id)]);
+    await recordAudit(req, { action: 'customer.order_claim', entity: 'order', entityId: order.id, meta: { order_code: code } });
+    const fresh = await queryOne('SELECT * FROM orders WHERE id = ?', [Number(order.id)]);
+    res.json({ ok: true, message: 'Order added to your account.', ...(fresh ? await orderDetail(fresh) : {}) });
   })
 );
 

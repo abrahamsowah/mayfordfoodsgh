@@ -169,14 +169,17 @@ Status changes, payment confirmations and rider assignments each write an
 ### Security
 
 - **Passwords:** scrypt with a per-password salt (`scrypt$N$r$p$salt$hash`), constant-time comparison, and automatic hashing of legacy plaintext rows on first boot. Password policy: 8+ characters with a letter and a number.
-- **Sessions:** stored in the database (survive restarts), httpOnly + SameSite=Lax cookies, `secure` automatically in production, 8 h rolling expiry.
+- **Sessions:** stored in the database (survive restarts), httpOnly + SameSite=Lax cookies, `secure` automatically in production, 8 h rolling expiry. The session id is **rotated whenever privileges change** (customer sign-in, admin PIN unlock, admin sign-in) so a session captured before login cannot be reused afterwards (session fixation).
 - **Server-side pricing:** the client sends item ids and quantities only. Subtotals, discounts, delivery fees and totals are always recalculated from `menu_items` — a tampered cart cannot change the price.
 - **Payments:** webhooks verified by HMAC-SHA512 signature, transactions re-verified with the gateway, amount/currency compared against the stored order, references de-duplicated, and the redirect back from Paystack is never trusted on its own.
-- **Rate limiting:** PIN (10/15 min), admin login (12/15 min), customer login/registration, password reset, order creation, forms and a global API ceiling.
+- **Rate limiting + lockout:** PIN (10/15 min), admin login (12/15 min), customer login/registration, password reset, order creation, each public form, order lookup, and a global API ceiling. On top of the per-IP limits, an account is locked for 15 minutes after 8 failed sign-ins **from any IP**, which defeats distributed password guessing and admin-PIN bots.
 - **CSRF:** unsafe requests whose `Origin` header is not the site (or an allow-listed origin) are rejected; CORS is an explicit allow-list with credentials.
 - **Uploads:** server-generated filenames, extension allow-list, per-type size limits, and files are deleted when their record is removed.
 - **Headers:** helmet (CSP + HSTS in production, nosniff, referrer policy, framed-ancestors).
 - **Privacy:** analytics store a hashed IP, never the raw address.
+- **Account enumeration:** sign-in runs a real hash round even when the email or username does not exist, so response times do not reveal which accounts are real; password reset always answers the same way.
+- **Order ownership:** a past order is only attached to an account when the customer proves it with the **order code (a secret) plus the phone number** — never by phone alone, and never by an unverified email. `POST /api/customer/orders/claim` enforces this, and the account page fronts it with "Add a past order".
+- **Input limits:** JSON bodies are capped at 512 kB (uploads at 25 MB / 250 MB for video) and oversized or malformed payloads return a clean 413/400 instead of a 500.
 - **Auditing:** all privileged actions are logged and visible in Admin → Audit log.
 
 ## What makes Mayford better than the delivery apps
@@ -190,6 +193,21 @@ Research into how Glovo / Uber Eats / Chowdeck and similar platforms operate in 
 - **Faster repeat ordering.** Accounts with saved addresses + "order again" beat retyping an address in a chat, and history shows what each customer actually buys.
 - **Full data ownership.** Traffic, conversion, dish performance, customer lifetime value and an audit trail live in our own dashboard — the thing platforms never show a restaurant.
 - **One operation across two branches.** Outlet-scoped staff logins with a shared menu and content system mean chain-grade reporting without enterprise software.
+
+## Screenshots
+
+The current build, captured from the running app (desktop 1440 px, plus a 390 px mobile shot):
+
+| | |
+| --- | --- |
+| ![Home](docs/screenshots/home-desktop.png) | ![Menu](docs/screenshots/menu-desktop.png) |
+| Storefront home — hero, live adverts, popular dishes, outlets, catering, community | Digital menu with search, categories and cart-aware food cards |
+| ![Order tracking](docs/screenshots/order-tracking.png) | ![Account orders](docs/screenshots/account-orders.png) |
+| Live order tracking (`/track/<token>`) — stage timeline, rider, ETA, itemised bill | Customer account — order history, re-order, "add a past order" |
+| ![Admin analytics](docs/screenshots/admin-analytics.png) | ![Audit log](docs/screenshots/admin-audit-log.png) |
+| Admin analytics — revenue, orders, conversion, traffic sources, top dishes | Audit log — who did what, when, from where |
+
+More: [`docs/screenshots/`](docs/screenshots) (admin dashboard, orders board, mobile layout).
 
 ## Project layout
 
