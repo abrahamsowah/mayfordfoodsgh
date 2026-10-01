@@ -1,82 +1,326 @@
 @import "tailwindcss";
 
-/* ------------------------------------------------------------------
-   Mayford Foods GH design tokens
-   Same brand colours as the original site, expanded into full scales:
-   primary red  #b22222  (was: header/sidebar/headings)
-   dark red     #8b1a1a
-   accent orange #ff9800 (was: buttons/marquee)
-   dark orange  #e68900
-------------------------------------------------------------------- */
+/* ==================================================================
+   MAYFORD FOODS — DESIGN SYSTEM  v2
+   ------------------------------------------------------------------
+   A product-grade system for a food ordering platform:
+   tokens → primitives → patterns → pages.
+   Brand red #b22222 and brand orange #ff9800 are preserved; everything
+   around them (neutrals, radii, elevation, type scale) is systematised
+   so screens feel like one app instead of a set of pages.
+================================================================== */
+
 @theme {
-  --font-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", ui-sans-serif, system-ui, Arial, sans-serif;
+  /* ---------- Type ---------- */
+  --font-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  --color-mayford-50: #fdf3f3;
-  --color-mayford-100: #fbe7e7;
-  --color-mayford-200: #f6cfcf;
-  --color-mayford-300: #efa5a5;
-  --color-mayford-400: #e27070;
-  --color-mayford-500: #c94444;
-  --color-mayford-600: #b22222; /* original brand red */
-  --color-mayford-700: #8b1a1a; /* original dark red */
-  --color-mayford-800: #6d1414;
-  --color-mayford-900: #551010;
+  /* ---------- Brand: mayford red ---------- */
+  --color-mayford-50: #fef3f2;
+  --color-mayford-100: #fde5e3;
+  --color-mayford-200: #fbd0cd;
+  --color-mayford-300: #f6aeaa;
+  --color-mayford-400: #ee7f79;
+  --color-mayford-500: #e04b45;
+  --color-mayford-600: #b22222; /* brand red */
+  --color-mayford-700: #951d1d;
+  --color-mayford-800: #7a1c1c;
+  --color-mayford-900: #671d1d;
+  --color-mayford-950: #380c0c;
 
+  /* ---------- Accent: flame orange ---------- */
   --color-flame-50: #fff8ed;
   --color-flame-100: #ffefd4;
   --color-flame-200: #ffdba8;
-  --color-flame-300: #ffc370;
-  --color-flame-400: #ffab40;
-  --color-flame-500: #ff9800; /* original brand orange */
-  --color-flame-600: #e68900; /* original dark orange */
-  --color-flame-700: #c06e02;
+  --color-flame-300: #ffc070;
+  --color-flame-400: #ff9d37;
+  --color-flame-500: #ff9800; /* brand orange */
+  --color-flame-600: #e67a00;
+  --color-flame-700: #bf5c02;
 
-  --color-mayford: #b22222;
-  --color-mayford-dark: #8b1a1a;
-  --color-mayford-orange: #ff9800;
-  --color-mayford-orange-dark: #e68900;
+  /* ---------- Neutrals: warm "ink" scale (product UI base) ---------- */
+  --color-ink-50: #fafaf9;
+  --color-ink-100: #f4f4f2;
+  --color-ink-200: #e7e6e3;
+  --color-ink-300: #d5d3ce;
+  --color-ink-400: #a8a49d;
+  --color-ink-500: #78746d;
+  --color-ink-600: #57534e;
+  --color-ink-700: #3f3b38;
+  --color-ink-800: #262322;
+  --color-ink-900: #171514;
+  --color-ink-950: #0c0a0a;
+
+  /* ---------- Semantic ---------- */
+  --color-success-50: #ecfdf3;
+  --color-success-100: #d1fadf;
+  --color-success-500: #12b76a;
+  --color-success-600: #039855;
+  --color-success-700: #027a48;
+  --color-warning-50: #fffaeb;
+  --color-warning-100: #fef0c7;
+  --color-warning-600: #dc6803;
+  --color-warning-700: #b54708;
+  --color-info-50: #eff8ff;
+  --color-info-100: #d1e9ff;
+  --color-info-600: #1570ef;
+  --color-info-700: #175cd3;
+  --color-danger-50: #fef3f2;
+  --color-danger-100: #fee4e2;
+  --color-danger-600: #d92d20;
+  --color-danger-700: #b42318;
   --color-whatsapp: #25d366;
-  --color-whatsapp-dark: #1ebe5b;
+  --color-whatsapp-dark: #1da851;
 
-  --shadow-soft: 0 2px 12px -2px rgb(85 16 16 / 0.08), 0 12px 32px -8px rgb(85 16 16 / 0.12);
-  --shadow-lift: 0 8px 24px -6px rgb(85 16 16 / 0.18), 0 24px 48px -12px rgb(85 16 16 / 0.22);
-  --shadow-glow: 0 8px 30px -6px rgb(255 152 0 / 0.45);
+  /* ---------- Radii (product feel: generous, consistent) ---------- */
+  --radius-card: 0.75rem; /* 12px – panels, cards, media */
+  --radius-tile: 0.5rem; /* 8px – controls, inputs, badges */
+  --radius-pill: 9999px; /* kept only for genuine pills (dots, tags) */
+
+  /* ---------- Elevation (soft, layered, never muddy) ---------- */
+  --shadow-xs: 0 1px 2px 0 rgb(12 10 10 / 0.04);
+  --shadow-card: 0 1px 2px 0 rgb(12 10 10 / 0.04);
+  --shadow-raised: 0 2px 8px -2px rgb(12 10 10 / 0.1);
+  --shadow-pop: 0 16px 40px -12px rgb(12 10 10 / 0.22);
+  /* Retired: no coloured glows anywhere in the product. */
+  --: 0 0 0 0 rgb(0 0 0 / 0);
+  --shadow-brand: 0 0 0 0 rgb(0 0 0 / 0);
+
+  /* ---------- Type scale (one ratio, 4px baseline grid) ----------
+     Both benchmarks bind text sizes to a fixed scale with line-heights that
+     snap to the 4px grid (Uber: 14px x 1.125, LH = size x 1.45 rounded to 4;
+     Airbnb: 14/16/22/32 with 4-8px spacing steps). These tokens replace the
+     ad-hoc 10.5/11.5/12.5/13.5/14.5px sizes the UI used to hand-roll. */
+  --text-micro: 0.75rem; /* 12px  fine print, badges        */
+  --text-caption: 0.8125rem; /* 13px  metadata, helper text  */
+  --text-body-sm: 0.875rem; /* 14px  secondary body          */
+  --text-body: 0.9375rem; /* 15px   default body            */
+  --text-body-lg: 1rem; /* 16px     lead paragraphs         */
+  --text-title-sm: 1.125rem; /* 18px  card titles            */
+  --text-title: 1.25rem; /* 20px     section headings       */
+  --text-display-sm: 1.5rem; /* 24px  page titles            */
+  --text-display-md: 1.75rem; /* 28px section display         */
+  --text-display: 1.875rem; /* 30px  hero / section display   */
+  --text-display-lg: 2.25rem; /* 36px largest headline       */
+
+  /* ---------- Motion ---------- */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-marquee: marquee 48s linear infinite;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-rise: rise 0.5s var(--ease-out-soft) both;
+  --animate-pop: pop 0.28s var(--ease-out-soft) both;
 }
 
-html {
-  scroll-behavior: smooth;
+/* ==================================================================
+   BASE
+================================================================== */
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-ink-50);
+    color: var(--color-ink-900);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior-y: none;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.022em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: var(--color-mayford-600);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-mayford-600);
+    outline-offset: 2px;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+
+  /* Native file inputs pickers styled like the rest of the form system */
+  input[type="file"] {
+    width: 100%;
+    cursor: pointer;
+    border: 1px solid var(--color-ink-200);
+    border-radius: var(--radius-tile);
+    background: #fff;
+    padding: 0.5rem;
+    font-size: 13.5px;
+    color: var(--color-ink-500);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input[type="file"]:hover {
+    border-color: var(--color-ink-300);
+  }
+  input[type="file"]::file-selector-button {
+    margin-right: 0.75rem;
+    cursor: pointer;
+    border: 0;
+    border-radius: 0.65rem;
+    background: var(--color-ink-900);
+    padding: 0.55rem 1rem;
+    font: inherit;
+    font-weight: 700;
+    color: #fff;
+    transition: background-color 0.2s;
+  }
+  input[type="file"]::file-selector-button:hover {
+    background: var(--color-mayford-600);
+  }
+  input[type="date"] {
+    min-height: 3rem;
+  }
+
+  /* Keep iOS from zooming on focus (16px minimum) */
+  @media (max-width: 640px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
 }
 
-body {
-  font-family: var(--font-sans);
-  background: #fafaf9;
-  color: #1c1917;
-  -webkit-font-smoothing: antialiased;
-}
-
-::selection {
-  background: #b22222;
-  color: #fff;
-}
-
-/* thin branded scrollbar */
+/* ==================================================================
+   SCROLLBARS + SCROLL RAILS
+================================================================== */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #f5f5f4;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d6d3d1;
-  border-radius: 8px;
+  background: var(--color-ink-300);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #b22222;
+  background: var(--color-ink-400);
+  background-clip: content-box;
 }
 
-/* ---- Scrolling marquee (replaces the old <marquee> tag) ---- */
-@keyframes mayford-marquee {
+/* Horizontal rails (category chips, card carousels) — swipeable, no bar */
+@utility rail {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-inline: 1rem;
+}
+.rail::-webkit-scrollbar {
+  display: none;
+}
+.rail > * {
+  scroll-snap-align: start;
+}
+
+/* Hide scrollbar but keep scrolling */
+@utility no-bar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Bottom padding that respects iOS home indicator / mobile tab bar */
+@utility pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+@utility mb-safe {
+  margin-bottom: calc(env(safe-area-inset-bottom, 0px));
+}
+
+/* ==================================================================
+   SURFACES
+================================================================== */
+@utility surface {
+  background-color: #fff;
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-card);
+}
+
+@utility glass {
+  background: rgb(255 255 255 / 0.12);
+  border: 1px solid rgb(255 255 255 / 0.32);
+}
+
+@utility glass-light {
+  background: #fff;
+  border: 1px solid var(--color-ink-200);
+}
+
+@utility kente-stripe {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--color-mayford-600) 0 24px,
+    var(--color-flame-500) 24px 40px,
+    var(--color-mayford-800) 40px 64px,
+    var(--color-flame-600) 64px 80px
+  );
+}
+
+@utility bg-dots {
+  background-image: radial-gradient(rgb(12 10 10 / 0.06) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+@utility bg-dots-dark {
+  background-image: radial-gradient(rgb(255 255 255 / 0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+@utility outline-text {
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgb(12 10 10 / 0.08);
+}
+@utility outline-text-light {
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgb(255 255 255 / 0.13);
+}
+
+/* Hero photo scrim — keeps text legible over any image */
+@utility scrim {
+  background: linear-gradient(180deg, rgb(12 10 10 / 0.62) 0%, rgb(12 10 10 / 0.42) 38%, rgb(12 10 10 / 0.86) 100%);
+}
+@utility scrim-side {
+  background: linear-gradient(95deg, rgb(12 10 10 / 0.92) 0%, rgb(12 10 10 / 0.68) 45%, rgb(12 10 10 / 0.25) 100%);
+}
+
+/* ==================================================================
+   MOTION
+================================================================== */
+@keyframes marquee {
   0% {
     transform: translateX(0);
   }
@@ -84,168 +328,155 @@ body {
     transform: translateX(-50%);
   }
 }
-.animate-marquee {
-  display: inline-block;
-  white-space: nowrap;
-  animation: mayford-marquee 45s linear infinite;
-}
-.animate-marquee:hover {
-  animation-play-state: paused;
-}
 
-/* ---- Hero slide crossfade + slow Ken Burns zoom ---- */
-.hero-slide {
-  transition: opacity 1.4s ease-in-out;
-}
-@keyframes kenburns {
+@keyframes shimmer {
   0% {
-    transform: scale(1);
+    background-position: -420px 0;
   }
   100% {
-    transform: scale(1.08);
+    background-position: 420px 0;
   }
 }
-.kenburns {
-  animation: kenburns 12s ease-out forwards;
-}
 
-/* ---- Advert card crossfade ---- */
-.advert-slide {
-  transition: opacity 0.8s ease-in-out;
-}
-
-/* ---- Scroll reveal ---- */
-.reveal {
-  opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-  transition-delay: var(--reveal-delay, 0ms);
-}
-.reveal.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-@media (prefers-reduced-motion: reduce) {
-  .reveal {
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
     opacity: 1;
     transform: none;
-    transition: none;
-  }
-  .animate-marquee,
-  .kenburns {
-    animation: none;
   }
 }
 
-/* ---- Floating WhatsApp button pulse ---- */
-@keyframes wa-pulse {
+@keyframes pop {
   0% {
-    box-shadow: 0 0 0 0 rgb(37 211 102 / 0.5);
-  }
-  70% {
-    box-shadow: 0 0 0 16px rgb(37 211 102 / 0);
+    opacity: 0;
+    transform: scale(0.94);
   }
   100% {
-    box-shadow: 0 0 0 0 rgb(37 211 102 / 0);
+    opacity: 1;
+    transform: scale(1);
   }
 }
-.wa-pulse {
-  animation: wa-pulse 2.4s infinite;
+
+@keyframes kenburns {
+  0% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1.11);
+  }
 }
 
-/* ---- Gradient text accent ---- */
-.text-gradient {
-  background: linear-gradient(92deg, #ff9800 0%, #ffc370 55%, #ff9800 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-/* ---- Kente-inspired accent stripe (subtle, brand colours) ---- */
-.kente-stripe {
-  background: repeating-linear-gradient(
-    90deg,
-    #b22222 0 24px,
-    #ff9800 24px 40px,
-    #8b1a1a 40px 64px,
-    #e68900 64px 80px
-  );
-}
-
-/* ---- Fine film grain (adds depth to dark/photo sections) ---- */
-.noise {
-  position: relative;
-  isolation: isolate;
-}
-.noise::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-}
-
-/* ---- Dot grid texture for light sections ---- */
-.bg-dots {
-  background-image: radial-gradient(rgb(28 25 23 / 0.07) 1px, transparent 1px);
-  background-size: 22px 22px;
-}
-.bg-dots-dark {
-  background-image: radial-gradient(rgb(255 255 255 / 0.09) 1px, transparent 1px);
-  background-size: 22px 22px;
-}
-
-/* ---- Frosted glass panel ---- */
-.glass {
-  background: rgb(255 255 255 / 0.08);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgb(255 255 255 / 0.16);
-}
-
-/* ---- Giant outline watermark text ---- */
-.outline-text {
-  color: transparent;
-  -webkit-text-stroke: 1.5px rgb(28 25 23 / 0.08);
-}
-.outline-text-light {
-  color: transparent;
-  -webkit-text-stroke: 1.5px rgb(255 255 255 / 0.12);
-}
-
-/* ---- Gentle floating for hero badges ---- */
 @keyframes float-soft {
   0%,
   100% {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-12px);
+    transform: translateY(-10px);
   }
-}
-.animate-float {
-  animation: float-soft 5s ease-in-out infinite;
-}
-.animate-float-late {
-  animation: float-soft 5s ease-in-out 1.2s infinite;
 }
 
-/* ---- Slow spin for decorative rings ---- */
-@keyframes spin-slow {
-  to {
-    transform: rotate(360deg);
+@keyframes wa-pulse {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
   }
 }
-.animate-spin-slow {
-  animation: spin-slow 24s linear infinite;
+
+@keyframes ping-soft {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  75%,
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.animate-marquee {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: var(--animate-marquee);
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+.kenburns {
+  animation: kenburns 14s ease-out forwards;
+}
+.animate-float {
+  animation: float-soft 6s ease-in-out infinite;
+}
+.animate-float-late {
+  animation: float-soft 6s ease-in-out 1.4s infinite;
+}
+.wa-pulse {
+  animation: wa-pulse 2.6s infinite;
+}
+.ping-soft {
+  animation: ping-soft 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Scroll reveal — only applied once JS decides an element is below the fold,
+   so content is visible by default (no JS, print, crawlers, screenshots). */
+.reveal.reveal-hidden {
+  opacity: 0;
+  transform: translateY(18px);
+}
+.reveal {
+  transition: opacity 0.6s var(--ease-out-soft), transform 0.6s var(--ease-out-soft);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal.is-visible,
+.reveal.reveal-hidden.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media print {
+  .reveal,
+  .reveal.reveal-hidden {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* Skeleton loading */
+.skeleton {
+  background: linear-gradient(90deg, var(--color-ink-100) 25%, var(--color-ink-200) 37%, var(--color-ink-100) 63%);
+  background-size: 420px 100%;
+  animation: var(--animate-shimmer);
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .animate-marquee,
+  .kenburns,
   .animate-float,
   .animate-float-late,
-  .animate-spin-slow {
+  .wa-pulse,
+  .ping-soft,
+  .skeleton {
     animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
   }
 }
