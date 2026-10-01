@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Plus, Tags, UtensilsCrossed } from 'lucide-react';
 import { api } from '../../api';
-import { Alert, Btn, DeleteBtn, EmptyRow, Field, Input, Select, Textarea } from '../../components/ui';
+import {
+  Alert,
+  Btn,
+  DeleteBtn,
+  EmptyRow,
+  Field,
+  Input,
+  PageHeader,
+  Select,
+  Textarea,
+} from '../../components/ui';
 import type { Category, MenuItem } from '../../types';
 import { effectivePrice, ghs } from '../../utils';
 
@@ -72,10 +82,10 @@ function MenuFormModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <button type="button" aria-label="Close" onClick={onClose} className="absolute right-4 top-3 text-2xl leading-none text-gray-500 hover:text-gray-800">
+        <button type="button" aria-label="Close" onClick={onClose} className="absolute right-4 top-3 text-2xl leading-none text-ink-500 hover:text-ink-700">
           ×
         </button>
-        <h2 className="mb-4 text-xl font-bold text-mayford">{editing ? 'Edit Menu Item' : 'Add Menu Item'}</h2>
+        <h2 className="mb-4 text-[17px] font-extrabold tracking-tight text-ink-900">{editing ? 'Edit Menu Item' : 'Add Menu Item'}</h2>
         {f.saved && <Alert tone="green">{f.saved}</Alert>}
         {f.error && <Alert tone="red">{f.error}</Alert>}
         <form onSubmit={async (e) => {
@@ -143,22 +153,28 @@ export function AdminMenuItems() {
   }
 
   return (
-    <div className="rounded-2xl bg-white p-6 shadow-md">
-      <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-mayford">Menu Items</h1>
-        <Btn onClick={() => setModal({ open: true, editing: null })}>+ Add New Food</Btn>
-      </div>
+    <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+      <PageHeader
+        icon={UtensilsCrossed}
+        title="Menu items"
+        subtitle="Everything customers can order on the website"
+        action={
+          <Btn onClick={() => setModal({ open: true, editing: null })} icon={Plus}>
+            Add new food
+          </Btn>
+        }
+      />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse text-sm">
           <thead>
-            <tr className="bg-mayford text-left text-white">
-              <th className="p-3">ID</th>
-              <th className="p-3">Image</th>
-              <th className="p-3">Food Name</th>
-              <th className="p-3">Category</th>
-              <th className="p-3">Price</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Action</th>
+            <tr className="border-b border-ink-200 bg-ink-50/70 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-500">
+              <th className="px-4 py-3 text-ink-600">ID</th>
+              <th className="px-4 py-3 text-ink-600">Image</th>
+              <th className="px-4 py-3 text-ink-600">Food Name</th>
+              <th className="px-4 py-3 text-ink-600">Category</th>
+              <th className="px-4 py-3 text-ink-600">Price</th>
+              <th className="px-4 py-3 text-ink-600">Status</th>
+              <th className="px-4 py-3 text-ink-600">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -168,25 +184,25 @@ export function AdminMenuItems() {
               <EmptyRow colSpan={7} />
             ) : (
               items.map((i) => (
-                <tr key={i.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="p-3">{i.id}</td>
-                  <td className="p-3">
+                <tr key={i.id} className="transition hover:bg-ink-50/70">
+                  <td className="px-4 py-3 text-ink-600">{i.id}</td>
+                  <td className="px-4 py-3 text-ink-600">
                     <img src={`/assets/images/${i.image}`} alt="" className="h-20 w-32 rounded-lg object-cover" />
                   </td>
                   <td className="p-3 font-semibold">{i.food_name}</td>
-                  <td className="p-3">{i.category}</td>
-                  <td className="p-3">
+                  <td className="px-4 py-3 text-ink-600">{i.category}</td>
+                  <td className="px-4 py-3 text-ink-600">
                     {ghs(i.price)}
                     {i.discount_percent > 0 && (
                       <span className="ml-1 text-xs font-bold text-green-600">({ghs(effectivePrice(i))})</span>
                     )}
                   </td>
-                  <td className="p-3">
+                  <td className="px-4 py-3 text-ink-600">
                     <span className={`rounded-full px-3 py-1 text-xs font-bold ${i.status === 'available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                       {i.status}
                     </span>
                   </td>
-                  <td className="p-3">
+                  <td className="px-4 py-3 text-ink-600">
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -265,10 +281,10 @@ export function AdminCategories() {
   }
 
   return (
-    <div className="rounded-2xl bg-white p-6 shadow-md">
-      <h2 className="mb-5 text-2xl font-bold text-mayford">Menu Categories</h2>
+    <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+      <h2 className="mb-5 text-xl font-extrabold tracking-tight text-ink-900 md:text-2xl">Menu Categories</h2>
       {message && <Alert tone={message.tone}>{message.text}</Alert>}
-      <form onSubmit={add} className="mb-6 flex max-w-md gap-2">
+      <form onSubmit={add} className="mb-6 flex max-w-md flex-wrap gap-2">
         <Input placeholder="Enter Category Name" value={name} onChange={(e) => setName(e.target.value)} required />
         <Btn type="submit" disabled={busy}>
           Add Category
@@ -277,10 +293,10 @@ export function AdminCategories() {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[520px] border-collapse text-sm">
           <thead>
-            <tr className="bg-mayford text-left text-white">
-              <th className="p-3">ID</th>
-              <th className="p-3">Category Name</th>
-              <th className="p-3">Action</th>
+            <tr className="border-b border-ink-200 bg-ink-50/70 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-500">
+              <th className="px-4 py-3 text-ink-600">ID</th>
+              <th className="px-4 py-3 text-ink-600">Category Name</th>
+              <th className="px-4 py-3 text-ink-600">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -290,9 +306,9 @@ export function AdminCategories() {
               <EmptyRow colSpan={3} />
             ) : (
               categories.map((c) => (
-                <tr key={c.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="p-3">{c.id}</td>
-                  <td className="p-3">
+                <tr key={c.id} className="transition hover:bg-ink-50/70">
+                  <td className="px-4 py-3 text-ink-600">{c.id}</td>
+                  <td className="px-4 py-3 text-ink-600">
                     {editing?.id === c.id ? (
                       <form onSubmit={saveEdit} className="flex gap-2">
                         <Input value={editName} onChange={(e) => setEditName(e.target.value)} required className="max-w-xs" />
@@ -307,7 +323,7 @@ export function AdminCategories() {
                       <span className="font-semibold">{c.category_name}</span>
                     )}
                   </td>
-                  <td className="p-3">
+                  <td className="px-4 py-3 text-ink-600">
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -362,19 +378,23 @@ export function AdminDiscounts() {
   }
 
   return (
-    <div className="rounded-2xl bg-white p-6 shadow-md">
-      <h1 className="mb-2 text-2xl font-bold text-mayford">Discounts</h1>
-      <p className="mb-5 text-sm text-gray-600">Set a discount percentage for any food item (0 = no discount).</p>
+    <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+      <PageHeader
+        icon={Tags}
+        title="Discounts"
+        subtitle="Run percentage deals on individual dishes"
+      />
+      <p className="mb-5 text-sm text-ink-500">Set a discount percentage for any food item (0 = no discount).</p>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[680px] border-collapse text-sm">
           <thead>
-            <tr className="bg-mayford text-left text-white">
-              <th className="p-3">Image</th>
-              <th className="p-3">Food Name</th>
-              <th className="p-3">Price</th>
-              <th className="p-3">Current Discount</th>
-              <th className="p-3">New Discount %</th>
-              <th className="p-3">Action</th>
+            <tr className="border-b border-ink-200 bg-ink-50/70 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-500">
+              <th className="px-4 py-3 text-ink-600">Image</th>
+              <th className="px-4 py-3 text-ink-600">Food Name</th>
+              <th className="px-4 py-3 text-ink-600">Price</th>
+              <th className="px-4 py-3 text-ink-600">Current Discount</th>
+              <th className="px-4 py-3 text-ink-600">New Discount %</th>
+              <th className="px-4 py-3 text-ink-600">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -386,18 +406,18 @@ export function AdminDiscounts() {
               [...items]
                 .sort((a, b) => a.food_name.localeCompare(b.food_name))
                 .map((i) => (
-                  <tr key={i.id} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="p-3">
+                  <tr key={i.id} className="transition hover:bg-ink-50/70">
+                    <td className="px-4 py-3 text-ink-600">
                       <img src={`/assets/images/${i.image}`} alt="" className="h-14 w-20 rounded-lg object-cover" />
                     </td>
                     <td className="p-3 font-semibold">{i.food_name}</td>
-                    <td className="p-3">{ghs(i.price)}</td>
-                    <td className="p-3">
-                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${i.discount_percent > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                    <td className="px-4 py-3 text-ink-600">{ghs(i.price)}</td>
+                    <td className="px-4 py-3 text-ink-600">
+                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${i.discount_percent > 0 ? 'bg-green-100 text-green-800' : 'bg-ink-100 text-ink-500'}`}>
                         {i.discount_percent > 0 ? `${i.discount_percent}% OFF → ${ghs(effectivePrice(i))}` : 'No discount'}
                       </span>
                     </td>
-                    <td className="p-3">
+                    <td className="px-4 py-3 text-ink-600">
                       <Input
                         type="number"
                         min={0}
@@ -407,7 +427,7 @@ export function AdminDiscounts() {
                         className="w-24"
                       />
                     </td>
-                    <td className="p-3">
+                    <td className="px-4 py-3 text-ink-600">
                       {savedId === i.id ? (
                         <span className="flex items-center gap-1.5 text-xs font-bold text-green-600">
                           <Check className="h-3.5 w-3.5" /> Saved

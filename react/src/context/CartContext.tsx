@@ -14,6 +14,7 @@ interface CartContextValue {
   count: number;
   total: number;
   addItem: (item: MenuItem) => void;
+  setQuantity: (id: number, quantity: number) => void;
   removeItem: (id: number) => void;
   clear: () => void;
 }
@@ -53,6 +54,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
             { id: item.id, food_name: item.food_name, price, image: item.image, quantity: 1 },
           ];
         }),
+      setQuantity: (id: number, quantity: number) =>
+        setItems((prev) =>
+          quantity <= 0
+            ? prev.filter((i) => i.id !== id)
+            : prev.map((i) => (i.id === id ? { ...i, quantity: Math.min(99, quantity) } : i))
+        ),
       removeItem: (id: number) => setItems((prev) => prev.filter((i) => i.id !== id)),
       clear: () => setItems([]),
     };

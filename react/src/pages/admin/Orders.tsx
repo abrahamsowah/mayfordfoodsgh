@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api } from '../../api';
 import type { Order } from '../../types';
-import { Btn, EmptyRow, Input } from '../../components/ui';
+import {
+  Badge,
+  Btn,
+  Button,
+  Chip,
+  EmptyRow,
+  Input,
+  PageHeader,
+  StatusPill,
+} from '../../components/ui';
 import { ghs } from '../../utils';
+import { CircleDollarSign, Download, Receipt, Search } from 'lucide-react';
 
 const STATUS_FILTERS = ['All', 'Pending', 'Preparing', 'Ready', 'Completed'];
-const STATUS_STYLES: Record<string, string> = {
-  Pending: 'bg-orange-100 text-orange-800',
-  Preparing: 'bg-blue-100 text-blue-800',
-  Ready: 'bg-indigo-100 text-indigo-800',
-  Completed: 'bg-green-100 text-green-800',
-};
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -48,97 +52,122 @@ export default function AdminOrders() {
   }
 
   return (
-    <div className="rounded-2xl bg-white p-6 shadow-md">
-      <h1 className="mb-5 text-2xl font-bold text-mayford">Customer Orders</h1>
+    <div className="space-y-5">
+      <PageHeader
+        icon={Receipt}
+        title="Customer orders"
+        subtitle="Track, update and close orders from both outlets"
+        action={
+          <div className="flex items-center gap-2">
+            <Badge tone="neutral" icon={CircleDollarSign}>
+              {orders ? `${orders.length} shown` : 'Loading'}
+            </Badge>
+            <Button variant="outline" size="sm" icon={Download} onClick={() => window.print()}>
+              Print
+            </Button>
+          </div>
+        }
+      />
 
-      <form onSubmit={doSearch} className="mb-4 flex flex-wrap items-center gap-2">
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search customer or phone"
-          className="max-w-xs"
-        />
-        <Btn type="submit">Search</Btn>
-      </form>
-
-      <div className="mb-5 flex flex-wrap gap-2">
-        {STATUS_FILTERS.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setStatus(s === 'All' ? '' : s)}
-            className={`rounded-md px-4 py-2 text-sm font-bold text-white ${
-              (s === 'All' ? '' : s) === status ? 'bg-mayford-dark ring-2 ring-mayford' : 'bg-mayford hover:bg-mayford-dark'
-            }`}
-          >
-            {s}
-          </button>
-        ))}
-      </div>
+      <div className="rounded-card border border-ink-200 bg-white shadow-xs">
+        <div className="flex flex-wrap items-center gap-3 border-b border-ink-100 p-4">
+          <form onSubmit={doSearch} className="flex flex-1 items-center gap-2">
+            <div className="relative w-full max-w-sm">
+              <Search
+                className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
+                strokeWidth={2.3}
+              />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search customer or phone"
+                className="!h-11 pl-11"
+              />
+            </div>
+            <Btn type="submit" size="md">
+              Search
+            </Btn>
+          </form>
+          <div className="flex flex-wrap gap-2">
+            {STATUS_FILTERS.map((s) => (
+              <Chip
+                key={s}
+                active={(s === 'All' ? '' : s) === status}
+                onClick={() => setStatus(s === 'All' ? '' : s)}
+                className="!h-9 !px-3.5 !text-[12.5px]"
+              >
+                {s}
+              </Chip>
+            ))}
+          </div>
+        </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] border-collapse text-sm">
+        <table className="w-full min-w-[1000px] border-collapse text-[13.5px]">
           <thead>
-            <tr className="bg-mayford text-left text-white">
-              <th className="p-3">ID</th>
-              <th className="p-3">Customer</th>
-              <th className="p-3">Phone</th>
-              <th className="p-3">Outlet</th>
-              <th className="p-3">Order Type</th>
-              <th className="p-3">Address</th>
-              <th className="p-3">Order Details</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Actions</th>
-              <th className="p-3">Total</th>
-              <th className="p-3">Date</th>
+            <tr className="border-b border-ink-200 bg-ink-50/70 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-500">
+              <th className="px-4 py-3">Order</th>
+              <th className="px-4 py-3">Customer</th>
+              <th className="px-4 py-3">Outlet</th>
+              <th className="px-4 py-3">Type</th>
+              <th className="px-4 py-3">Details</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Update</th>
+              <th className="px-4 py-3 text-right">Total</th>
+              <th className="px-4 py-3">Date</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-ink-100">
             {!orders ? (
-              <EmptyRow colSpan={11} text="Loading orders…" />
+              <EmptyRow colSpan={9} text="Loading orders…" />
             ) : orders.length === 0 ? (
-              <EmptyRow colSpan={11} />
+              <EmptyRow colSpan={9} text="No orders match these filters yet." />
             ) : (
               orders.map((o) => (
-                <tr key={o.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="p-3">{o.id}</td>
-                  <td className="p-3 font-semibold">{o.customer_name}</td>
-                  <td className="p-3">{o.phone}</td>
-                  <td className="p-3">{o.outlet}</td>
-                  <td className="p-3">{o.order_type}</td>
-                  <td className="p-3">{o.address || '—'}</td>
-                  <td className="max-w-[220px] p-3 whitespace-pre-wrap">{o.order_details || '—'}</td>
-                  <td className="p-3">
-                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${STATUS_STYLES[o.status] || 'bg-gray-100 text-gray-800'}`}>
-                      {o.status}
-                    </span>
+                <tr key={o.id} className="transition hover:bg-ink-50/70">
+                  <td className="px-4 py-3">
+                    <span className="font-extrabold tabular-nums text-ink-900">#{o.id}</span>
                   </td>
-                  <td className="p-3">
-                    <div className="flex flex-wrap gap-1">
-                      {['Preparing', 'Ready', 'Completed'].map((s) => (
+                  <td className="px-4 py-3">
+                    <p className="font-bold text-ink-900">{o.customer_name}</p>
+                    <p className="text-[12px] text-ink-400">{o.phone}</p>
+                    {o.address && <p className="mt-0.5 max-w-[200px] truncate text-[12px] text-ink-400">{o.address}</p>}
+                  </td>
+                  <td className="px-4 py-3">{o.outlet}</td>
+                  <td className="px-4 py-3">{o.order_type}</td>
+                  <td className="max-w-[240px] whitespace-pre-wrap px-4 py-3 text-[12.5px]">{o.order_details || '—'}</td>
+                  <td className="px-4 py-3">
+                    <StatusPill status={o.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {['Preparing', 'Ready', 'Completed'].map((st) => (
                         <button
-                          key={s}
+                          key={st}
                           type="button"
-                          disabled={busyId === o.id || o.status === s}
-                          onClick={() => setStatusFor(o, s)}
-                          className={`rounded px-2 py-1 text-xs font-bold ${
-                            o.status === s
-                              ? 'bg-gray-200 text-gray-400'
-                              : 'bg-mayford text-white hover:bg-mayford-dark disabled:opacity-50'
+                          disabled={busyId === o.id || o.status === st}
+                          onClick={() => setStatusFor(o, st)}
+                          className={`rounded-pill px-3 py-1.5 text-[11.5px] font-extrabold transition ${
+                            o.status === st
+                              ? 'bg-ink-100 text-ink-400'
+                              : 'bg-ink-900 text-white hover:bg-mayford-600 disabled:opacity-50'
                           }`}
                         >
-                          {s}
+                          {st}
                         </button>
                       ))}
                     </div>
                   </td>
-                  <td className="p-3 font-bold">{ghs(o.total)}</td>
-                  <td className="p-3 whitespace-nowrap">{String(o.order_date).slice(0, 16).replace('T', ' ')}</td>
+                  <td className="px-4 py-3 text-right font-extrabold tabular-nums text-ink-900">{ghs(o.total)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-[12.5px]">
+                    {String(o.order_date).slice(0, 16).replace('T', ' ')}
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
     </div>
   );

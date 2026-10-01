@@ -1,18 +1,46 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
+import {
+  ArrowLeft,
+  Bike,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Minus,
+  MessageCircle,
+  Plus,
+  Store,
+  UtensilsCrossed,
+} from 'lucide-react';
 import { api } from '../api';
 import { useSettings } from '../components/SiteLayout';
-import { Alert, Btn, Field, Input, Section, Select, Textarea } from '../components/ui';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  IconTile,
+  Input,
+  LinkBtn,
+  Section,
+  Sheet,
+  Textarea,
+} from '../components/ui';
 import type { MenuItem } from '../types';
 import { effectivePrice, ghs, outletWhatsApp, waLink } from '../utils';
 
-/** Single-item quick order (original order.php?id=) */
 export default function OrderPage() {
   const { id } = useParams<{ id: string }>();
   const [food, setFood] = useState<MenuItem | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+  const [outlet, setOutlet] = useState<'Adabraka' | 'Dzorwulu'>('Adabraka');
+  const [orderType, setOrderType] = useState<'Pickup' | 'Delivery'>('Pickup');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [placedHref, setPlacedHref] = useState<string | null>(null);
   const { settings } = useSettings();
 
   useEffect(() => {
@@ -25,25 +53,38 @@ export default function OrderPage() {
 
   if (notFound) {
     return (
-      <Section>
-        <p className="text-center text-stone-500">Food item not found. It may have been removed from the menu.</p>
+      <Section className="!py-16">
+        <EmptyState
+          icon={UtensilsCrossed}
+          title="That dish is no longer on the menu"
+          text="It may have been removed or renamed. Browse the menu to see what is available today."
+          action={
+            <LinkBtn href="/menu" variant="primary" size="lg" icon={UtensilsCrossed}>
+              Browse the menu
+            </LinkBtn>
+          }
+        />
       </Section>
     );
   }
 
   if (!food) {
     return (
-      <Section>
-        <p className="text-center text-stone-500">Loading…</p>
+      <Section className="!py-16">
+        <div className="mx-auto max-w-4xl animate-pulse space-y-4">
+          <div className="skeleton h-72 rounded-card" />
+        </div>
       </Section>
     );
   }
 
+  const unit = effectivePrice(food);
+  const lineTotal = unit * quantity;
+
   async function placeOrder(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = Object.fromEntries(new FormData(e.currentTarget).entries());
-    const quantity = Math.max(1, Number(fd.quantity || 1));
-    const total = effectivePrice(food!) * quantity;
+    const form = e.currentTarget;
+    const fd = Object.fromEntries(new FormData(form).entries());
     setBusy(true);
     setError('');
     try {
@@ -52,24 +93,22 @@ export default function OrderPage() {
         phone: String(fd.phone || ''),
         food_item: food!.food_name,
         quantity,
-        outlet: String(fd.outlet || ''),
-        order_type: String(fd.order_type || ''),
-        address: String(fd.address || ''),
+        outlet,
+        order_type: orderType,
+        address: orderType === 'Delivery' ? String(fd.address || '') : '',
         order_details: `${food!.food_name} x ${quantity}`,
-        total,
+        total: lineTotal,
       });
-      const outlet = String(fd.outlet || 'Adabraka');
       const message =
         `NEW MAYFORD FOODS ORDER\n` +
         `Customer: ${fd.customer_name}\n` +
         `Phone: ${fd.phone}\n` +
-        `Food: ${food!.food_name}\n` +
-        `Quantity: ${quantity}\n` +
+        `Food: ${food!.food_name} x ${quantity}\n` +
         `Outlet: ${outlet}\n` +
-        `Order Type: ${fd.order_type}\n` +
-        `Address: ${fd.address}\n` +
-        `Total: ${ghs(total)}`;
-      window.open(waLink(outletWhatsApp(outlet, settings), message), '_blank');
+        `Order Type: ${orderType}\n` +
+        (orderType === 'Delivery' ? `Address: ${fd.address || '-'}\n` : '') +
+        `TOTAL: ${ghs(lineTotal)}`;
+      setPlacedHref(waLink(outletWhatsApp(outlet, settings), message));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -78,60 +117,200 @@ export default function OrderPage() {
   }
 
   return (
-    <Section>
-      <div className="mx-auto grid max-w-4xl gap-8 overflow-hidden rounded-[2.5rem] bg-white shadow-lift ring-1 ring-stone-900/5 lg:grid-cols-2">
-        {/* Image side */}
-        <div className="relative min-h-[280px]">
-          <img src={`/assets/images/${food.image}`} alt={food.food_name} className="absolute inset-0 h-full w-full object-cover" />
-          <span className="absolute left-5 top-5 rounded-full bg-white/90 px-4 py-1.5 text-xs font-extrabold uppercase tracking-widest text-mayford-700 backdrop-blur">
-            {food.category}
-          </span>
-        </div>
-        {/* Form side */}
-        <div className="p-7 md:p-10">
-          <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-flame-600">Quick Order</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-stone-900">{food.food_name}</h1>
-          <p className="mt-2 text-2xl font-extrabold text-mayford-700">{ghs(effectivePrice(food))}</p>
-          {error && <Alert tone="red">{error}</Alert>}
-          <form onSubmit={placeOrder} className="mt-6">
-            <Field label="Your Name">
-              <Input name="customer_name" placeholder="Your Name" required />
-            </Field>
-            <div className="grid gap-x-4 sm:grid-cols-2">
-              <Field label="Phone Number">
-                <Input name="phone" placeholder="Phone Number" required />
-              </Field>
-              <Field label="Quantity">
-                <Input name="quantity" type="number" min={1} defaultValue={1} required />
-              </Field>
-              <Field label="Outlet">
-                <Select name="outlet" required defaultValue="">
-                  <option value="" disabled>
-                    Select Outlet
-                  </option>
-                  <option value="Adabraka">Adabraka</option>
-                  <option value="Dzorwulu">Dzorwulu</option>
-                </Select>
-              </Field>
-              <Field label="Order Type">
-                <Select name="order_type" required defaultValue="">
-                  <option value="" disabled>
-                    Order Type
-                  </option>
-                  <option value="Pickup">Pickup</option>
-                  <option value="Delivery">Delivery</option>
-                </Select>
-              </Field>
+    <>
+      <Section className="!py-8 md:!py-12">
+        <Link
+          to="/menu"
+          className="mb-5 inline-flex items-center gap-2 text-[13px] font-bold text-ink-500 transition hover:text-ink-900"
+        >
+          <ArrowLeft className="h-4 w-4" strokeWidth={2.4} /> Back to menu
+        </Link>
+
+        <div className="grid gap-6 lg:grid-cols-[1fr_1.05fr] lg:items-start">
+          <Card className="overflow-hidden lg:sticky lg:top-24">
+            <img src={`/assets/images/${food.image}`} alt={food.food_name} className="aspect-[4/3] w-full object-cover" />
+            <div className="p-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="brand" icon={UtensilsCrossed}>
+                  {food.category}
+                </Badge>
+                <Badge tone="neutral" icon={Clock}>
+                  25–35 min
+                </Badge>
+                {Number(food.discount_percent || 0) > 0 && (
+                  <Badge tone="flame">{food.discount_percent}% off today</Badge>
+                )}
+              </div>
+              <p className="mt-4 text-[14px] leading-relaxed text-ink-500">{food.description}</p>
             </div>
-            <Field label="Delivery Address (if delivery)">
-              <Textarea name="address" rows={3} placeholder="Delivery Address (if delivery)" />
-            </Field>
-            <Btn type="submit" disabled={busy} className="w-full !py-3.5">
-              {busy ? 'Placing Order…' : 'Place Order →'}
-            </Btn>
-          </form>
+          </Card>
+
+          <div>
+            <h1 className="text-[1.75rem] font-extrabold leading-tight tracking-tight text-ink-900 md:text-[2.25rem]">
+              {food.food_name}
+            </h1>
+            <div className="mt-3 flex items-baseline gap-3">
+              <span className="text-[1.75rem] font-extrabold tabular-nums text-mayford-700">{ghs(lineTotal)}</span>
+              {Number(food.discount_percent || 0) > 0 && (
+                <del className="text-[15px] font-semibold text-ink-400">{ghs(food.price * quantity)}</del>
+              )}
+              <span className="text-[12.5px] font-semibold text-ink-400">for {quantity}</span>
+            </div>
+
+            {error && (
+              <div className="mt-4">
+                <Alert tone="red">{error}</Alert>
+              </div>
+            )}
+
+            <form onSubmit={placeOrder} className="mt-6 space-y-5">
+              {/* Quantity */}
+              <Card className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <IconTile icon={UtensilsCrossed} tone="light" size="sm" />
+                  <div>
+                    <p className="text-[14px] font-extrabold text-ink-900">Quantity</p>
+                    <p className="text-[12px] text-ink-500">How many plates?</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 rounded-pill border border-ink-200 p-1">
+                  <button
+                    type="button"
+                    aria-label="Decrease quantity"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    disabled={quantity <= 1}
+                    className="flex h-10 w-10 items-center justify-center rounded-pill text-ink-600 transition hover:bg-ink-100 disabled:opacity-30"
+                  >
+                    <Minus className="h-4 w-4" strokeWidth={2.6} />
+                  </button>
+                  <span className="min-w-8 text-center text-[16px] font-extrabold tabular-nums text-ink-900">{quantity}</span>
+                  <button
+                    type="button"
+                    aria-label="Increase quantity"
+                    onClick={() => setQuantity((q) => Math.min(99, q + 1))}
+                    className="flex h-10 w-10 items-center justify-center rounded-pill bg-ink-900 text-white transition hover:bg-mayford-600"
+                  >
+                    <Plus className="h-4 w-4" strokeWidth={2.6} />
+                  </button>
+                </div>
+              </Card>
+
+              {/* Outlet + type */}
+              <Card className="p-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="mb-2 text-[13px] font-bold text-ink-700">Branch</p>
+                    <div className="grid gap-2">
+                      {(['Adabraka', 'Dzorwulu'] as const).map((o) => (
+                        <button
+                          key={o}
+                          type="button"
+                          onClick={() => setOutlet(o)}
+                          aria-pressed={outlet === o}
+                          className={`flex items-center gap-3 rounded-tile border px-3.5 py-3 text-left transition ${
+                            outlet === o ? 'border-mayford-600 bg-mayford-50/60' : 'border-ink-200 hover:border-ink-300'
+                          }`}
+                        >
+                          <Store
+                            className={`h-4 w-4 shrink-0 ${outlet === o ? 'text-mayford-600' : 'text-ink-400'}`}
+                            strokeWidth={2.3}
+                          />
+                          <span className="text-[13.5px] font-bold text-ink-900">{o}</span>
+                          {outlet === o && <CheckCircle2 className="ml-auto h-4 w-4 text-mayford-600" strokeWidth={2.5} />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-2 text-[13px] font-bold text-ink-700">How do you want it?</p>
+                    <div className="grid gap-2">
+                      {(
+                        [
+                          { value: 'Pickup', icon: Store, hint: 'Collect in store' },
+                          { value: 'Delivery', icon: Bike, hint: 'Bring it to me' },
+                        ] as const
+                      ).map((t) => (
+                        <button
+                          key={t.value}
+                          type="button"
+                          onClick={() => setOrderType(t.value)}
+                          aria-pressed={orderType === t.value}
+                          className={`flex items-center gap-3 rounded-tile border px-3.5 py-3 text-left transition ${
+                            orderType === t.value ? 'border-mayford-600 bg-mayford-50/60' : 'border-ink-200 hover:border-ink-300'
+                          }`}
+                        >
+                          <t.icon
+                            className={`h-4 w-4 shrink-0 ${orderType === t.value ? 'text-mayford-600' : 'text-ink-400'}`}
+                            strokeWidth={2.3}
+                          />
+                          <span className="text-[13.5px] font-bold text-ink-900">{t.value}</span>
+                          <span className="ml-auto text-[11.5px] font-semibold text-ink-400">{t.hint}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Contact */}
+              <Card className="p-5">
+                <h2 className="mb-4 text-[14px] font-extrabold text-ink-900">Your details</h2>
+                <div className="grid gap-x-4 sm:grid-cols-2">
+                  <Field label="Full name">
+                    <Input name="customer_name" placeholder="e.g. Kojo Asante" required />
+                  </Field>
+                  <Field label="Phone number">
+                    <Input name="phone" inputMode="tel" placeholder="024 000 0000" required />
+                  </Field>
+                </div>
+                {orderType === 'Delivery' && (
+                  <Field label="Delivery address" hint="Add a landmark to help the rider.">
+                    <Textarea name="address" rows={3} placeholder="e.g. Osu, Oxford Street, near the pharmacy" required />
+                  </Field>
+                )}
+              </Card>
+
+              <div className="flex items-baseline justify-between rounded-card border border-ink-200 bg-white px-5 py-4">
+                <span className="text-[14px] font-bold text-ink-700">
+                  Total · {quantity} × {ghs(unit)}
+                </span>
+                <span className="text-[22px] font-extrabold tabular-nums tracking-tight text-ink-900">{ghs(lineTotal)}</span>
+              </div>
+
+              <Button type="submit" variant="primary" size="lg" full loading={busy} iconRight={ChevronRight}>
+                {busy ? 'Placing order…' : 'Place order'}
+              </Button>
+              <p className="text-center text-[12.5px] text-ink-500">
+                We will open WhatsApp so you can confirm with the {outlet} branch.
+              </p>
+            </form>
+          </div>
         </div>
-      </div>
-    </Section>
+      </Section>
+
+      <Sheet
+        open={!!placedHref}
+        onClose={() => setPlacedHref(null)}
+        title="Order received"
+        subtitle="Confirm it with the branch on WhatsApp."
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-card border border-success-100 bg-success-50 p-4 text-[13.5px] leading-relaxed text-success-700">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" strokeWidth={2.4} />
+            <p>
+              <strong>{food.food_name}</strong> × {quantity} sent to the {outlet} branch. Open WhatsApp to confirm your
+              total and {orderType === 'Delivery' ? 'delivery time' : 'pickup time'}.
+            </p>
+          </div>
+          <LinkBtn href={placedHref || '#'} external variant="whatsapp" size="lg" full icon={MessageCircle}>
+            Open WhatsApp to confirm
+          </LinkBtn>
+          <LinkBtn href="/menu" variant="ghost" size="lg" full>
+            Back to the menu
+          </LinkBtn>
+        </div>
+      </Sheet>
+    </>
   );
 }

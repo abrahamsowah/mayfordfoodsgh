@@ -29,6 +29,29 @@ All original features are preserved:
 - **Roles** — `super_admin` (mainadmin), `adabraka_admin` (adabraka) and
   `dzorwulu_admin` (dzorwulu) see only their outlet's orders, exactly like before.
 
+## Design system
+
+The frontend is built on a single, documented system instead of per-page styles:
+
+- **Tokens** — `react/src/index.css` (`@theme`): brand red / flame orange scales, a warm neutral
+  `ink` scale, semantic colours, radii, elevation (`shadow-xs → shadow-pop`) and motion easings.
+- **Icons** — **lucide-react everywhere** (one stroke weight per context; `IconTile`, `Badge` and
+  `Button` accept any `LucideIcon`). No emoji, no hand-drawn SVGs in UI.
+- **Primitives** — `react/src/components/ui.tsx`: `Button`/`LinkBtn` (7 variants × 3 sizes),
+  `Badge`, `Chip`, `Card`, `IconTile`, `Input`/`Select`/`Textarea`/`SearchInput`, `QtyStepper`,
+  `Sheet` (bottom-sheet on mobile, dialog on desktop), `Alert`, `Skeleton`, `EmptyState`, `Panel`,
+  `DataTable`, `StatusPill`, `Stars`, `RatingPill`.
+- **Patterns** — `react/src/components/FoodCard.tsx` (`FoodCard` grid card + `FoodRow` compact row with
+  the floating add-to-cart button), site shell in `SiteLayout.tsx` (sticky header, branch sheet,
+  mobile tab bar with *More* sheet, support hub with feedback/rating sheets), admin shell in
+  `AdminLayout.tsx` (grouped sidebar, notification badge, top bar).
+- **Motion** — `Reveal` only hides content that is genuinely below the fold (with a watchdog so
+  content can never be stuck invisible), `CountUp` falls back to the final value, and every effect
+  respects `prefers-reduced-motion`.
+
+Order flow: menu → cart (qty steppers, live totals) → checkout (delivery/pickup + branch choice) →
+order stored in `orders` → confirmation sheet opens WhatsApp with the encoded order.
+
 ## 1. Create the database
 
 Copy the SQL and import it (phpMyAdmin → Import, or CLI):
