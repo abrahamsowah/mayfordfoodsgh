@@ -9,11 +9,22 @@ import { effectivePrice } from '../utils';
  */
 const STORAGE_KEY = 'mayford_cart';
 
+export interface ReorderLine {
+  id: number;
+  food_name: string;
+  price: number;
+  image: string;
+  quantity: number;
+}
+
 interface CartContextValue {
   items: CartItem[];
   count: number;
   total: number;
   addItem: (item: MenuItem) => void;
+  /** Bulk add (used by "Order again" from order history). */
+  addLines: (lines: ReorderLine[]) => void;
+  setQuantity: (id: number, quantity: number) => void;
   removeItem: (id: number) => void;
   clear: () => void;
 }
@@ -52,6 +63,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
             ...prev,
             { id: item.id, food_name: item.food_name, price, image: item.image, quantity: 1 },
           ];
+        }),
+      setQuantity: (id: number, quantity: number) =>
+        setItems((prev) =>
+          quantity <= 0
+            ? prev.filter((i) => i.id !== id)
+            : prev.map((i) => (i.id === id ? { ...i, quantity: Math.min(99, quantity) } : i))
+        ),
+      addLines: (lines: ReorderLine[]) =>
+        setItems((prev) => {
+          const next = [...prev];
+          for (const line of lines) {
+            const existing = next.find((i) => i.id === line.id);
+            if (existing) existing.quantity = Math.min(99, existing.quantity + line.quantity);
+            else next.push({ id: line.id, food_name: line.food_name, price: line.price, image: line.image, quantity: Math.min(99, line.quantity) });
+          }
+          return next;
         }),
       removeItem: (id: number) => setItems((prev) => prev.filter((i) => i.id !== id)),
       clear: () => setItems([]),

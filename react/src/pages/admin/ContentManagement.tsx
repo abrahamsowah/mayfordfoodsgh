@@ -44,8 +44,8 @@ export function AdminAdverts() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-white p-6 shadow-md">
-        <h1 className="mb-4 text-2xl font-bold text-mayford">Add Advertisement Banner</h1>
+      <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+        <h1 className="mb-4 text-xl font-extrabold tracking-tight text-ink-900 md:text-2xl">Add Advertisement Banner</h1>
         {saved && <Alert tone="green">{saved}</Alert>}
         {error && <Alert tone="red">{error}</Alert>}
         <form onSubmit={add} className="grid gap-0 md:grid-cols-2">
@@ -80,18 +80,18 @@ export function AdminAdverts() {
         </form>
       </div>
 
-      <div className="rounded-2xl bg-white p-6 shadow-md">
-        <h2 className="mb-4 text-xl font-bold text-mayford">Existing Advertisements</h2>
+      <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+        <h2 className="mb-4 text-[17px] font-extrabold tracking-tight text-ink-900">Existing Advertisements</h2>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px] border-collapse text-sm">
             <thead>
-              <tr className="bg-mayford text-left text-white">
-                <th className="p-3">ID</th>
-                <th className="p-3">Image</th>
-                <th className="p-3">Title</th>
-                <th className="p-3">Button</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Action</th>
+              <tr className="border-b border-ink-200 bg-ink-50/70 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-500">
+                <th className="px-4 py-3 text-ink-600">ID</th>
+                <th className="px-4 py-3 text-ink-600">Image</th>
+                <th className="px-4 py-3 text-ink-600">Title</th>
+                <th className="px-4 py-3 text-ink-600">Button</th>
+                <th className="px-4 py-3 text-ink-600">Status</th>
+                <th className="px-4 py-3 text-ink-600">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -101,9 +101,9 @@ export function AdminAdverts() {
                 <EmptyRow colSpan={6} />
               ) : (
                 adverts.map((a) => (
-                  <tr key={a.id} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="p-3">{a.id}</td>
-                    <td className="p-3">
+                  <tr key={a.id} className="transition hover:bg-ink-50/70">
+                    <td className="px-4 py-3 text-ink-600">{a.id}</td>
+                    <td className="px-4 py-3 text-ink-600">
                       <img
                         src={`/assets/adverts/${a.banner_image}`}
                         onError={(e) => ((e.target as HTMLImageElement).src = `/assets/images/${a.banner_image}`)}
@@ -112,13 +112,13 @@ export function AdminAdverts() {
                       />
                     </td>
                     <td className="p-3 font-semibold">{a.title}</td>
-                    <td className="p-3">{a.button_text} → {a.button_link}</td>
-                    <td className="p-3">
-                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${a.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>
+                    <td className="px-4 py-3 text-ink-600">{a.button_text} → {a.button_link}</td>
+                    <td className="px-4 py-3 text-ink-600">
+                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${a.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-ink-600'}`}>
                         {a.status}
                       </span>
                     </td>
-                    <td className="p-3">
+                    <td className="px-4 py-3 text-ink-600">
                       <DeleteBtn onConfirm={() => remove(a)} />
                     </td>
                   </tr>
@@ -169,9 +169,9 @@ export function AdminBanners() {
   }
 
   return (
-    <div className="rounded-2xl bg-white p-6 shadow-md">
-      <h2 className="mb-4 text-2xl font-bold text-mayford">Manage Banners</h2>
-      <p className="mb-4 text-sm text-gray-600">These messages scroll in the orange banner at the top of every page.</p>
+    <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+      <h2 className="mb-4 text-xl font-extrabold tracking-tight text-ink-900 md:text-2xl">Manage Banners</h2>
+      <p className="mb-4 text-sm text-ink-500">These messages scroll in the orange banner at the top of every page.</p>
       {error && <Alert tone="red">{error}</Alert>}
       <form onSubmit={add} className="mb-6 flex max-w-xl gap-2">
         <Input placeholder="Enter banner message" value={text} onChange={(e) => setText(e.target.value)} required />
@@ -182,11 +182,11 @@ export function AdminBanners() {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[520px] border-collapse text-sm">
           <thead>
-            <tr className="bg-mayford text-left text-white">
-              <th className="p-3">ID</th>
-              <th className="p-3">Message</th>
-              <th className="p-3">Created</th>
-              <th className="p-3">Action</th>
+            <tr className="border-b border-ink-200 bg-ink-50/70 text-[11px] font-extrabold uppercase tracking-[0.12em] text-ink-500">
+              <th className="px-4 py-3 text-ink-600">ID</th>
+              <th className="px-4 py-3 text-ink-600">Message</th>
+              <th className="px-4 py-3 text-ink-600">Created</th>
+              <th className="px-4 py-3 text-ink-600">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -196,11 +196,11 @@ export function AdminBanners() {
               <EmptyRow colSpan={4} />
             ) : (
               banners.map((b) => (
-                <tr key={b.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="p-3">{b.id}</td>
+                <tr key={b.id} className="transition hover:bg-ink-50/70">
+                  <td className="px-4 py-3 text-ink-600">{b.id}</td>
                   <td className="p-3 font-semibold">{b.banner_text}</td>
                   <td className="p-3 whitespace-nowrap">{String(b.created_at).slice(0, 16).replace('T', ' ')}</td>
-                  <td className="p-3">
+                  <td className="px-4 py-3 text-ink-600">
                     <DeleteBtn onConfirm={() => remove(b)} />
                   </td>
                 </tr>
@@ -253,8 +253,8 @@ export function AdminSlides() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-white p-6 shadow-md">
-        <h2 className="mb-4 text-xl font-bold text-mayford">Add Hero Slide</h2>
+      <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+        <h2 className="mb-4 text-[17px] font-extrabold tracking-tight text-ink-900">Add Hero Slide</h2>
         {saved && <Alert tone="green">{saved}</Alert>}
         {error && <Alert tone="red">{error}</Alert>}
         <form onSubmit={add} className="flex flex-wrap items-end gap-3">
@@ -268,10 +268,10 @@ export function AdminSlides() {
         {!slides
           ? null
           : slides.map((s) => (
-              <div key={s.id} className="overflow-hidden rounded-2xl bg-white shadow-md">
+              <div key={s.id} className="overflow-hidden rounded-card border border-ink-200 bg-white shadow-xs">
                 <img src={`/assets/images/${s.image}`} alt="" className="h-40 w-full object-cover" />
                 <div className="flex items-center justify-between p-4">
-                  <span className="text-sm font-semibold text-gray-700">#{s.id} · {s.image}</span>
+                  <span className="text-sm font-semibold text-ink-600">#{s.id} · {s.image}</span>
                   <DeleteBtn onConfirm={() => remove(s)} />
                 </div>
               </div>
@@ -321,8 +321,8 @@ export function AdminVideos() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-white p-6 shadow-md">
-        <h1 className="mb-4 text-xl font-bold text-mayford">Upload Advertisement Video</h1>
+      <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+        <h1 className="mb-4 text-[17px] font-extrabold tracking-tight text-ink-900">Upload Advertisement Video</h1>
         {saved && <Alert tone="green">{saved}</Alert>}
         {error && <Alert tone="red">{error}</Alert>}
         <form onSubmit={add} className="flex flex-wrap items-end gap-3">
@@ -336,12 +336,12 @@ export function AdminVideos() {
         {!videos
           ? null
           : videos.map((v) => (
-              <div key={v.id} className="overflow-hidden rounded-2xl bg-white shadow-md">
+              <div key={v.id} className="overflow-hidden rounded-card border border-ink-200 bg-white shadow-xs">
                 <video controls className="h-44 w-full bg-black object-cover">
                   <source src={`/assets/videos/${v.video_name}`} type="video/mp4" />
                 </video>
                 <div className="flex items-center justify-between p-4">
-                  <span className="truncate text-sm font-semibold text-gray-700">{v.video_name}</span>
+                  <span className="truncate text-sm font-semibold text-ink-600">{v.video_name}</span>
                   <DeleteBtn confirmText="Delete this video (file and record)?" onConfirm={() => remove(v)} />
                 </div>
               </div>
@@ -392,8 +392,8 @@ export function AdminCommunity() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-white p-6 shadow-md">
-        <h1 className="mb-4 text-xl font-bold text-mayford">Add Community Media</h1>
+      <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+        <h1 className="mb-4 text-[17px] font-extrabold tracking-tight text-ink-900">Add Community Media</h1>
         {saved && <Alert tone="green">{saved}</Alert>}
         {error && <Alert tone="red">{error}</Alert>}
         <form onSubmit={add} className="flex flex-wrap items-end gap-3">
@@ -419,7 +419,7 @@ export function AdminCommunity() {
         {!media
           ? null
           : media.map((m) => (
-              <div key={m.id} className="overflow-hidden rounded-2xl bg-white shadow-md">
+              <div key={m.id} className="overflow-hidden rounded-card border border-ink-200 bg-white shadow-xs">
                 {m.media_type === 'video' ? (
                   <video controls className="h-44 w-full bg-black object-cover">
                     <source src={`/assets/community/${m.file_name}`} type="video/mp4" />
@@ -428,7 +428,7 @@ export function AdminCommunity() {
                   <img src={`/assets/community/${m.file_name}`} alt="" className="h-44 w-full object-cover" />
                 )}
                 <div className="flex items-center justify-between p-4">
-                  <span className="truncate text-sm font-semibold text-gray-700">
+                  <span className="truncate text-sm font-semibold text-ink-600">
                     {m.media_type} · {m.file_name}
                   </span>
                   <DeleteBtn confirmText="Delete this media (file and record)?" onConfirm={() => remove(m)} />

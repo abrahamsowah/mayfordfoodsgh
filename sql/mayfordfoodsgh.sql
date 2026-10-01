@@ -283,6 +283,191 @@ CREATE TABLE `website_settings` (
 INSERT INTO `website_settings` (`id`, `email`, `adabraka_phone`, `dzorwulu_phone`, `facebook_link`, `tiktok_link`, `opening_hours`) VALUES
 (1, 'mayfordfoods@gmail.com', '0244143271', '0533634378', 'https://www.facebook.com/share/1PDFLKArpt/', 'https://www.tiktok.com/@maryafuahboakye?_r=1&_t=ZS-97IIPfQ9uRo', 'Monday - Sunday 9:00 AM - 9:30 PM');
 
+-- =====================================================================
+--  BUSINESS LAYER  (v2 — payments, accounts, tracking, analytics, audit)
+--  Safe to run on an existing installation: every statement is
+--  CREATE ... IF NOT EXISTS / guarded ALTER, so nothing is dropped.
+-- =====================================================================
+
+-- Extra columns on the original tables ---------------------------------
+ALTER TABLE `orders`
+  ADD COLUMN IF NOT EXISTS `order_code` varchar(40) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `customer_id` int(11) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `email` varchar(190) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `subtotal` decimal(10,2) NOT NULL DEFAULT 0.00,
+  ADD COLUMN IF NOT EXISTS `delivery_fee` decimal(10,2) NOT NULL DEFAULT 0.00,
+  ADD COLUMN IF NOT EXISTS `payment_method` varchar(30) NOT NULL DEFAULT 'cash',
+  ADD COLUMN IF NOT EXISTS `payment_status` varchar(20) NOT NULL DEFAULT 'unpaid',
+  ADD COLUMN IF NOT EXISTS `payment_reference` varchar(120) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `paid_at` datetime DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `cancel_reason` varchar(255) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `courier_name` varchar(120) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `courier_phone` varchar(30) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `eta_minutes` int(11) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `updated_at` datetime DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `tracking_token` varchar(64) DEFAULT NULL,
+  ADD INDEX `idx_orders_code` (`order_code`),
+  ADD INDEX `idx_orders_customer` (`customer_id`),
+  ADD INDEX `idx_orders_date` (`order_date`),
+  ADD INDEX `idx_orders_tracking` (`tracking_token`);
+
+ALTER TABLE `website_settings`
+  ADD COLUMN IF NOT EXISTS `delivery_fee` decimal(10,2) NOT NULL DEFAULT 0.00,
+  ADD COLUMN IF NOT EXISTS `free_delivery_over` decimal(10,2) NOT NULL DEFAULT 0.00,
+  ADD COLUMN IF NOT EXISTS `paystack_enabled` tinyint(1) NOT NULL DEFAULT 1;
+
+ALTER TABLE `ratings` ADD COLUMN IF NOT EXISTS `reply` text DEFAULT NULL;
+ALTER TABLE `contact_messages` ADD COLUMN IF NOT EXISTS `status` varchar(30) NOT NULL DEFAULT 'New';
+ALTER TABLE `catering_bookings` ADD COLUMN IF NOT EXISTS `status` varchar(30) NOT NULL DEFAULT 'New';
+ALTER TABLE `training_applications` ADD COLUMN IF NOT EXISTS `status` varchar(30) NOT NULL DEFAULT 'New';
+
+-- New tables -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `order_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `order_id` int(11) NOT NULL,
+  `menu_item_id` int(11) DEFAULT NULL,
+  `food_name` varchar(190) NOT NULL,
+  `unit_price` decimal(10,2) NOT NULL,
+  `quantity` int(11) NOT NULL,
+  `line_total` decimal(10,2) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_order_items_order` (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `order_events` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `order_id` int(11) NOT NULL,
+  `status` varchar(40) NOT NULL,
+  `note` text DEFAULT NULL,
+  `actor` varchar(60) NOT NULL DEFAULT 'system',
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_order_events_order` (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `payments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `order_id` int(11) DEFAULT NULL,
+  `provider` varchar(30) NOT NULL DEFAULT 'paystack',
+  `reference` varchar(120) NOT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `currency` varchar(8) NOT NULL DEFAULT 'GHS',
+  `channel` varchar(40) DEFAULT NULL,
+  `status` varchar(30) NOT NULL DEFAULT 'pending',
+  `provider_payload` longtext DEFAULT NULL,
+  `paid_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_payments_reference` (`reference`),
+  KEY `idx_payments_order` (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `customers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `full_name` varchar(190) NOT NULL,
+  `email` varchar(190) NOT NULL,
+  `phone` varchar(30) DEFAULT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `marketing_opt_in` tinyint(1) NOT NULL DEFAULT 0,
+  `status` varchar(20) NOT NULL DEFAULT 'active',
+  `created_at` datetime NOT NULL,
+  `last_login_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_customers_email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `customer_addresses` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `customer_id` int(11) NOT NULL,
+  `label` varchar(60) NOT NULL DEFAULT 'Home',
+  `address` varchar(255) NOT NULL,
+  `landmark` varchar(190) DEFAULT NULL,
+  `is_default` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_addresses_customer` (`customer_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `password_resets` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `customer_id` int(11) NOT NULL,
+  `token_hash` varchar(128) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `used_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_resets_token` (`token_hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `actor_type` varchar(20) NOT NULL,
+  `actor_id` int(11) DEFAULT NULL,
+  `actor_name` varchar(190) DEFAULT NULL,
+  `action` varchar(80) NOT NULL,
+  `entity` varchar(60) DEFAULT NULL,
+  `entity_id` varchar(60) DEFAULT NULL,
+  `meta` text DEFAULT NULL,
+  `ip` varchar(60) DEFAULT NULL,
+  `user_agent` varchar(300) DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_audit_created` (`created_at`),
+  KEY `idx_audit_action` (`action`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `login_attempts` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `scope` varchar(30) NOT NULL,
+  `identifier` varchar(190) DEFAULT NULL,
+  `ip` varchar(60) DEFAULT NULL,
+  `success` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_login_attempts` (`scope`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `channel` varchar(20) NOT NULL DEFAULT 'email',
+  `recipient` varchar(190) NOT NULL,
+  `subject` varchar(255) NOT NULL,
+  `body` text NOT NULL,
+  `related_type` varchar(40) DEFAULT NULL,
+  `related_id` varchar(60) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'queued',
+  `attempts` int(11) NOT NULL DEFAULT 0,
+  `error` varchar(400) DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `sent_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_notifications_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `page_views` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `path` varchar(190) NOT NULL,
+  `referrer` varchar(400) DEFAULT NULL,
+  `source` varchar(60) DEFAULT NULL,
+  `device` varchar(20) DEFAULT NULL,
+  `session_key` varchar(64) DEFAULT NULL,
+  `customer_id` int(11) DEFAULT NULL,
+  `ip_hash` varchar(64) DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_page_views_created` (`created_at`),
+  KEY `idx_page_views_path` (`path`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `sessions` (
+  `sid` varchar(128) NOT NULL,
+  `sess` text NOT NULL,
+  `expires_at` datetime NOT NULL,
+  PRIMARY KEY (`sid`),
+  KEY `idx_sessions_expiry` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
@@ -292,8 +477,16 @@ COMMIT;
 -- =====================================================================
 --  DONE.
 --  Admin accounts (username / password):
---    mainadmin / 123456   (super_admin  - full dashboard)
+--    mainadmin / 123456   (super_admin     - full dashboard)
 --    adabraka  / 123456   (adabraka_admin  - Adabraka orders only)
 --    dzorwulu  / 123456   (dzorwulu_admin  - Dzorwulu orders only)
---  Admin PIN: mayford2026
+--  Passwords are hashed automatically (scrypt) the first time the API
+--  boots against this database. Change them after the first login.
+--
+--  Payments (Paystack): set in server/.env
+--    PAYSTACK_SECRET_KEY=sk_live_xxx
+--    PAYSTACK_PUBLIC_KEY=pk_live_xxx
+--    APP_URL=https://your-domain
+--  Webhook URL to register in the Paystack dashboard:
+--    https://your-domain/api/payments/webhook/paystack
 -- =====================================================================
