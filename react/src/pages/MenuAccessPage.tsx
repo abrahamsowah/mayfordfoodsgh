@@ -13,14 +13,14 @@ export default function MenuAccessPage() {
       <div className="mx-auto grid max-w-5xl items-center gap-8 lg:grid-cols-[1fr_1.05fr] lg:gap-14">
         {/* QR card */}
         <Card className="mx-auto w-full max-w-sm p-7 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-mayford-600 text-white shadow-brand">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-mayford-600 text-white">
             <QrCode className="h-7 w-7" strokeWidth={2.1} />
           </div>
           <h1 className="mt-5 text-[1.5rem] font-extrabold tracking-tight text-ink-900">Scan to view the menu</h1>
           <p className="mt-2 text-[13.5px] leading-relaxed text-ink-500">
             Share this code at your table, in your hotel room or with your guests.
           </p>
-          <div className="mt-6 rounded-card border border-ink-200 bg-white p-3 shadow-xs">
+          <div className="mt-6 rounded-card border border-ink-200 bg-white p-3">
             <img
               src="/assets/images/menuqr.jpeg"
               alt="Mayford Foods digital menu QR code"
@@ -55,7 +55,7 @@ export default function MenuAccessPage() {
               <li key={s.title} className="flex items-start gap-4">
                 <span className="relative">
                   <IconTile icon={s.icon} tone={i === 0 ? 'brand' : 'light'} />
-                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-pill bg-ink-900 text-[11px] font-extrabold text-white">
+                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-tile bg-ink-900 text-[11px] font-extrabold text-white">
                     {i + 1}
                   </span>
                 </span>

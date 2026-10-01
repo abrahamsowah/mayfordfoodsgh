@@ -120,7 +120,7 @@ export default function AdminOrders() {
         </Alert>
       )}
 
-      <div className="rounded-card border border-ink-200 bg-white shadow-xs">
+      <div className="rounded-card border border-ink-200 bg-white">
         <div className="flex flex-wrap items-center gap-3 border-b border-ink-100 p-4">
           <form onSubmit={doSearch} className="flex w-full items-center gap-2 lg:w-auto lg:flex-1">
             <div className="relative w-full min-w-[220px] max-w-sm lg:max-w-md">
@@ -198,7 +198,7 @@ export default function AdminOrders() {
                               type="button"
                               disabled={busyId === o.id}
                               onClick={() => setStatusFor(o, next)}
-                              className="rounded-pill bg-ink-900 px-3 py-1.5 text-[11.5px] font-extrabold text-white transition hover:bg-mayford-600 disabled:opacity-50"
+                              className="rounded-tile bg-ink-900 px-3 py-1.5 text-[11.5px] font-extrabold text-white transition hover:bg-mayford-600 disabled:opacity-50"
                             >
                               Mark {next}
                             </button>
@@ -208,7 +208,7 @@ export default function AdminOrders() {
                               type="button"
                               disabled={busyId === o.id}
                               onClick={() => setOpenOrder(o)}
-                              className="rounded-pill border border-ink-200 px-3 py-1.5 text-[11.5px] font-extrabold text-ink-700 transition hover:border-ink-300 disabled:opacity-50"
+                              className="rounded-tile border border-ink-200 px-3 py-1.5 text-[11.5px] font-extrabold text-ink-700 transition hover:border-ink-300 disabled:opacity-50"
                             >
                               Manage
                             </button>
@@ -486,7 +486,7 @@ function OrderSheet({
               href={waLink(order.phone, `Hello ${order.customer_name}, about your Mayford order ${order.order_code || `#${order.id}`}:`)}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-pill border border-ink-200 px-4 py-2 text-[13px] font-bold text-ink-700 hover:border-ink-300"
+              className="inline-flex items-center gap-2 rounded-tile border border-ink-200 px-4 py-2 text-[13px] font-bold text-ink-700 hover:border-ink-300"
             >
               <MessageCircle className="h-4 w-4 text-whatsapp-dark" strokeWidth={2.3} />
               WhatsApp the customer
@@ -496,7 +496,7 @@ function OrderSheet({
                 href={`/track/${(detail.order as any).tracking_token}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-pill border border-ink-200 px-4 py-2 text-[13px] font-bold text-ink-700 hover:border-ink-300"
+                className="inline-flex items-center gap-2 rounded-tile border border-ink-200 px-4 py-2 text-[13px] font-bold text-ink-700 hover:border-ink-300"
               >
                 <Bike className="h-4 w-4 text-mayford-600" strokeWidth={2.3} />
                 Open customer tracker

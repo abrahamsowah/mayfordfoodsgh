@@ -75,7 +75,7 @@ export default function OutletsPage() {
             { icon: Bike, title: 'Delivery', text: 'Bolt Food across Accra' },
           ].map((f, i) => (
             <Reveal key={f.title} delay={i * 70}>
-              <div className="flex h-full items-start gap-3.5 rounded-card border border-ink-200 bg-white p-4 shadow-xs">
+              <div className="flex h-full items-start gap-3.5 rounded-card border border-ink-200 bg-white p-4">
                 <IconTile icon={f.icon} tone="light" size="sm" />
                 <div>
                   <p className="text-[14px] font-extrabold tracking-tight text-ink-900">{f.title}</p>
@@ -164,7 +164,7 @@ export default function OutletsPage() {
 
       <Section tone="white" className="!pt-0">
         <Reveal>
-          <div className="flex flex-col items-start justify-between gap-6 rounded-card border border-ink-200 bg-white p-6 shadow-xs md:flex-row md:items-center md:p-8">
+          <div className="flex flex-col items-start justify-between gap-6 rounded-card border border-ink-200 bg-white p-6 md:flex-row md:items-center md:p-8">
             <div className="flex items-start gap-4">
               <IconTile icon={Bike} tone="flame" size="lg" />
               <div>

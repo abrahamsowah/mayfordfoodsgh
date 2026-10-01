@@ -299,7 +299,7 @@ export default function CheckoutPage() {
                             key={a.id}
                             type="button"
                             onClick={() => setAddress(a.address + (a.landmark ? ` (${a.landmark})` : ''))}
-                            className="rounded-pill border border-ink-200 bg-white px-3.5 py-1.5 text-[12.5px] font-bold text-ink-700 hover:border-mayford-400 hover:text-mayford-700"
+                            className="rounded-tile border border-ink-200 bg-white px-3.5 py-1.5 text-[12.5px] font-bold text-ink-700 hover:border-mayford-400 hover:text-mayford-700"
                           >
                             {a.label} · {a.address.slice(0, 28)}
                             {a.address.length > 28 ? '…' : ''}

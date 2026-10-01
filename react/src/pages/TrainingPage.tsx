@@ -176,13 +176,13 @@ export default function TrainingPage() {
         <img
           src="/assets/images/trainingpic.png"
           alt=""
-          className="absolute inset-0 h-full w-full scale-105 object-cover opacity-60 blur-[3px]"
+          className="absolute inset-0 h-full w-full object-cover opacity-50"
         />
         <div className="absolute inset-0 bg-ink-950/75" />
-        <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/40 to-ink-950/70" />
+        <div className="absolute inset-0 bg-ink-950/60" />
         <div className="relative mx-auto grid w-full max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[1.15fr_1fr] lg:px-8">
           <div>
-            <Badge tone="dark" icon={GraduationCap} className="!bg-white/10 !text-flame-300">
+            <Badge tone="dark" icon={GraduationCap} className="!bg-ink-800 !text-white/70">
               Mayford Training Academy
             </Badge>
             <h1 className="mt-5 text-[2.25rem] font-extrabold leading-[1.06] tracking-[-0.03em] text-white md:text-[3rem]">
@@ -196,7 +196,7 @@ export default function TrainingPage() {
               <Button variant="accent" size="lg" icon={Rocket} onClick={() => setFormOpen(true)}>
                 Apply now
               </Button>
-              <LinkBtn href="/contact" variant="ghost" size="lg" className="!text-white hover:!bg-white/10">
+              <LinkBtn href="/contact" variant="ghost" size="lg" className="!text-white hover:!bg-ink-800">
                 Ask about fees
               </LinkBtn>
             </div>
@@ -209,8 +209,8 @@ export default function TrainingPage() {
               { value: 6, suffix: '', label: 'Career pathways' },
               { value: 100, suffix: '+', label: 'Students trained' },
             ].map((s) => (
-              <div key={s.label} className="rounded-card border border-white/10 bg-white/5 p-4 backdrop-blur">
-                <p className="text-[1.75rem] font-extrabold leading-none tabular-nums text-flame-400">
+              <div key={s.label} className="rounded-card border border-white/10 bg-ink-800 p-4">
+                <p className="text-[1.75rem] font-extrabold leading-none tabular-nums text-mayford-600">
                   <CountUp value={s.value} suffix={s.suffix} />
                 </p>
                 <p className="mt-2 text-[11.5px] font-extrabold uppercase tracking-[0.14em] text-ink-300">{s.label}</p>
@@ -267,10 +267,10 @@ export default function TrainingPage() {
       </Section>
 
       {/* Practical band */}
-      <section className="bg-gradient-to-br from-mayford-700 via-mayford-800 to-ink-950 py-14 md:py-20">
+      <section className="bg-ink-950 py-14 md:py-20">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[auto_1fr] lg:px-8">
-          <div className="mx-auto flex h-40 w-40 flex-col items-center justify-center rounded-full bg-white/10 ring-1 ring-inset ring-white/20 backdrop-blur">
-            <span className="text-[2.5rem] font-extrabold leading-none tabular-nums text-flame-400">
+          <div className="mx-auto flex h-40 w-40 flex-col items-center justify-center rounded-tile bg-ink-800 ring-1 ring-inset ring-white/20">
+            <span className="text-[2.5rem] font-extrabold leading-none tabular-nums text-mayford-600">
               <CountUp value={70} suffix="%" />
             </span>
             <span className="mt-1 text-[13px] font-extrabold uppercase tracking-[0.14em] text-white">Practical</span>
@@ -293,9 +293,9 @@ export default function TrainingPage() {
               ].map((b) => (
                 <div
                   key={b.label}
-                  className="flex items-center gap-2.5 rounded-tile border border-white/10 bg-white/5 px-4 py-2.5 backdrop-blur"
+                  className="flex items-center gap-2.5 rounded-tile border border-white/10 bg-ink-800 px-4 py-2.5"
                 >
-                  <b.icon className="h-4 w-4 text-flame-400" strokeWidth={2.3} />
+                  <b.icon className="h-4 w-4 text-mayford-600" strokeWidth={2.3} />
                   <span className="text-[13px] font-bold text-white">{b.label}</span>
                 </div>
               ))}
@@ -351,7 +351,7 @@ export default function TrainingPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {ENTREPRENEURSHIP.map((c, i) => (
             <Reveal key={c.title} delay={(i % 3) * 60}>
-              <div className="flex h-full items-center gap-3.5 rounded-card border border-ink-200 bg-white p-4 shadow-xs transition hover:-translate-y-1 hover:shadow-raised">
+              <div className="flex h-full items-center gap-3.5 rounded-card border border-ink-200 bg-white p-4 transition hover:">
                 <IconTile icon={c.icon} tone="light" size="sm" />
                 <p className="text-[13.5px] font-bold text-ink-800">{c.title}</p>
               </div>
@@ -378,7 +378,7 @@ export default function TrainingPage() {
               <Button variant="accent" size="lg" iconRight={ArrowRight} onClick={() => setFormOpen(true)}>
                 Apply now
               </Button>
-              <LinkBtn href="/contact" variant="ghost" size="lg" className="!text-white hover:!bg-white/10">
+              <LinkBtn href="/contact" variant="ghost" size="lg" className="!text-white hover:!bg-ink-800">
                 Contact us
               </LinkBtn>
             </div>
@@ -439,7 +439,7 @@ export default function TrainingPage() {
         maxWidth="max-w-md"
       >
         <div className="space-y-4 text-center">
-          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success-50 text-success-600">
+          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-xl bg-success-50 text-success-600">
             <CheckCircle2 className="h-8 w-8" strokeWidth={2.2} />
           </span>
           <p className="text-[14px] leading-relaxed text-ink-600">

@@ -16,9 +16,9 @@ import {
   RotateCcw,
   ShieldCheck,
   ShoppingBag,
-  Sparkles,
   Star,
   Trash2,
+  Truck,
   User,
   Utensils,
   Wallet,
@@ -94,7 +94,7 @@ export default function AccountPage() {
             key={t.key}
             type="button"
             onClick={() => setParams(t.key === 'overview' ? {} : { tab: t.key })}
-            className={`inline-flex shrink-0 items-center gap-2 rounded-pill border px-3.5 py-2 text-[13px] font-bold transition ${
+            className={`inline-flex shrink-0 items-center gap-2 rounded-tile border px-3.5 py-2 text-[13px] font-bold transition ${
               tab === t.key ? 'border-mayford-600 bg-mayford-600 text-white' : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300'
             }`}
           >
@@ -220,7 +220,7 @@ function Overview() {
       <Card className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <IconTile icon={Sparkles} tone="flame" size="sm" />
+            <IconTile icon={Truck} tone="brand" size="sm" />
             <div>
               <h2 className="text-[14.5px] font-extrabold text-ink-900">Mayford loyalty</h2>
               <p className="text-[12.5px] text-ink-500">
@@ -565,7 +565,7 @@ function AddressesTab() {
                     <button
                       type="button"
                       onClick={() => void makeDefault(a.id)}
-                      className="rounded-pill border border-ink-200 px-3 py-1.5 text-[12px] font-bold text-ink-700 hover:border-ink-300"
+                      className="rounded-tile border border-ink-200 px-3 py-1.5 text-[12px] font-bold text-ink-700 hover:border-ink-300"
                     >
                       Make default
                     </button>
@@ -573,7 +573,7 @@ function AddressesTab() {
                   <button
                     type="button"
                     onClick={() => void remove(a.id)}
-                    className="rounded-pill border border-red-200 px-2.5 py-1.5 text-red-600 hover:bg-red-50"
+                    className="rounded-tile border border-red-200 px-2.5 py-1.5 text-red-600 hover:bg-red-50"
                     aria-label="Delete address"
                   >
                     <Trash2 className="h-4 w-4" strokeWidth={2.3} />
@@ -745,8 +745,8 @@ function Steps({ steps }: { steps: OrderStep[] }) {
   if (!steps?.length) return null;
   return (
     <div className="mt-3">
-      <div className="h-1.5 w-full overflow-hidden rounded-pill bg-ink-100">
-        <div className="h-full rounded-pill bg-mayford-600 transition-all" style={{ width: `${(completed / steps.length) * 100}%` }} />
+      <div className="h-1.5 w-full overflow-hidden rounded-tile bg-ink-100">
+        <div className="h-full rounded-tile bg-mayford-600 transition-all" style={{ width: `${(completed / steps.length) * 100}%` }} />
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] font-semibold text-ink-500">
         {steps.map((step) => (

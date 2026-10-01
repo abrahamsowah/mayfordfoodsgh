@@ -31,26 +31,34 @@ All original features are preserved:
 
 ## Design system
 
-The frontend is built on a single, documented system instead of per-page styles:
+The frontend is a single documented system, not per-page styling. The language is deliberately
+**flat and editorial** (Airbnb / Uber territory): white surfaces, hairline borders, small radii,
+no glow, no gradient chrome, no decorative cards.
 
-- **Tokens** — `react/src/index.css` (`@theme`): brand red / flame orange scales, a warm neutral
-  `ink` scale, semantic colours, radii, elevation (`shadow-xs → shadow-pop`) and motion easings.
-- **Icons** — **lucide-react everywhere** (one stroke weight per context; `IconTile`, `Badge` and
-  `Button` accept any `LucideIcon`). No emoji, no hand-drawn SVGs in UI.
+- **Tokens** — `react/src/index.css` (`@theme`): brand red scale (`mayford-*`), a warm neutral
+  `ink-*` scale, semantic colours, radii (`--radius-card: 12px`, `--radius-tile: 8px`) and three
+  elevations (`xs → pop`), the last two reserved for overlays.
+- **Rules** — 8px radius on controls, 12px on media and panels; 1px `ink-200` hairlines instead of
+  shadows; **no transparent/opacity buttons** (every button is a solid fill with a solid hover);
+  orange is retired from chrome, so brand red + near-black carry every call to action; photography
+  leads the layout and chrome gets out of the way.
+- **Icons** — **lucide-react everywhere**, drawn at 1.7–2.0 stroke width, rendered plain (no tinted
+  square behind them). `IconTile` keeps the API but paints a bare icon, which is why it appears
+  across every page without adding visual noise.
 - **Primitives** — `react/src/components/ui.tsx`: `Button`/`LinkBtn` (7 variants × 3 sizes),
   `Badge`, `Chip`, `Card`, `IconTile`, `Input`/`Select`/`Textarea`/`SearchInput`, `QtyStepper`,
-  `Sheet` (bottom-sheet on mobile, dialog on desktop), `Alert`, `Skeleton`, `EmptyState`, `Panel`,
-  `DataTable`, `StatusPill`, `Stars`, `RatingPill`.
-- **Patterns** — `react/src/components/FoodCard.tsx` (`FoodCard` grid card + `FoodRow` compact row with
-  the floating add-to-cart button), site shell in `SiteLayout.tsx` (sticky header, branch sheet,
-  mobile tab bar with *More* sheet, support hub with feedback/rating sheets), admin shell in
-  `AdminLayout.tsx` (grouped sidebar, notification badge, top bar).
-- **Motion** — `Reveal` only hides content that is genuinely below the fold (with a watchdog so
-  content can never be stuck invisible), `CountUp` falls back to the final value, and every effect
-  respects `prefers-reduced-motion`.
+  `Sheet` (bottom sheet on mobile, dialog on desktop), `Alert`, `Skeleton`, `EmptyState`, `Panel`,
+  `DataTable`, `StatusPill`, `Stars`, `RatingPill` (plain text, no pill chrome).
+- **Patterns** — `FoodCard` (image, name, price, solid add button — no fake ratings or floating
+  badges) and `FoodRow` (hairline list row), the site shell in `SiteLayout.tsx` (solid sticky
+  header, branch sheet, mobile tab bar, support hub) and the admin shell in `AdminLayout.tsx`
+  (grouped sidebar with a black active state, notification badge, top bar).
+- **Motion** — restraint: one `Reveal` fade-up that only hides content genuinely below the fold
+  (with a watchdog so nothing can be stuck invisible), `CountUp` with a final-value fallback, and
+  every effect respects `prefers-reduced-motion`.
 
-Order flow: menu → cart (qty steppers, live totals) → checkout (delivery/pickup + branch choice) →
-order stored in `orders` → confirmation sheet opens WhatsApp with the encoded order.
+Order flow: menu → cart (qty steppers, live totals) → checkout (delivery/pickup, branch, payment
+method) → order stored in `orders` → confirmation sheet with WhatsApp handoff and a tracking link.
 
 ## 1. Create the database
 
@@ -196,18 +204,18 @@ Research into how Glovo / Uber Eats / Chowdeck and similar platforms operate in 
 
 ## Screenshots
 
-The current build, captured from the running app (desktop 1440 px, plus a 390 px mobile shot):
+Captured from the running app at 1440 px:
 
 | | |
 | --- | --- |
 | ![Home](docs/screenshots/home-desktop.png) | ![Menu](docs/screenshots/menu-desktop.png) |
-| Storefront home — hero, live adverts, popular dishes, outlets, catering, community | Digital menu with search, categories and cart-aware food cards |
-| ![Order tracking](docs/screenshots/order-tracking.png) | ![Account orders](docs/screenshots/account-orders.png) |
-| Live order tracking (`/track/<token>`) — stage timeline, rider, ETA, itemised bill | Customer account — order history, re-order, "add a past order" |
-| ![Admin analytics](docs/screenshots/admin-analytics.png) | ![Audit log](docs/screenshots/admin-audit-log.png) |
-| Admin analytics — revenue, orders, conversion, traffic sources, top dishes | Audit log — who did what, when, from where |
+| Storefront home — flat hero, live adverts, popular dishes, outlets, catering, community | Digital menu — photo-led cards, hairline filters, solid add buttons |
+| ![Checkout](docs/screenshots/checkout.png) | ![Order tracking](docs/screenshots/order-tracking.png) |
+| Checkout — delivery/pickup, branch, payment method, live totals | Live order tracking (`/track/<token>`) — stage timeline, rider, ETA, itemised bill |
+| ![Admin dashboard](docs/screenshots/admin-dashboard.png) | ![Admin analytics](docs/screenshots/admin-analytics.png) |
+| Admin console — hairline KPI grid, latest orders, quick actions | Analytics — traffic, sales, revenue, conversion, dish performance |
 
-More: [`docs/screenshots/`](docs/screenshots) (admin dashboard, orders board, mobile layout).
+More in [`docs/screenshots/`](docs/screenshots) (orders board, and the rest of the console).
 
 ## Project layout
 

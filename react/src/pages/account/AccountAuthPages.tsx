@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, KeyRound, LockKeyhole, Mail, Sparkles, User, UserPlus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, KeyRound, LockKeyhole, Mail, User, UserPlus } from 'lucide-react';
 import { api } from '../../api';
 import { useCustomer } from '../../context/CustomerContext';
 import { Alert, Button, Card, Field, IconTile, Input, Section } from '../../components/ui';
@@ -159,7 +159,7 @@ export function CustomerRegisterPage() {
           <input type="checkbox" name="marketing_opt_in" className="mt-0.5 h-4 w-4 accent-mayford-600" />
           Send me occasional offers and new menu announcements.
         </label>
-        <Button type="submit" variant="primary" size="lg" full icon={Sparkles} loading={busy}>
+        <Button type="submit" variant="primary" size="lg" full icon={ArrowRight} loading={busy}>
           Create account
         </Button>
       </form>

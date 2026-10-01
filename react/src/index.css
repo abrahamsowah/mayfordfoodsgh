@@ -72,17 +72,18 @@
   --color-whatsapp-dark: #1da851;
 
   /* ---------- Radii (product feel: generous, consistent) ---------- */
-  --radius-card: 1.25rem; /* 20px – cards, panels */
-  --radius-tile: 1rem; /* 16px – icon tiles, inputs */
-  --radius-pill: 9999px;
+  --radius-card: 0.75rem; /* 12px – panels, cards, media */
+  --radius-tile: 0.5rem; /* 8px – controls, inputs, badges */
+  --radius-pill: 9999px; /* kept only for genuine pills (dots, tags) */
 
   /* ---------- Elevation (soft, layered, never muddy) ---------- */
-  --shadow-xs: 0 1px 2px 0 rgb(12 10 10 / 0.05);
-  --shadow-card: 0 1px 2px 0 rgb(12 10 10 / 0.04), 0 8px 24px -12px rgb(12 10 10 / 0.12);
-  --shadow-raised: 0 2px 4px -1px rgb(12 10 10 / 0.06), 0 16px 32px -16px rgb(12 10 10 / 0.18);
-  --shadow-pop: 0 24px 56px -20px rgb(12 10 10 / 0.32);
-  --shadow-glow: 0 10px 30px -10px rgb(255 152 0 / 0.55);
-  --shadow-brand: 0 10px 26px -12px rgb(178 34 34 / 0.5);
+  --shadow-xs: 0 1px 2px 0 rgb(12 10 10 / 0.04);
+  --shadow-card: 0 1px 2px 0 rgb(12 10 10 / 0.04);
+  --shadow-raised: 0 2px 8px -2px rgb(12 10 10 / 0.1);
+  --shadow-pop: 0 16px 40px -12px rgb(12 10 10 / 0.22);
+  /* Retired: no coloured glows anywhere in the product. */
+  --: 0 0 0 0 rgb(0 0 0 / 0);
+  --shadow-brand: 0 0 0 0 rgb(0 0 0 / 0);
 
   /* ---------- Motion ---------- */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
@@ -134,7 +135,7 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-flame-500);
+    outline: 2px solid var(--color-mayford-600);
     outline-offset: 2px;
   }
 
@@ -254,16 +255,13 @@
 }
 
 @utility glass {
-  background: rgb(255 255 255 / 0.08);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  border: 1px solid rgb(255 255 255 / 0.16);
+  background: rgb(255 255 255 / 0.12);
+  border: 1px solid rgb(255 255 255 / 0.32);
 }
 
 @utility glass-light {
-  background: rgb(255 255 255 / 0.82);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  background: #fff;
+  border: 1px solid var(--color-ink-200);
 }
 
 @utility kente-stripe {
@@ -300,13 +298,6 @@
 }
 @utility scrim-side {
   background: linear-gradient(95deg, rgb(12 10 10 / 0.92) 0%, rgb(12 10 10 / 0.68) 45%, rgb(12 10 10 / 0.25) 100%);
-}
-
-@utility text-gradient {
-  background: linear-gradient(92deg, #ffb340 0%, #ff9800 45%, #ffd08a 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
 }
 
 /* ==================================================================
@@ -372,14 +363,12 @@
 }
 
 @keyframes wa-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgb(37 211 102 / 0.45);
-  }
-  70% {
-    box-shadow: 0 0 0 18px rgb(37 211 102 / 0);
-  }
+  0%,
   100% {
-    box-shadow: 0 0 0 0 rgb(37 211 102 / 0);
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
   }
 }
 

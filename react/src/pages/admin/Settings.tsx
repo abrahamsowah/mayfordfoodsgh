@@ -189,7 +189,7 @@ export default function AdminSettings() {
           </div>
         </Panel>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-ink-200 bg-white p-4 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-ink-200 bg-white p-4">
           <p className="flex items-center gap-2 text-[12.5px] font-semibold text-ink-500">
             <Bike className="h-4 w-4 text-ink-400" strokeWidth={2.3} />
             Bolt Food links live in the contact and outlets pages.
@@ -301,14 +301,14 @@ export default function AdminSettings() {
                         <button
                           type="button"
                           onClick={() => void resetAdminPassword(a)}
-                          className="inline-flex items-center gap-1.5 rounded-pill border border-ink-200 px-3 py-1.5 text-[12px] font-bold text-ink-700 hover:border-ink-300"
+                          className="inline-flex items-center gap-1.5 rounded-tile border border-ink-200 px-3 py-1.5 text-[12px] font-bold text-ink-700 hover:border-ink-300"
                         >
                           <KeyRound className="h-3.5 w-3.5" strokeWidth={2.3} /> Password
                         </button>
                         <button
                           type="button"
                           onClick={() => void removeAdmin(a)}
-                          className="inline-flex items-center gap-1.5 rounded-pill border border-red-200 px-3 py-1.5 text-[12px] font-bold text-red-600 hover:bg-red-50"
+                          className="inline-flex items-center gap-1.5 rounded-tile border border-red-200 px-3 py-1.5 text-[12px] font-bold text-red-600 hover:bg-red-50"
                         >
                           <Trash2 className="h-3.5 w-3.5" strokeWidth={2.3} /> Remove
                         </button>

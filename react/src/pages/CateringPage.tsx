@@ -10,7 +10,7 @@ import {
   Heart,
   MessageCircle,
   Play,
-  Sparkles,
+  PartyPopper,
   Users,
   UtensilsCrossed,
 } from 'lucide-react';
@@ -128,7 +128,7 @@ export default function CateringPage() {
             { icon: ChefHat, title: 'Cooked on site', text: 'Fresh food, hot when it reaches the table' },
           ].map((f, i) => (
             <Reveal key={f.title} delay={i * 70}>
-              <div className="flex h-full items-start gap-3.5 rounded-card border border-ink-200 bg-white p-4 shadow-xs">
+              <div className="flex h-full items-start gap-3.5 rounded-card border border-ink-200 bg-white p-4">
                 <IconTile icon={f.icon} tone="light" size="sm" />
                 <div>
                   <p className="text-[14px] font-extrabold tracking-tight text-ink-900">{f.title}</p>
@@ -211,7 +211,7 @@ export default function CateringPage() {
                   loading="lazy"
                   className="aspect-[4/3] w-full object-cover transition duration-[900ms] group-hover:scale-[1.05]"
                 />
-                <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink-950/85 to-transparent p-3 text-left text-[11.5px] font-bold text-white opacity-0 transition group-hover:opacity-100">
+                <span className="absolute inset-x-0 bottom-0 bg-ink-950/70 p-3 text-left text-[11.5px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
                   {g.caption}
                 </span>
               </button>
@@ -252,7 +252,7 @@ export default function CateringPage() {
       <Section className="!pt-0">
         <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr] lg:items-start">
           <Reveal className="lg:sticky lg:top-24">
-            <Badge tone="brand" icon={Sparkles}>
+            <Badge tone="neutral" icon={PartyPopper}>
               Let's plan it
             </Badge>
             <h2 className="mt-4 text-[1.75rem] font-extrabold leading-[1.15] tracking-tight text-ink-900 md:text-[2.1rem]">
@@ -272,7 +272,7 @@ export default function CateringPage() {
                 )
               )}
             </ul>
-            <div className="mt-7 rounded-card border border-ink-200 bg-white p-5 shadow-xs">
+            <div className="mt-7 rounded-card border border-ink-200 bg-white p-5">
               <p className="text-[13.5px] font-extrabold text-ink-900">Prefer to talk it through?</p>
               <p className="mt-1 text-[13px] text-ink-500">Message us on WhatsApp and we will call you back.</p>
               <LinkBtn

@@ -5,7 +5,7 @@ import {
   Heart,
   Leaf,
   MessageCircle,
-  Sparkles,
+  HeartHandshake,
   Store,
   Users,
 } from 'lucide-react';
@@ -49,9 +49,9 @@ export default function AboutPage() {
               <img
                 src="/assets/images/ownersofmayford.jpeg"
                 alt="The Mayford Foods family"
-                className="aspect-[4/5] w-full rounded-card object-cover object-top shadow-raised"
+                className="aspect-[4/5] w-full rounded-card object-cover object-top"
               />
-              <div className="absolute -bottom-5 right-5 flex items-center gap-3 rounded-card border border-ink-200 bg-white px-4 py-3 shadow-raised">
+              <div className="absolute -bottom-5 right-5 flex items-center gap-3 rounded-card border border-ink-200 bg-white px-4 py-3">
                 <IconTile icon={BadgeCheck} tone="brand" size="sm" />
                 <div className="leading-tight">
                   <p className="text-[13.5px] font-extrabold text-ink-900">The Mayford family</p>
@@ -62,7 +62,7 @@ export default function AboutPage() {
           </Reveal>
 
           <Reveal delay={100}>
-            <Badge tone="brand" icon={Sparkles}>
+            <Badge tone="neutral" icon={HeartHandshake}>
               Who we are
             </Badge>
             <h2 className="mt-4 text-[1.75rem] font-extrabold leading-[1.15] tracking-tight text-ink-900 md:text-[2.25rem]">
@@ -138,7 +138,7 @@ export default function AboutPage() {
       {/* Where to find us */}
       <Section className="!pt-0">
         <Reveal>
-          <div className="flex flex-col items-start justify-between gap-5 rounded-card border border-ink-200 bg-white p-6 shadow-xs md:flex-row md:items-center md:p-8">
+          <div className="flex flex-col items-start justify-between gap-5 rounded-card border border-ink-200 bg-white p-6 md:flex-row md:items-center md:p-8">
             <div className="flex items-start gap-4">
               <IconTile icon={Store} tone="brand" size="lg" />
               <div>

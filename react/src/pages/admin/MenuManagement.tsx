@@ -153,7 +153,7 @@ export function AdminMenuItems() {
   }
 
   return (
-    <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+    <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
       <PageHeader
         icon={UtensilsCrossed}
         title="Menu items"
@@ -198,7 +198,7 @@ export function AdminMenuItems() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-ink-600">
-                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${i.status === 'available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    <span className={`rounded-tile px-3 py-1 text-xs font-bold ${i.status === 'available' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                       {i.status}
                     </span>
                   </td>
@@ -281,7 +281,7 @@ export function AdminCategories() {
   }
 
   return (
-    <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+    <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
       <h2 className="mb-5 text-xl font-extrabold tracking-tight text-ink-900 md:text-2xl">Menu Categories</h2>
       {message && <Alert tone={message.tone}>{message.text}</Alert>}
       <form onSubmit={add} className="mb-6 flex max-w-md flex-wrap gap-2">
@@ -378,7 +378,7 @@ export function AdminDiscounts() {
   }
 
   return (
-    <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+    <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
       <PageHeader
         icon={Tags}
         title="Discounts"
@@ -413,7 +413,7 @@ export function AdminDiscounts() {
                     <td className="p-3 font-semibold">{i.food_name}</td>
                     <td className="px-4 py-3 text-ink-600">{ghs(i.price)}</td>
                     <td className="px-4 py-3 text-ink-600">
-                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${i.discount_percent > 0 ? 'bg-green-100 text-green-800' : 'bg-ink-100 text-ink-500'}`}>
+                      <span className={`rounded-tile px-3 py-1 text-xs font-bold ${i.discount_percent > 0 ? 'bg-green-100 text-green-800' : 'bg-ink-100 text-ink-500'}`}>
                         {i.discount_percent > 0 ? `${i.discount_percent}% OFF → ${ghs(effectivePrice(i))}` : 'No discount'}
                       </span>
                     </td>

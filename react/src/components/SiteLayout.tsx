@@ -24,7 +24,7 @@ import {
   QrCode,
   Send,
   ShoppingBag,
-  Sparkles,
+  PartyPopper,
   Star,
   Store,
   Truck,
@@ -68,7 +68,7 @@ const NAV_LINKS = [
 ];
 
 const MORE_LINKS: { to: string; label: string; hint: string; icon: LucideIcon }[] = [
-  { to: '/catering', label: 'Outside Catering', hint: 'Weddings, corporate, funerals', icon: Sparkles },
+  { to: '/catering', label: 'Outside Catering', hint: 'Weddings, corporate, funerals', icon: PartyPopper },
   { to: '/training', label: 'Training Academy', hint: 'Culinary & hospitality courses', icon: Building2 },
   { to: '/community', label: 'Community Impact', hint: 'Outreach & food donations', icon: Heart },
   { to: '/menu-access', label: 'Scan Menu QR', hint: 'Share the digital menu', icon: QrCode },
@@ -98,13 +98,13 @@ function Wordmark({ light = false, compact = false }: { light?: boolean; compact
       <img
         src="/assets/images/logo.png"
         alt=""
-        className={`rounded-full object-cover ring-1 ring-ink-900/5 ${compact ? 'h-9 w-9' : 'h-10 w-10'}`}
+        className={`rounded-tile object-cover ring-1 ring-ink-900/5 ${compact ? 'h-9 w-9' : 'h-10 w-10'}`}
       />
       <span className="hidden leading-none min-[380px]:block">
         <span className={`block text-[15px] font-extrabold tracking-[-0.02em] ${light ? 'text-white' : 'text-ink-900'}`}>
           Mayford Foods
         </span>
-        <span className={`mt-1 block text-[9.5px] font-extrabold uppercase tracking-[0.28em] ${light ? 'text-flame-400' : 'text-mayford-600'}`}>
+        <span className={`mt-1 block text-[9.5px] font-extrabold uppercase tracking-[0.28em] ${light ? 'text-mayford-600' : 'text-mayford-600'}`}>
           Ghana
         </span>
       </span>
@@ -130,7 +130,7 @@ function Marquee() {
       {items.map((t, i) => (
         <span key={`${key}-${i}`} className="inline-flex items-center">
           <span className="px-4 text-[12px] font-semibold tracking-wide text-white/90 md:text-[12.5px]">{t}</span>
-          <span className="h-1 w-1 shrink-0 rounded-full bg-flame-500" />
+          <span className="h-1 w-1 shrink-0 rounded-tile bg-mayford-600" />
         </span>
       ))}
     </span>
@@ -155,7 +155,7 @@ function AccountButton() {
       to={customer ? '/account' : '/account/login'}
       aria-label={customer ? 'My account' : 'Sign in'}
       title={customer ? `${customer.full_name} — my account` : 'Sign in to your account'}
-      className="relative hidden h-11 w-11 items-center justify-center rounded-pill border border-ink-200 text-ink-600 transition hover:border-ink-300 hover:bg-ink-50 hover:text-ink-900 md:flex"
+      className="relative hidden h-11 w-11 items-center justify-center rounded-tile border border-ink-200 text-ink-600 transition hover:border-ink-300 hover:bg-ink-50 hover:text-ink-900 md:flex"
     >
       <User className="h-[19px] w-[19px]" strokeWidth={2.2} />
       {customer && <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-success-500" />}
@@ -180,7 +180,7 @@ function CartButton({ className = '' }: { className?: string }) {
           <span className="tabular-nums">{ghs(total)}</span>
         </span>
         <span className="mx-1 h-5 w-px bg-white/20" />
-        <span className="flex h-6 min-w-6 items-center justify-center rounded-pill bg-flame-500 px-1.5 text-[12px] font-extrabold tabular-nums text-white">
+        <span className="flex h-6 min-w-6 items-center justify-center rounded-tile bg-mayford-600 px-1.5 text-[12px] font-extrabold tabular-nums text-white">
           {count}
         </span>
       </span>
@@ -197,7 +197,7 @@ function Header({ settings }: { settings: Settings | null }) {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-ink-200/80 bg-white/90 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-ink-200/80 bg-white/90">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8 md:h-[72px]">
           {/* Mobile menu */}
           <button
@@ -217,7 +217,7 @@ function Header({ settings }: { settings: Settings | null }) {
           <button
             type="button"
             onClick={() => setSheetOpen(true)}
-            className="ml-1 hidden shrink-0 items-center gap-2.5 whitespace-nowrap rounded-pill border border-ink-200 bg-white py-1.5 pl-2 pr-3.5 text-left transition hover:border-ink-300 hover:bg-ink-50 2xl:flex"
+            className="ml-1 hidden shrink-0 items-center gap-2.5 whitespace-nowrap rounded-tile border border-ink-200 bg-white py-1.5 pl-2 pr-3.5 text-left transition hover:border-ink-300 hover:bg-ink-50 2xl:flex"
           >
             <IconTile icon={Store} tone="light" size="sm" strokeWidth={2.3} />
             <span className="leading-tight">
@@ -235,7 +235,7 @@ function Header({ settings }: { settings: Settings | null }) {
                 to={l.to}
                 end={l.to === '/'}
                 className={({ isActive }) =>
-                  `whitespace-nowrap rounded-pill px-2.5 py-2 text-[13px] font-bold transition xl:px-3.5 xl:text-[13.5px] ${
+                  `whitespace-nowrap rounded-tile px-2.5 py-2 text-[13px] font-bold transition xl:px-3.5 xl:text-[13.5px] ${
                     isActive ? 'bg-mayford-50 text-mayford-700' : 'text-ink-500 hover:bg-ink-100 hover:text-ink-900'
                   }`
                 }
@@ -251,7 +251,7 @@ function Header({ settings }: { settings: Settings | null }) {
               target="_blank"
               rel="noreferrer"
               aria-label="Chat on WhatsApp"
-              className="hidden h-11 w-11 items-center justify-center rounded-pill border border-ink-200 text-ink-600 transition hover:border-whatsapp/40 hover:bg-whatsapp/10 hover:text-whatsapp-dark sm:flex"
+              className="hidden h-11 w-11 items-center justify-center rounded-tile border border-ink-200 text-ink-600 transition hover:border-whatsapp/40 hover:bg-whatsapp/10 hover:text-whatsapp-dark sm:flex"
             >
               <MessageCircle className="h-[19px] w-[19px]" strokeWidth={2.2} />
             </a>
@@ -274,7 +274,7 @@ function Header({ settings }: { settings: Settings | null }) {
             >
               <ShoppingBag className="h-[22px] w-[22px]" strokeWidth={2.2} />
               {count > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-pill bg-mayford-600 px-1 text-[11px] font-extrabold text-white shadow-brand">
+                <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-tile bg-mayford-600 px-1 text-[11px] font-extrabold text-white">
                   {count}
                 </span>
               )}
@@ -286,9 +286,9 @@ function Header({ settings }: { settings: Settings | null }) {
       {/* Mobile navigation drawer */}
       {open && (
         <div className="fixed inset-0 z-[60] md:hidden" onClick={() => setOpen(false)}>
-          <div className="absolute inset-0 bg-ink-950/50 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-ink-950/50" />
           <div
-            className="animate-pop absolute inset-y-0 left-0 flex w-[86%] max-w-sm flex-col overflow-y-auto rounded-r-[1.75rem] bg-white p-5 shadow-pop"
+            className="animate-pop absolute inset-y-0 left-0 flex w-[86%] max-w-sm flex-col overflow-y-auto rounded-r-[1.75rem] bg-white p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-6 flex items-center justify-between">
@@ -297,7 +297,7 @@ function Header({ settings }: { settings: Settings | null }) {
                 type="button"
                 aria-label="Close navigation"
                 onClick={() => setOpen(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-ink-100 text-ink-500 transition hover:bg-ink-200"
+                className="flex h-10 w-10 items-center justify-center rounded-tile bg-ink-100 text-ink-500 transition hover:bg-ink-200"
               >
                 <X className="h-5 w-5" strokeWidth={2.4} />
               </button>
@@ -319,7 +319,7 @@ function Header({ settings }: { settings: Settings | null }) {
             </div>
 
             <div className="mt-6 rounded-card bg-ink-950 p-5 text-white">
-              <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-flame-400">Order in seconds</p>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-mayford-600">Order in seconds</p>
               <p className="mt-2 text-sm leading-relaxed text-ink-300">
                 Build your cart and confirm on WhatsApp with the branch of your choice.
               </p>
@@ -443,7 +443,7 @@ function MobileTabBar() {
 
   return (
     <>
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-50 border-t border-ink-200 bg-white/95 backdrop-blur-xl md:hidden">
+      <nav className="pb-safe fixed inset-x-0 bottom-0 z-50 border-t border-ink-200 bg-white/95 md:hidden">
         <div className="mx-auto flex max-w-md items-stretch px-2">
           {item('/', 'Home', Home)}
           {item('/menu', 'Menu', UtensilsCrossed)}
@@ -459,7 +459,7 @@ function MobileTabBar() {
           </button>
         </div>
         {count > 0 && (
-          <span className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom,0px)+2.6rem)] left-1/2 -translate-x-1/2 rounded-pill bg-ink-900 px-3 py-1 text-[11px] font-extrabold text-white shadow-raised">
+          <span className="pointer-events-none absolute bottom-[calc(env(safe-area-inset-bottom,0px)+2.6rem)] left-1/2 -translate-x-1/2 rounded-tile bg-ink-900 px-3 py-1 text-[11px] font-extrabold text-white">
             {count} item{count > 1 ? 's' : ''} in cart
           </span>
         )}
@@ -518,13 +518,13 @@ function Footer({ settings }: { settings: Settings | null }) {
   }, []);
 
   const social =
-    'flex h-10 w-10 items-center justify-center rounded-pill border border-white/10 text-ink-300 transition hover:border-white/25 hover:bg-white/10 hover:text-white';
+    'flex h-10 w-10 items-center justify-center rounded-tile border border-white/10 text-ink-300 transition hover:border-white/25 hover:bg-ink-800 hover:text-white';
 
   return (
     <>
       {ratingSuccess && (
         <div className="mx-auto w-full max-w-3xl px-4 pt-6">
-          <div className="flex items-center justify-center gap-3 rounded-card bg-success-600 px-4 py-4 text-sm font-bold text-white shadow-raised">
+          <div className="flex items-center justify-center gap-3 rounded-card bg-success-600 px-4 py-4 text-sm font-bold text-white">
             <CheckCircle2 className="h-5 w-5 shrink-0" strokeWidth={2.4} />
             Thank you for your rating! Your review has been submitted successfully.
           </div>
@@ -564,8 +564,8 @@ function Footer({ settings }: { settings: Settings | null }) {
                   <MessageCircle className="h-[18px] w-[18px]" strokeWidth={2.1} />
                 </a>
               </div>
-              <div className="mt-6 inline-flex items-center gap-2 rounded-pill border border-white/10 px-3.5 py-2 text-[12px] font-bold text-ink-300">
-                <BadgeCheck className="h-4 w-4 text-flame-500" strokeWidth={2.3} />
+              <div className="mt-6 inline-flex items-center gap-2 rounded-tile border border-white/10 px-3.5 py-2 text-[12px] font-bold text-ink-300">
+                <BadgeCheck className="h-4 w-4 text-mayford-600" strokeWidth={2.3} />
                 Family owned since day one
               </div>
             </div>
@@ -604,7 +604,7 @@ function Footer({ settings }: { settings: Settings | null }) {
                     href={waLink(adabraka)}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-1 inline-flex items-center gap-1.5 text-flame-400 transition hover:text-flame-300"
+                    className="mt-1 inline-flex items-center gap-1.5 text-mayford-600 transition hover:text-white/70"
                   >
                     <MessageCircle className="h-3.5 w-3.5" strokeWidth={2.3} /> {adabraka}
                   </a>
@@ -616,7 +616,7 @@ function Footer({ settings }: { settings: Settings | null }) {
                     href={waLink(dzorwulu)}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-1 inline-flex items-center gap-1.5 text-flame-400 transition hover:text-flame-300"
+                    className="mt-1 inline-flex items-center gap-1.5 text-mayford-600 transition hover:text-white/70"
                   >
                     <MessageCircle className="h-3.5 w-3.5" strokeWidth={2.3} /> {dzorwulu}
                   </a>
@@ -629,21 +629,21 @@ function Footer({ settings }: { settings: Settings | null }) {
               <h3 className="text-[12px] font-extrabold uppercase tracking-[0.2em] text-white">Get in touch</h3>
               <ul className="mt-5 space-y-3.5 text-[14px]">
                 <li className="flex items-start gap-3">
-                  <Clock className="mt-0.5 h-4 w-4 shrink-0 text-flame-500" strokeWidth={2.2} />
+                  <Clock className="mt-0.5 h-4 w-4 shrink-0 text-mayford-600" strokeWidth={2.2} />
                   <span className="text-ink-400">{settings?.opening_hours || 'Monday – Sunday, 9:00 AM – 9:30 PM'}</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Mail className="mt-0.5 h-4 w-4 shrink-0 text-flame-500" strokeWidth={2.2} />
+                  <Mail className="mt-0.5 h-4 w-4 shrink-0 text-mayford-600" strokeWidth={2.2} />
                   <a href={`mailto:${settings?.email || 'mayfordfoods@gmail.com'}`} className="break-all text-ink-400 transition hover:text-white">
                     {settings?.email || 'mayfordfoods@gmail.com'}
                   </a>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Bike className="mt-0.5 h-4 w-4 shrink-0 text-flame-500" strokeWidth={2.2} />
+                  <Bike className="mt-0.5 h-4 w-4 shrink-0 text-mayford-600" strokeWidth={2.2} />
                   <span className="text-ink-400">Delivery available on Bolt Food</span>
                 </li>
               </ul>
-              <LinkBtn href="/contact" variant="outline" size="sm" iconRight={Send} className="mt-5 !border-white/15 !bg-white/5 !text-white hover:!border-white/30 hover:!bg-white/10">
+              <LinkBtn href="/contact" variant="outline" size="sm" iconRight={Send} className="mt-5 !border-white/15 !bg-ink-800 !text-white hover:!border-white/30 hover:!bg-ink-800">
                 Send a message
               </LinkBtn>
             </div>
@@ -692,11 +692,11 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
           aria-label={`${n} star${n > 1 ? 's' : ''}`}
           className={`flex h-11 w-11 items-center justify-center rounded-tile border transition ${
             n <= value
-              ? 'border-flame-300 bg-flame-50 text-flame-500'
+              ? 'border-white/70 bg-mayford-600 text-mayford-600'
               : 'border-ink-200 bg-white text-ink-300 hover:border-ink-300'
           }`}
         >
-          <Star className={`h-5 w-5 ${n <= value ? 'fill-flame-500' : ''}`} strokeWidth={2} />
+          <Star className={`h-5 w-5 ${n <= value ? 'fill-mayford-600' : ''}`} strokeWidth={2} />
         </button>
       ))}
       <span className="ml-1 text-sm font-bold text-ink-500">
@@ -757,7 +757,7 @@ function SupportWidget({ settings }: { settings: Settings | null }) {
           type="button"
           aria-label="Chat with Mayford Foods"
           onClick={() => setOpen(true)}
-          className="wa-pulse flex h-14 w-14 items-center justify-center rounded-pill bg-whatsapp text-white shadow-pop transition hover:scale-[1.04] hover:bg-whatsapp-dark active:scale-95"
+          className="wa-pulse flex h-14 w-14 items-center justify-center rounded-tile bg-whatsapp text-white transition  hover:bg-whatsapp-dark "
         >
           <MessageCircle className="h-7 w-7" strokeWidth={2.2} />
         </button>

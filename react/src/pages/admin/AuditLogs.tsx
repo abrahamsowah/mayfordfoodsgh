@@ -154,7 +154,7 @@ export default function AdminAuditLogs() {
               <tbody>
                 {entries.length === 0 && <EmptyRow colSpan={6} text="No audit entries match those filters." />}
                 {entries.map((e) => (
-                  <tr key={e.id} className={SENSITIVE.test(e.action) ? 'bg-flame-50/40' : undefined}>
+                  <tr key={e.id} className={SENSITIVE.test(e.action) ? 'bg-mayford-600' : undefined}>
                     <Td className="whitespace-nowrap text-[12.5px] text-ink-600">{e.created_at}</Td>
                     <Td>
                       <span className="block font-semibold text-ink-800">{e.actor_name || '—'}</span>

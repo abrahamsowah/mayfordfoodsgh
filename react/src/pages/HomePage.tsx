@@ -11,14 +11,14 @@ import {
   Clock,
   Flame,
   GraduationCap,
-  Heart,
+  HeartHandshake,
   Leaf,
   MapPin,
   MessageCircle,
   Navigation,
+  PartyPopper,
   Phone,
   Play,
-  Sparkles,
   Star,
   Store,
   Users,
@@ -66,8 +66,7 @@ function HeroSlider({ slides }: { slides: Slide[] }) {
           }`}
         />
       ))}
-      <div className="absolute inset-0 scrim-side" />
-      <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/20 to-transparent" />
+      <div className="absolute inset-0 bg-ink-950/55" />
     </>
   );
 }
@@ -87,19 +86,16 @@ function Hero({ settings }: { settings: ReturnType<typeof useSettings>['settings
       <div className="relative mx-auto w-full max-w-7xl px-4 pb-28 pt-16 sm:px-6 sm:pb-32 sm:pt-20 lg:px-8 lg:pb-40 lg:pt-28">
         <div className="max-w-2xl">
           <Reveal>
-            <div className="inline-flex items-center gap-2 rounded-pill border border-white/15 bg-white/10 py-1.5 pl-1.5 pr-4 backdrop-blur">
-              <span className="flex h-6 items-center gap-1.5 rounded-pill bg-flame-500 px-2.5 text-[11px] font-extrabold uppercase tracking-wider text-white">
-                <Sparkles className="h-3 w-3" strokeWidth={2.6} /> Fresh daily
-              </span>
-              <span className="text-[12.5px] font-bold text-white/90">Cooked fresh every morning</span>
-            </div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">
+              Adabraka &amp; Dzorwulu · Accra
+            </p>
           </Reveal>
 
           <Reveal delay={80}>
-            <h1 className="mt-6 text-[2.5rem] font-extrabold leading-[1.04] tracking-[-0.03em] text-white sm:text-[3.25rem] lg:text-[3.75rem]">
+            <h1 className="mt-4 text-[2.4rem] font-semibold leading-[1.06] tracking-[-0.035em] text-white sm:text-[3.1rem] lg:text-[3.5rem]">
               Ghanaian food,
               <br />
-              <span className="text-gradient">made for today.</span>
+              made for today.
             </h1>
           </Reveal>
 
@@ -112,7 +108,7 @@ function Hero({ settings }: { settings: ReturnType<typeof useSettings>['settings
 
           <Reveal delay={240}>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <LinkBtn href="/menu" variant="accent" size="lg" icon={UtensilsCrossed} className="w-full sm:w-auto">
+              <LinkBtn href="/menu" variant="primary" size="lg" icon={UtensilsCrossed} className="w-full sm:w-auto">
                 Order now
               </LinkBtn>
               <LinkBtn
@@ -129,15 +125,15 @@ function Hero({ settings }: { settings: ReturnType<typeof useSettings>['settings
           </Reveal>
 
           <Reveal delay={320}>
-            <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3 text-[13px] font-bold text-white/85">
+            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] font-medium text-white/80">
               <span className="inline-flex items-center gap-2">
-                <Star className="h-4 w-4 fill-flame-500 text-flame-500" strokeWidth={2} /> Loved across Accra
+                <Star className="h-3.5 w-3.5 fill-white/80 text-white/80" strokeWidth={1.5} /> Loved across Accra
               </span>
               <span className="inline-flex items-center gap-2">
-                <Bike className="h-4 w-4 text-flame-400" strokeWidth={2.2} /> Delivery on Bolt Food
+                <Bike className="h-4 w-4" strokeWidth={1.8} /> Delivery on Bolt Food
               </span>
               <span className="inline-flex items-center gap-2">
-                <Clock className="h-4 w-4 text-flame-400" strokeWidth={2.2} /> Open 7 days
+                <Clock className="h-4 w-4" strokeWidth={1.8} /> Open 7 days
               </span>
             </div>
           </Reveal>
@@ -147,17 +143,17 @@ function Hero({ settings }: { settings: ReturnType<typeof useSettings>['settings
       {/* Overlapping info bar — the product's "delivery promise" strip */}
       <div className="relative mx-auto -mb-10 w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal delay={380}>
-          <div className="grid divide-ink-100 overflow-hidden rounded-card border border-ink-200 bg-white shadow-raised sm:grid-cols-3 sm:divide-x">
+          <div className="grid divide-ink-100 overflow-hidden rounded-card border border-ink-200 bg-white sm:grid-cols-3 sm:divide-x">
             {[
               { icon: Store, label: 'Two outlets', value: 'Adabraka & Dzorwulu' },
               { icon: Clock, label: 'Opening hours', value: settings?.opening_hours || '9:00 AM – 9:30 PM daily' },
               { icon: Bike, label: 'Delivery', value: 'Bolt Food across Accra' },
             ].map((f) => (
               <div key={f.label} className="flex items-center gap-3.5 px-5 py-4 sm:px-6">
-                <IconTile icon={f.icon} tone="light" size="sm" />
+                <IconTile icon={f.icon} tone="light" size="sm" strokeWidth={1.7} />
                 <div className="min-w-0">
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-ink-400">{f.label}</p>
-                  <p className="truncate text-[13.5px] font-bold text-ink-900">{f.value}</p>
+                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-ink-400">{f.label}</p>
+                  <p className="truncate text-[13.5px] font-semibold text-ink-900">{f.value}</p>
                 </div>
               </div>
             ))}
@@ -172,28 +168,28 @@ function Hero({ settings }: { settings: ReturnType<typeof useSettings>['settings
    QUICK ACTIONS — the four things people come here to do
 ================================================================== */
 const ACTIONS = [
-  { to: '/menu', icon: UtensilsCrossed, title: 'Full menu', hint: 'Ghanaian & continental', tone: 'brand' as const },
-  { to: '/catering', icon: Sparkles, title: 'Catering', hint: 'Weddings & events', tone: 'flame' as const },
-  { to: '/training', icon: GraduationCap, title: 'Training', hint: 'Academy courses', tone: 'dark' as const },
-  { to: '/community', icon: Heart, title: 'Community', hint: 'Outreach work', tone: 'light' as const },
+  { to: '/menu', icon: UtensilsCrossed, title: 'Full menu', hint: 'Ghanaian & continental' },
+  { to: '/catering', icon: PartyPopper, title: 'Catering', hint: 'Weddings & events' },
+  { to: '/training', icon: GraduationCap, title: 'Training', hint: 'Academy courses' },
+  { to: '/community', icon: HeartHandshake, title: 'Community', hint: 'Outreach work' },
 ];
 
 function QuickActions() {
   return (
-    <Section className="!py-10 md:!py-12">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <Section tone="white" className="!py-0">
+      <div className="grid divide-ink-100 border-b border-ink-100 sm:grid-cols-2 sm:divide-x lg:grid-cols-4">
         {ACTIONS.map((a, i) => (
-          <Reveal key={a.to} delay={i * 60}>
+          <Reveal key={a.to} delay={i * 50}>
             <Link
               to={a.to}
-              className="group flex items-center gap-4 rounded-card border border-ink-200 bg-white p-4 shadow-xs transition duration-300 hover:-translate-y-1 hover:border-ink-300 hover:shadow-raised"
+              className="group flex items-center gap-3 px-1 py-6 transition-colors sm:px-6"
             >
-              <IconTile icon={a.icon} tone={a.tone} size="lg" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-extrabold tracking-tight text-ink-900">{a.title}</p>
-                <p className="truncate text-[12.5px] text-ink-500">{a.hint}</p>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-ink-300 transition group-hover:translate-x-0.5 group-hover:text-ink-600" strokeWidth={2.6} />
+              <a.icon className="h-5 w-5 shrink-0 text-ink-900" strokeWidth={1.7} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[14.5px] font-semibold tracking-tight text-ink-900">{a.title}</span>
+                <span className="block truncate text-[12.5px] text-ink-500">{a.hint}</span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-ink-300 transition-colors group-hover:text-ink-900" strokeWidth={1.8} />
             </Link>
           </Reveal>
         ))}
@@ -222,7 +218,7 @@ function PromoCarousel({ adverts }: { adverts: Advert[] }) {
           key={a.id}
           className={`transition-all duration-700 ${i === index ? 'opacity-100' : 'pointer-events-none absolute inset-0 opacity-0'}`}
         >
-          <div className="grid overflow-hidden rounded-[1.75rem] bg-ink-950 shadow-pop md:grid-cols-[1.1fr_1fr]">
+          <div className="grid overflow-hidden rounded-t-xl bg-ink-950 md:grid-cols-[1.1fr_1fr]">
             <div className="relative order-2 h-52 md:order-1 md:h-full md:min-h-[20rem]">
               <img
                 src={`/assets/adverts/${a.banner_image}`}
@@ -232,18 +228,18 @@ function PromoCarousel({ adverts }: { adverts: Advert[] }) {
                   (e.target as HTMLImageElement).src = `/assets/images/${a.banner_image}`;
                 }}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-ink-950/70 via-transparent to-transparent md:bg-gradient-to-r md:from-ink-950 md:via-ink-950/30 md:to-transparent" />
+              <div className="absolute inset-0 bg-ink-950/35 md:hidden" />
             </div>
             <div className="order-1 flex flex-col justify-center gap-4 p-6 md:order-2 md:p-10">
-              <Badge tone="flame" icon={Flame} className="!bg-flame-500 !text-white">
+              <Badge tone="dark" icon={Flame}>
                 Limited offer
               </Badge>
-              <h3 className="text-[1.6rem] font-extrabold leading-[1.12] tracking-tight text-white md:text-[2rem]">
+              <h3 className="text-[1.5rem] font-semibold leading-[1.15] tracking-tight text-white md:text-[2rem]">
                 {a.title}
               </h3>
               <p className="max-w-md text-[14.5px] leading-relaxed text-ink-300">{a.description}</p>
               <div className="mt-1 flex flex-wrap items-center gap-3">
-                <LinkBtn href={a.button_link || '/menu'} variant="accent" size="md" iconRight={ArrowRight}>
+                <LinkBtn href={a.button_link || '/menu'} variant="primary" size="md" iconRight={ArrowRight}>
                   {a.button_text || 'View menu'}
                 </LinkBtn>
                 {adverts.length > 1 && (
@@ -252,17 +248,17 @@ function PromoCarousel({ adverts }: { adverts: Advert[] }) {
                       type="button"
                       aria-label="Previous offer"
                       onClick={() => go(-1)}
-                      className="flex h-9 w-9 items-center justify-center rounded-pill border border-white/15 text-white/80 transition hover:bg-white/10 hover:text-white"
+                      className="flex h-9 w-9 items-center justify-center rounded-tile border border-white/25 text-white/80 transition-colors hover:border-white hover:text-white"
                     >
-                      <ChevronLeft className="h-4 w-4" strokeWidth={2.4} />
+                      <ChevronLeft className="h-4 w-4" strokeWidth={1.9} />
                     </button>
                     <button
                       type="button"
                       aria-label="Next offer"
                       onClick={() => go(1)}
-                      className="flex h-9 w-9 items-center justify-center rounded-pill border border-white/15 text-white/80 transition hover:bg-white/10 hover:text-white"
+                      className="flex h-9 w-9 items-center justify-center rounded-tile border border-white/25 text-white/80 transition-colors hover:border-white hover:text-white"
                     >
-                      <ChevronRight className="h-4 w-4" strokeWidth={2.4} />
+                      <ChevronRight className="h-4 w-4" strokeWidth={1.9} />
                     </button>
                   </div>
                 )}
@@ -279,7 +275,7 @@ function PromoCarousel({ adverts }: { adverts: Advert[] }) {
               type="button"
               aria-label={`Go to offer ${d + 1}`}
               onClick={() => setIndex(d)}
-              className={`h-1.5 rounded-pill transition-all ${d === index ? 'w-7 bg-mayford-600' : 'w-1.5 bg-ink-300 hover:bg-ink-400'}`}
+              className={`h-1.5 rounded-tile transition-all ${d === index ? 'w-7 bg-mayford-600' : 'w-1.5 bg-ink-300 hover:bg-ink-400'}`}
             />
           ))}
         </div>
@@ -370,12 +366,12 @@ function ValueStrip() {
   return (
     <Section className="!py-10 md:!py-14">
       <Reveal>
-        <div className="grid divide-ink-100 overflow-hidden rounded-card border border-ink-200 bg-white shadow-xs sm:grid-cols-2 sm:divide-x lg:grid-cols-4">
+        <div className="grid divide-y divide-ink-100 border-y border-ink-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
           {VALUES.map((v, i) => (
-            <div key={v.title} className={`flex items-start gap-3.5 p-5 md:p-6 ${i > 1 ? 'border-t border-ink-100 lg:border-t-0' : ''}`}>
-              <IconTile icon={v.icon} tone="light" size="sm" />
+            <div key={v.title} className={`flex items-start gap-3 px-1 py-6 sm:px-6 ${i === 0 ? '' : ''}`}>
+              <v.icon className="mt-0.5 h-5 w-5 shrink-0 text-ink-900" strokeWidth={1.7} />
               <div>
-                <h3 className="text-[14px] font-extrabold tracking-tight text-ink-900">{v.title}</h3>
+                <h3 className="text-[13.5px] font-semibold tracking-tight text-ink-900">{v.title}</h3>
                 <p className="mt-1 text-[12.5px] leading-relaxed text-ink-500">{v.text}</p>
               </div>
             </div>
@@ -406,7 +402,7 @@ function CateringSection() {
                 <img src="/assets/images/outsidecater7.jpeg" alt="Catering buffet" className="h-[7.5rem] w-full rounded-card object-cover md:h-36" />
               </div>
             </div>
-            <div className="absolute -bottom-5 left-5 flex items-center gap-3 rounded-card border border-ink-200 bg-white px-4 py-3 shadow-raised">
+            <div className="absolute -bottom-5 left-5 flex items-center gap-3 rounded-card border border-ink-200 bg-white px-4 py-3">
               <IconTile icon={CalendarHeart} tone="flame" size="sm" />
               <div className="leading-tight">
                 <p className="text-[15px] font-extrabold tabular-nums text-ink-900">
@@ -419,10 +415,10 @@ function CateringSection() {
         </Reveal>
 
         <Reveal delay={100} className="order-1 lg:order-2">
-          <Badge tone="brand" icon={Sparkles}>
+          <Badge tone="neutral" icon={Users}>
             Outside catering
           </Badge>
-          <h2 className="mt-4 text-[1.75rem] font-extrabold leading-[1.15] tracking-tight text-ink-900 md:text-[2.1rem]">
+          <h2 className="mt-4 text-[1.75rem] font-semibold leading-[1.15] tracking-tight text-ink-900 md:text-[2.1rem]">
             We feed weddings, boardrooms &amp; everything in between
           </h2>
           <p className="mt-4 text-[15px] leading-relaxed text-ink-500">
@@ -436,7 +432,7 @@ function CateringSection() {
               { icon: Navigation, text: 'Delivery and on-site service in Accra' },
             ].map((li) => (
               <li key={li.text} className="flex items-center gap-3 text-[14.5px] font-semibold text-ink-700">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-pill bg-success-50 text-success-600">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-tile bg-success-50 text-success-600">
                   <li.icon className="h-4 w-4" strokeWidth={2.4} />
                 </span>
                 {li.text}
@@ -444,7 +440,7 @@ function CateringSection() {
             ))}
           </ul>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <LinkBtn href="/catering" variant="primary" size="lg" icon={Sparkles}>
+            <LinkBtn href="/catering" variant="primary" size="lg" icon={ArrowRight}>
               Plan my event
             </LinkBtn>
             <LinkBtn href="/contact" variant="outline" size="lg">
@@ -463,13 +459,14 @@ function CateringSection() {
 function VideoCard({ src, title, featured = false }: { src: string; title: string; featured?: boolean }) {
   const [ratio, setRatio] = useState<number | null>(null);
   return (
-    <Card className={`group overflow-hidden ${featured ? 'ring-2 ring-flame-500/30' : ''}`}>
+    <Card className={`group overflow-hidden ${featured ? 'border-ink-900' : ''}`}>
       <div className="relative bg-ink-950" style={{ aspectRatio: ratio ? `${ratio}` : '16 / 9' }}>
         <video
           controls
           preload="metadata"
           playsInline
-          className="absolute inset-0 h-full w-full object-contain"
+          poster="/assets/images/hero.png"
+          className="absolute inset-0 h-full w-full object-cover"
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
             if (v.videoWidth && v.videoHeight) setRatio(v.videoWidth / v.videoHeight);
@@ -480,11 +477,11 @@ function VideoCard({ src, title, featured = false }: { src: string; title: strin
         </video>
       </div>
       <div className="flex items-center gap-3 border-t border-ink-100 px-4 py-3.5">
-        <span className="flex h-9 w-9 items-center justify-center rounded-tile bg-ink-900 text-white">
-          <Play className="h-4 w-4 fill-current" strokeWidth={0} />
+        <span className="flex h-8 w-8 items-center justify-center rounded-tile bg-ink-900 text-white">
+          <Play className="h-3.5 w-3.5 fill-current" strokeWidth={0} />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-[13.5px] font-extrabold text-ink-900">{title}</p>
+          <p className="truncate text-[13.5px] font-semibold text-ink-900">{title}</p>
           <p className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-ink-400">Mayford in motion</p>
         </div>
       </div>
@@ -527,8 +524,7 @@ function CommunitySection() {
   ];
   return (
     <section className="relative overflow-hidden bg-ink-950 py-16 md:py-24">
-      <div className="absolute inset-0 bg-dots-dark opacity-25" />
-      <div className="absolute -top-24 left-1/3 h-72 w-72 rounded-full bg-mayford-600/25 blur-3xl" aria-hidden="true" />
+      <div className="absolute inset-0 bg-ink-950/45" />
       <div className="relative mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <SectionHeader
           light
@@ -536,7 +532,7 @@ function CommunitySection() {
           title="Giving back is part of the recipe"
           text="Food donations, outreach programmes and community support across Accra."
           action={
-            <LinkBtn href="/community" variant="ghost" size="md" iconRight={ArrowRight} className="!text-flame-300 hover:!bg-white/10 hover:!text-white">
+            <LinkBtn href="/community" variant="ghost" size="md" iconRight={ArrowRight} className="!text-white/80 hover:!bg-ink-800 hover:!text-white">
               See our impact
             </LinkBtn>
           }
@@ -546,20 +542,20 @@ function CommunitySection() {
             <Reveal key={c.img} delay={i * 90}>
               <Link
                 to="/community"
-                className="group relative block overflow-hidden rounded-card ring-1 ring-white/10 transition duration-300 hover:ring-flame-500/50"
+                className="group relative block overflow-hidden rounded-card"
               >
                 <img
                   src={`/assets/images/${c.img}`}
                   alt={c.label}
                   className="h-64 w-full object-cover transition duration-[900ms] group-hover:scale-[1.05] md:h-72"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/30 to-transparent" />
+                <div className="absolute inset-0 bg-ink-950/55" />
                 <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-5">
                   <div>
-                    <p className="text-[10.5px] font-extrabold uppercase tracking-[0.24em] text-flame-400">Mayford cares</p>
+                    <p className="text-[10.5px] font-semibold uppercase tracking-[0.24em] text-white/70">Mayford cares</p>
                     <p className="mt-1.5 text-[15px] font-extrabold tracking-tight text-white">{c.label}</p>
                   </div>
-                  <span className="flex h-9 w-9 shrink-0 -translate-x-1 items-center justify-center rounded-pill bg-white/10 text-white opacity-0 backdrop-blur transition duration-300 group-hover:translate-x-0 group-hover:opacity-100">
+                  <span className="flex h-9 w-9 shrink-0 -translate-x-1 items-center justify-center rounded-tile bg-ink-800 text-white opacity-0 transition duration-300 group-hover:translate-x-0 group-hover:opacity-100">
                     <ArrowRight className="h-4 w-4" strokeWidth={2.4} />
                   </span>
                 </div>
@@ -664,7 +660,7 @@ function ReviewsSection({ data }: { data: { ratings: Rating[]; average: number; 
         title="Loved by our customers"
         text={`${data.count} customer${data.count > 1 ? 's have' : ' has'} rated Mayford Foods.`}
         action={
-          <div className="flex items-center gap-3 rounded-pill border border-ink-200 bg-white px-4 py-2.5 shadow-xs">
+          <div className="flex items-center gap-3 rounded-tile border border-ink-200 bg-white px-4 py-2.5">
             <span className="text-2xl font-extrabold leading-none text-ink-900">{data.average.toFixed(1)}</span>
             <div>
               <Stars n={data.average} size="sm" />
@@ -687,7 +683,7 @@ function ReviewsSection({ data }: { data: { ratings: Rating[]; average: number; 
                 “{r.comment || `Rated ${r.service_type} ${r.rating}/5`}”
               </blockquote>
               <figcaption className="mt-4 flex items-center gap-3 border-t border-ink-100 pt-4">
-                <span className="flex h-9 w-9 items-center justify-center rounded-pill bg-mayford-50 text-[13px] font-extrabold text-mayford-700">
+                <span className="flex h-9 w-9 items-center justify-center rounded-tile bg-mayford-50 text-[13px] font-extrabold text-mayford-700">
                   {r.customer_name.trim().charAt(0).toUpperCase()}
                 </span>
                 <span className="text-[13px] font-bold text-ink-900">{r.customer_name}</span>
@@ -707,21 +703,17 @@ function CtaSection({ whatsapp }: { whatsapp: string }) {
   return (
     <Section tone="white" className="!pt-0">
       <Reveal>
-        <div className="relative overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-mayford-700 via-mayford-800 to-ink-950 px-6 py-12 text-center md:px-16 md:py-16">
-          <div className="absolute inset-0 bg-dots-dark opacity-20" />
-          <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-flame-500/25 blur-3xl" aria-hidden="true" />
+        <div className="relative overflow-hidden rounded-t-xl bg-ink-950 px-6 py-12 text-center md:px-16 md:py-16">
           <div className="relative mx-auto max-w-2xl">
-            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-inset ring-white/20 backdrop-blur">
-              <UtensilsCrossed className="h-7 w-7 text-flame-400" strokeWidth={2.1} />
-            </div>
-            <h2 className="text-[1.75rem] font-extrabold leading-tight tracking-tight text-white md:text-[2.25rem]">
+            <UtensilsCrossed className="mx-auto mb-6 h-7 w-7 text-white/70" strokeWidth={1.7} />
+            <h2 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-white md:text-[2.25rem]">
               Hungry? We are already cooking.
             </h2>
             <p className="mx-auto mt-4 max-w-lg text-[15px] leading-relaxed text-ink-200">
               Build your order in the cart, or send us a message and our team will help you choose.
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <LinkBtn href="/menu" variant="accent" size="lg" icon={UtensilsCrossed}>
+              <LinkBtn href="/menu" variant="primary" size="lg" icon={UtensilsCrossed}>
                 Start an order
               </LinkBtn>
               <LinkBtn href={waLink(whatsapp, 'Hello Mayford Foods!')} external variant="white" size="lg" icon={MessageCircle}>
@@ -804,12 +796,12 @@ function TrainingCta() {
           <div className="grid gap-8 p-6 md:grid-cols-[1.3fr_1fr] md:items-center md:p-10">
             <div>
               <div className="flex items-center gap-3">
-                <IconTile icon={GraduationCap} tone="glass" />
-                <Badge tone="dark" icon={BadgeCheck} className="!bg-white/10 !text-flame-300">
+                <IconTile icon={GraduationCap} tone="glass" size="md" strokeWidth={1.7} />
+                <Badge tone="dark" icon={BadgeCheck}>
                   Mayford Training Academy
                 </Badge>
               </div>
-              <h2 className="mt-5 text-[1.6rem] font-extrabold leading-tight tracking-tight text-white md:text-[2rem]">
+              <h2 className="mt-5 text-[1.6rem] font-semibold leading-tight tracking-tight text-white md:text-[2rem]">
                 Train in real kitchens, taught by chefs who cook every day
               </h2>
               <p className="mt-4 max-w-xl text-[14.5px] leading-relaxed text-ink-300">
@@ -817,10 +809,10 @@ function TrainingCta() {
                 entrepreneurship track for students who want to launch their own food business.
               </p>
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                <LinkBtn href="/training" variant="accent" size="lg" iconRight={ArrowRight}>
+                <LinkBtn href="/training" variant="primary" size="lg" iconRight={ArrowRight}>
                   Explore programmes
                 </LinkBtn>
-                <LinkBtn href="/contact" variant="ghost" size="lg" className="!text-white hover:!bg-white/10">
+                <LinkBtn href="/contact" variant="ghost" size="lg" className="!text-white hover:!bg-ink-800">
                   Talk to admissions
                 </LinkBtn>
               </div>
@@ -832,11 +824,11 @@ function TrainingCta() {
                 { value: 6, suffix: '', label: 'Career pathways' },
                 { value: 1, suffix: '', label: 'Entrepreneurship track' },
               ].map((s) => (
-                <div key={s.label} className="rounded-card border border-white/10 bg-white/5 p-4">
-                  <p className="text-2xl font-extrabold tabular-nums text-flame-400">
+                <div key={s.label} className="rounded-card border border-ink-800 p-4">
+                  <p className="text-2xl font-semibold tabular-nums text-white">
                     <CountUp value={s.value} suffix={s.suffix} />
                   </p>
-                  <p className="mt-1 text-[11.5px] font-bold uppercase tracking-[0.14em] text-ink-400">{s.label}</p>
+                  <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.14em] text-ink-400">{s.label}</p>
                 </div>
               ))}
             </div>

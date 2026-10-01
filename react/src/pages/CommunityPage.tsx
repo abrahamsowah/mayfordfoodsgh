@@ -58,7 +58,7 @@ export default function CommunityPage() {
                 { icon: Heart, text: 'Support for training places and apprenticeships' },
               ].map((li) => (
                 <li key={li.text} className="flex items-center gap-3 text-[14.5px] font-semibold text-ink-700">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-pill bg-mayford-50 text-mayford-700">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-tile bg-mayford-50 text-mayford-700">
                     <li.icon className="h-4 w-4" strokeWidth={2.4} />
                   </span>
                   {li.text}

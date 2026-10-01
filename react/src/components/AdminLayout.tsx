@@ -74,7 +74,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
 function NavigateToLogin() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink-50 p-4">
-      <div className="w-full max-w-sm rounded-card border border-ink-200 bg-white p-8 text-center shadow-raised">
+      <div className="w-full max-w-sm rounded-card border border-ink-200 bg-white p-8 text-center">
         <IconTile icon={ShieldCheck} tone="brand" size="lg" className="mx-auto" />
         <h1 className="mt-5 text-lg font-extrabold tracking-tight text-ink-900">Admin login required</h1>
         <p className="mt-2 text-[13.5px] leading-relaxed text-ink-500">
@@ -82,7 +82,7 @@ function NavigateToLogin() {
         </p>
         <Link
           to="/admin/login"
-          className="mt-6 inline-flex h-11 items-center justify-center rounded-pill bg-mayford-600 px-6 text-sm font-bold text-white shadow-brand transition hover:bg-mayford-700"
+          className="mt-6 inline-flex h-11 items-center justify-center rounded-tile bg-mayford-600 px-6 text-sm font-bold text-white transition hover:bg-mayford-700"
         >
           Go to admin login
         </Link>
@@ -185,10 +185,10 @@ export function AdminLayout() {
   const sidebar = (
     <div className="flex h-full flex-col bg-ink-950 text-ink-300">
       <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
-        <img src="/assets/images/logo.png" alt="" className="h-9 w-9 rounded-full object-cover ring-1 ring-white/15" />
+        <img src="/assets/images/logo.png" alt="" className="h-9 w-9 rounded-tile object-cover ring-1 ring-white/15" />
         <div className="min-w-0">
           <p className="truncate text-[13.5px] font-extrabold text-white">Mayford Foods</p>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-flame-500">Admin console</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-mayford-600">Admin console</p>
         </div>
       </div>
 
@@ -209,7 +209,7 @@ export function AdminLayout() {
                       onClick={() => setSidebarOpen(false)}
                       className={({ isActive }) =>
                         `flex items-center gap-3 rounded-tile px-3 py-2.5 text-[13.5px] font-bold transition ${
-                          isActive ? 'bg-mayford-600 text-white shadow-brand' : 'text-ink-400 hover:bg-white/5 hover:text-white'
+                          isActive ? 'bg-ink-800 text-white' : 'text-ink-400 hover:bg-ink-800 hover:text-white'
                         }`
                       }
                     >
@@ -226,18 +226,18 @@ export function AdminLayout() {
 
       <div className="border-t border-white/10 p-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-pill bg-white/10 text-[13px] font-extrabold text-white">
+          <span className="flex h-9 w-9 items-center justify-center rounded-tile bg-ink-800 text-[13px] font-extrabold text-white">
             {(admin?.name || '?').charAt(0).toUpperCase()}
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-bold text-white">{admin?.name}</p>
-            <p className="truncate text-[11px] font-semibold text-flame-500">{prettyRole(admin?.role || '')}</p>
+            <p className="truncate text-[11px] font-semibold text-mayford-600">{prettyRole(admin?.role || '')}</p>
           </div>
         </div>
         <div className="mt-3 flex gap-2">
           <Link
             to="/"
-            className="flex h-9 flex-1 items-center justify-center gap-2 rounded-tile border border-white/10 text-[12.5px] font-bold text-ink-300 transition hover:bg-white/10 hover:text-white"
+            className="flex h-9 flex-1 items-center justify-center gap-2 rounded-tile border border-white/10 text-[12.5px] font-bold text-ink-300 transition hover:bg-ink-800 hover:text-white"
           >
             <ExternalLink className="h-3.5 w-3.5" strokeWidth={2.3} /> Website
           </Link>
@@ -262,8 +262,8 @@ export function AdminLayout() {
         </button>
         <span className="text-[13.5px] font-extrabold">Mayford admin</span>
         <div className="ml-auto flex items-center gap-2">
-          {unread > 0 && <span className="h-2 w-2 rounded-full bg-flame-500" />}
-          <span className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-flame-500">
+          {unread > 0 && <span className="h-2 w-2 rounded-full bg-mayford-600" />}
+          <span className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-mayford-600">
             {prettyRole(admin?.role || '')}
           </span>
         </div>
@@ -271,14 +271,14 @@ export function AdminLayout() {
 
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden" onClick={() => setSidebarOpen(false)}>
-          <div className="absolute inset-0 bg-ink-950/60 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-ink-950/60" />
           <div className="absolute inset-y-0 left-0 w-[80%] max-w-xs" onClick={(e) => e.stopPropagation()}>
             {sidebar}
             <button
               type="button"
               aria-label="Close sidebar"
               onClick={() => setSidebarOpen(false)}
-              className="absolute -right-12 top-4 flex h-10 w-10 items-center justify-center rounded-pill bg-white/10 text-white backdrop-blur"
+              className="absolute -right-12 top-4 flex h-10 w-10 items-center justify-center rounded-tile bg-ink-800 text-white"
             >
               <X className="h-5 w-5" strokeWidth={2.3} />
             </button>
@@ -289,15 +289,15 @@ export function AdminLayout() {
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 lg:block">{sidebar}</aside>
 
       {/* Desktop top bar */}
-      <div className="sticky top-0 z-30 hidden items-center gap-4 border-b border-ink-200 bg-white/90 px-8 py-3 backdrop-blur-xl lg:flex lg:pl-72">
+      <div className="sticky top-0 z-30 hidden items-center gap-4 border-b border-ink-200 bg-white/90 px-8 py-3 lg:flex lg:pl-72">
         <p className="text-[13px] font-semibold text-ink-500">
           Signed in as <span className="font-extrabold text-ink-900">{admin?.name}</span>
         </p>
         <div className="ml-auto flex items-center gap-3">
-          <span className="relative flex h-10 w-10 items-center justify-center rounded-pill border border-ink-200 text-ink-500">
+          <span className="relative flex h-10 w-10 items-center justify-center rounded-tile border border-ink-200 text-ink-500">
             <Bell className="h-[18px] w-[18px]" strokeWidth={2.1} />
             {unread > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-pill bg-mayford-600 px-1 text-[10.5px] font-extrabold text-white">
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-tile bg-mayford-600 px-1 text-[10.5px] font-extrabold text-white">
                 {unread}
               </span>
             )}

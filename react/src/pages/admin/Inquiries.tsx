@@ -5,7 +5,7 @@ import type { CateringBooking, ContactMessage, Rating, TrainingApplication } fro
 
 function Card({ value, label }: { value: React.ReactNode; label: string }) {
   return (
-    <div className="rounded-card border border-ink-200 bg-white p-5 text-center shadow-xs">
+    <div className="rounded-card border border-ink-200 bg-white p-5 text-center">
       <p className="text-3xl font-extrabold text-mayford">{value}</p>
       <p className="mt-1 text-ink-600">{label}</p>
     </div>
@@ -40,7 +40,7 @@ export function AdminRatings() {
         <Card value={`${(data?.avg_rating ?? 0).toFixed(1)} / 5`} label="Average Rating" />
         <Card value={`${data?.highest_rating ?? 0} / 5`} label="Highest Rating" />
       </div>
-      <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+      <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
         <h1 className="mb-5 text-xl font-extrabold tracking-tight text-ink-900 md:text-2xl">Customer Ratings</h1>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] border-collapse text-sm">
@@ -106,7 +106,7 @@ export function AdminCateringBookings() {
   }
 
   return (
-    <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+    <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
       <h1 className="mb-5 text-xl font-extrabold tracking-tight text-ink-900 md:text-2xl">Catering Bookings</h1>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[820px] border-collapse text-sm">
@@ -171,7 +171,7 @@ export function AdminContactMessages() {
   }
 
   return (
-    <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+    <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
       <h1 className="mb-5 text-xl font-extrabold tracking-tight text-ink-900 md:text-2xl">Contact Messages</h1>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse text-sm">
@@ -232,7 +232,7 @@ export function AdminTrainingApplications() {
   }
 
   return (
-    <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+    <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
       <h1 className="mb-5 text-xl font-extrabold tracking-tight text-ink-900 md:text-2xl">Training Applications</h1>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] border-collapse text-sm">

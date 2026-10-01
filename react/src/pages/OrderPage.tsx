@@ -171,13 +171,13 @@ export default function OrderPage() {
                     <p className="text-[12px] text-ink-500">How many plates?</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 rounded-pill border border-ink-200 p-1">
+                <div className="flex items-center gap-2 rounded-tile border border-ink-200 p-1">
                   <button
                     type="button"
                     aria-label="Decrease quantity"
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                     disabled={quantity <= 1}
-                    className="flex h-10 w-10 items-center justify-center rounded-pill text-ink-600 transition hover:bg-ink-100 disabled:opacity-30"
+                    className="flex h-10 w-10 items-center justify-center rounded-tile text-ink-600 transition hover:bg-ink-100 disabled:opacity-30"
                   >
                     <Minus className="h-4 w-4" strokeWidth={2.6} />
                   </button>
@@ -186,7 +186,7 @@ export default function OrderPage() {
                     type="button"
                     aria-label="Increase quantity"
                     onClick={() => setQuantity((q) => Math.min(99, q + 1))}
-                    className="flex h-10 w-10 items-center justify-center rounded-pill bg-ink-900 text-white transition hover:bg-mayford-600"
+                    className="flex h-10 w-10 items-center justify-center rounded-tile bg-ink-900 text-white transition hover:bg-mayford-600"
                   >
                     <Plus className="h-4 w-4" strokeWidth={2.6} />
                   </button>

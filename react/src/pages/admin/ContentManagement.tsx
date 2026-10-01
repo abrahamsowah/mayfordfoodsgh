@@ -44,7 +44,7 @@ export function AdminAdverts() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+      <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
         <h1 className="mb-4 text-xl font-extrabold tracking-tight text-ink-900 md:text-2xl">Add Advertisement Banner</h1>
         {saved && <Alert tone="green">{saved}</Alert>}
         {error && <Alert tone="red">{error}</Alert>}
@@ -80,7 +80,7 @@ export function AdminAdverts() {
         </form>
       </div>
 
-      <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+      <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
         <h2 className="mb-4 text-[17px] font-extrabold tracking-tight text-ink-900">Existing Advertisements</h2>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px] border-collapse text-sm">
@@ -114,7 +114,7 @@ export function AdminAdverts() {
                     <td className="p-3 font-semibold">{a.title}</td>
                     <td className="px-4 py-3 text-ink-600">{a.button_text} → {a.button_link}</td>
                     <td className="px-4 py-3 text-ink-600">
-                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${a.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-ink-600'}`}>
+                      <span className={`rounded-tile px-3 py-1 text-xs font-bold ${a.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-ink-600'}`}>
                         {a.status}
                       </span>
                     </td>
@@ -169,7 +169,7 @@ export function AdminBanners() {
   }
 
   return (
-    <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+    <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
       <h2 className="mb-4 text-xl font-extrabold tracking-tight text-ink-900 md:text-2xl">Manage Banners</h2>
       <p className="mb-4 text-sm text-ink-500">These messages scroll in the orange banner at the top of every page.</p>
       {error && <Alert tone="red">{error}</Alert>}
@@ -253,7 +253,7 @@ export function AdminSlides() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+      <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
         <h2 className="mb-4 text-[17px] font-extrabold tracking-tight text-ink-900">Add Hero Slide</h2>
         {saved && <Alert tone="green">{saved}</Alert>}
         {error && <Alert tone="red">{error}</Alert>}
@@ -268,7 +268,7 @@ export function AdminSlides() {
         {!slides
           ? null
           : slides.map((s) => (
-              <div key={s.id} className="overflow-hidden rounded-card border border-ink-200 bg-white shadow-xs">
+              <div key={s.id} className="overflow-hidden rounded-card border border-ink-200 bg-white">
                 <img src={`/assets/images/${s.image}`} alt="" className="h-40 w-full object-cover" />
                 <div className="flex items-center justify-between p-4">
                   <span className="text-sm font-semibold text-ink-600">#{s.id} · {s.image}</span>
@@ -321,7 +321,7 @@ export function AdminVideos() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+      <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
         <h1 className="mb-4 text-[17px] font-extrabold tracking-tight text-ink-900">Upload Advertisement Video</h1>
         {saved && <Alert tone="green">{saved}</Alert>}
         {error && <Alert tone="red">{error}</Alert>}
@@ -336,7 +336,7 @@ export function AdminVideos() {
         {!videos
           ? null
           : videos.map((v) => (
-              <div key={v.id} className="overflow-hidden rounded-card border border-ink-200 bg-white shadow-xs">
+              <div key={v.id} className="overflow-hidden rounded-card border border-ink-200 bg-white">
                 <video controls className="h-44 w-full bg-black object-cover">
                   <source src={`/assets/videos/${v.video_name}`} type="video/mp4" />
                 </video>
@@ -392,7 +392,7 @@ export function AdminCommunity() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-card border border-ink-200 bg-white p-5 shadow-xs md:p-6">
+      <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
         <h1 className="mb-4 text-[17px] font-extrabold tracking-tight text-ink-900">Add Community Media</h1>
         {saved && <Alert tone="green">{saved}</Alert>}
         {error && <Alert tone="red">{error}</Alert>}
@@ -419,7 +419,7 @@ export function AdminCommunity() {
         {!media
           ? null
           : media.map((m) => (
-              <div key={m.id} className="overflow-hidden rounded-card border border-ink-200 bg-white shadow-xs">
+              <div key={m.id} className="overflow-hidden rounded-card border border-ink-200 bg-white">
                 {m.media_type === 'video' ? (
                   <video controls className="h-44 w-full bg-black object-cover">
                     <source src={`/assets/community/${m.file_name}`} type="video/mp4" />

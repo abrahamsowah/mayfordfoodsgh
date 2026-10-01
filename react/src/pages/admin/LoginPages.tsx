@@ -20,13 +20,11 @@ function AuthShell({
 }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink-950 p-4">
-      <div className="pointer-events-none absolute inset-0 bg-dots-dark opacity-20" aria-hidden="true" />
-      <div className="absolute -left-24 top-0 h-72 w-72 rounded-full bg-mayford-600/20 blur-3xl" aria-hidden="true" />
-      <div className="absolute -right-24 bottom-0 h-72 w-72 rounded-full bg-flame-500/15 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-0  opacity-20" aria-hidden="true" />
 
-      <div className="relative w-full max-w-[26rem] rounded-card border border-ink-200 bg-white p-7 shadow-pop sm:p-8">
+      <div className="relative w-full max-w-[26rem] rounded-card border border-ink-200 bg-white p-7 sm:p-8">
         <div className="flex items-center gap-3">
-          <img src="/assets/images/logo.png" alt="" className="h-10 w-10 rounded-full object-cover ring-1 ring-ink-900/5" />
+          <img src="/assets/images/logo.png" alt="" className="h-10 w-10 rounded-tile object-cover ring-1 ring-ink-900/5" />
           <div>
             <p className="text-[14px] font-extrabold tracking-tight text-ink-900">Mayford Foods</p>
             <p className="text-[10.5px] font-extrabold uppercase tracking-[0.22em] text-mayford-600">Admin console</p>

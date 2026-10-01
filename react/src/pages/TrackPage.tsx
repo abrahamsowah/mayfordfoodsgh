@@ -39,7 +39,7 @@ const STATUS_TONE: Record<string, string> = {
   Confirmed: 'bg-blue-50 text-blue-700 border-blue-200',
   Preparing: 'bg-mayford-50 text-mayford-700 border-mayford-200',
   Ready: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  'Out for delivery': 'bg-flame-50 text-flame-700 border-flame-200',
+  'Out for delivery': 'bg-mayford-600 text-mayford-700 border-flame-200',
   Completed: 'bg-success-50 text-success-700 border-success-200',
   Cancelled: 'bg-red-50 text-red-700 border-red-200',
 };
@@ -260,7 +260,7 @@ function Tracker({
                 Placed {order.created_at} · {order.order_type} · {order.outlet}
               </p>
             </div>
-            <span className={`inline-flex items-center gap-2 rounded-pill border px-3.5 py-1.5 text-[13px] font-extrabold ${statusClass}`}>
+            <span className={`inline-flex items-center gap-2 rounded-tile border px-3.5 py-1.5 text-[13px] font-extrabold ${statusClass}`}>
               {cancelled ? <XCircle className="h-4 w-4" strokeWidth={2.4} /> : <BadgeCheck className="h-4 w-4" strokeWidth={2.4} />}
               {cancelled ? 'Cancelled' : order.status}
             </span>
@@ -270,7 +270,7 @@ function Tracker({
             {cancelled && order.cancel_reason && <Alert tone="red">Reason: {order.cancel_reason}</Alert>}
 
             {(order.courier_name || order.eta_minutes) && !cancelled && (
-              <div className="mb-5 flex flex-wrap items-center gap-3 rounded-tile border border-flame-100 bg-flame-50/70 px-4 py-3">
+              <div className="mb-5 flex flex-wrap items-center gap-3 rounded-tile border border-flame-100 bg-mayford-600 px-4 py-3">
                 <IconTile icon={Bike} tone="brand" size="sm" />
                 <div className="min-w-0 flex-1">
                   <p className="text-[13.5px] font-extrabold text-ink-900">
@@ -283,7 +283,7 @@ function Tracker({
                 {order.courier_phone && (
                   <a
                     href={`tel:${order.courier_phone}`}
-                    className="inline-flex items-center gap-2 rounded-pill border border-ink-200 bg-white px-3.5 py-2 text-[12.5px] font-bold text-ink-800 hover:border-ink-300"
+                    className="inline-flex items-center gap-2 rounded-tile border border-ink-200 bg-white px-3.5 py-2 text-[12.5px] font-bold text-ink-800 hover:border-ink-300"
                   >
                     <Phone className="h-3.5 w-3.5" strokeWidth={2.4} />
                     Call rider
@@ -295,9 +295,9 @@ function Tracker({
             {/* Progress bar */}
             {!cancelled && (
               <div className="mb-6">
-                <div className="h-2 w-full overflow-hidden rounded-pill bg-ink-100">
+                <div className="h-2 w-full overflow-hidden rounded-tile bg-ink-100">
                   <div
-                    className="h-full rounded-pill bg-gradient-to-r from-mayford-600 to-flame-500 transition-all duration-700"
+                    className="h-full rounded-tile bg-mayford-600 transition-all duration-700"
                     style={{ width: `${Math.min(100, ((currentStepIndex + 1) / steps.length) * 100)}%` }}
                   />
                 </div>
@@ -314,7 +314,7 @@ function Tracker({
                   <li key={step.key} className="flex gap-4">
                     <div className="flex flex-col items-center">
                       <span
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-pill border transition ${
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-tile border transition ${
                           step.done ? 'border-mayford-600 bg-mayford-600 text-white' : 'border-ink-200 bg-white text-ink-300'
                         }`}
                       >

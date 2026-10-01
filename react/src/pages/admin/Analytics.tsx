@@ -88,7 +88,7 @@ export default function AdminAnalytics() {
                 key={r.key}
                 type="button"
                 onClick={() => setRange(r.key)}
-                className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-bold transition ${
+                className={`rounded-tile border px-3 py-1.5 text-[12.5px] font-bold transition ${
                   range === r.key ? 'border-mayford-600 bg-mayford-600 text-white' : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300'
                 }`}
               >
@@ -132,7 +132,7 @@ export default function AdminAnalytics() {
               <AreaChart series={[{ values: views, color: '#b22222' }, { values: visitors, color: '#ff9800' }]} />
               <div className="mt-3 flex flex-wrap gap-4 text-[12px] font-semibold text-ink-500">
                 <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-mayford-600" /> Page views</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-flame-500" /> Visitors</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-mayford-600" /> Visitors</span>
               </div>
             </Panel>
 
@@ -150,7 +150,7 @@ export default function AdminAnalytics() {
               <BarChart values={revenue} secondary={orders} />
               <div className="mt-3 flex flex-wrap gap-4 text-[12px] font-semibold text-ink-500">
                 <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-mayford-600" /> Revenue (GH₵)</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-flame-500" /> Orders</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-mayford-600" /> Orders</span>
               </div>
             </Panel>
           </div>
@@ -175,8 +175,8 @@ export default function AdminAnalytics() {
                           <span className="truncate font-bold text-ink-700">{s.source}</span>
                           <span className="font-extrabold tabular-nums text-ink-900">{s.visits}</span>
                         </div>
-                        <div className="h-1.5 overflow-hidden rounded-pill bg-ink-100">
-                          <div className="h-full rounded-pill bg-mayford-500" style={{ width: `${(s.visits / max) * 100}%` }} />
+                        <div className="h-1.5 overflow-hidden rounded-tile bg-ink-100">
+                          <div className="h-full rounded-full bg-mayford-500" style={{ width: `${(s.visits / max) * 100}%` }} />
                         </div>
                       </li>
                     );
@@ -425,9 +425,9 @@ function BarChart({ values, secondary }: { values: number[]; secondary: number[]
           const o = (Number(secondary[i] || 0) / maxOrders) * 100;
           return (
             <div key={i} className="group relative flex h-full flex-1 flex-col justify-end gap-[2px]">
-              <div className="relative w-full rounded-t-[3px] bg-flame-400/70" style={{ height: `${Math.max(o, secondary[i] ? 3 : 0)}%` }} />
+              <div className="relative w-full rounded-t-[3px] bg-mayford-600/70" style={{ height: `${Math.max(o, secondary[i] ? 3 : 0)}%` }} />
               <div className="w-full rounded-t-[3px] bg-mayford-600 transition group-hover:bg-mayford-700" style={{ height: `${Math.max(h, v ? 3 : 0)}%` }} />
-              <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-tile border border-ink-200 bg-white px-2.5 py-1.5 text-[11.5px] font-bold text-ink-800 shadow-raised group-hover:block">
+              <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-tile border border-ink-200 bg-white px-2.5 py-1.5 text-[11.5px] font-bold text-ink-800 group-hover:block">
                 {ghs(v)} · {secondary[i] || 0} orders
               </div>
             </div>

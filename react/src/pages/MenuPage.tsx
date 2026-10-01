@@ -113,13 +113,13 @@ export default function MenuPage() {
               {count > 0 ? (
                 <Link
                   to="/cart"
-                  className="flex h-12 shrink-0 items-center justify-between gap-3 rounded-pill bg-ink-900 pl-5 pr-2 text-white shadow-raised transition hover:bg-mayford-600"
+                  className="flex h-12 shrink-0 items-center justify-between gap-3 rounded-tile bg-ink-900 pl-5 pr-2 text-white transition hover:bg-mayford-600"
                 >
                   <span className="flex items-center gap-2.5 text-sm font-extrabold">
                     <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={2.3} />
                     View cart · {ghs(total)}
                   </span>
-                  <span className="flex h-8 min-w-8 items-center justify-center rounded-pill bg-flame-500 px-2 text-[13px] font-extrabold tabular-nums">
+                  <span className="flex h-8 min-w-8 items-center justify-center rounded-tile bg-mayford-600 px-2 text-[13px] font-extrabold tabular-nums">
                     {count}
                   </span>
                 </Link>
@@ -134,7 +134,7 @@ export default function MenuPage() {
       </section>
 
       {/* Sticky filter bar */}
-      <div className="sticky top-16 z-30 border-b border-ink-200 bg-white/95 backdrop-blur-xl md:top-[72px]">
+      <div className="sticky top-16 z-30 border-b border-ink-200 bg-white/95 md:top-[72px]">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3 py-3">
             <div className="rail -mx-1 flex-1 gap-2 px-1">
@@ -156,7 +156,7 @@ export default function MenuPage() {
                 value={sort}
                 onChange={(e) => setSort(e.target.value as typeof sort)}
                 aria-label="Sort menu"
-                className="!h-10 !w-40 !rounded-pill !pl-3.5 !text-[13px] !font-bold"
+                className="!h-10 !w-40 !rounded-tile !pl-3.5 !text-[13px] !font-bold"
               >
                 <option value="popular">Most popular</option>
                 <option value="price-asc">Price: low to high</option>
@@ -232,7 +232,7 @@ export default function MenuPage() {
       {/* Order help band */}
       <Section className="!pt-0">
         <Reveal>
-          <div className="flex flex-col items-start justify-between gap-6 rounded-card border border-ink-200 bg-white p-6 shadow-xs md:flex-row md:items-center md:p-8">
+          <div className="flex flex-col items-start justify-between gap-6 rounded-card border border-ink-200 bg-white p-6 md:flex-row md:items-center md:p-8">
             <div className="flex items-start gap-4">
               <IconTile icon={MessageCircle} tone="success" size="lg" />
               <div>

@@ -91,7 +91,7 @@ export default function CartPage() {
                     <div className="flex items-center gap-2">
                       <Link
                         to="/menu"
-                        className="flex h-8 items-center gap-1.5 rounded-pill px-3 text-[12.5px] font-bold text-ink-500 transition hover:bg-ink-100 hover:text-ink-900"
+                        className="flex h-8 items-center gap-1.5 rounded-tile px-3 text-[12.5px] font-bold text-ink-500 transition hover:bg-ink-100 hover:text-ink-900"
                       >
                         <Pencil className="h-3.5 w-3.5" strokeWidth={2.4} /> Edit
                       </Link>
@@ -99,7 +99,7 @@ export default function CartPage() {
                         type="button"
                         onClick={() => removeItem(item.id)}
                         aria-label={`Remove ${item.food_name}`}
-                        className="flex h-8 w-8 items-center justify-center rounded-pill text-ink-400 transition hover:bg-danger-50 hover:text-danger-600"
+                        className="flex h-8 w-8 items-center justify-center rounded-tile text-ink-400 transition hover:bg-danger-50 hover:text-danger-600"
                       >
                         <Trash2 className="h-4 w-4" strokeWidth={2.3} />
                       </button>

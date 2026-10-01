@@ -258,24 +258,21 @@ export default function AdminDashboard() {
         }
       />
 
-      {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {statCards.map((s) => {
+      {/* Stats — one hairline grid, no card chrome */}
+      <div className="grid divide-y divide-ink-100 overflow-hidden rounded-card border border-ink-200 bg-white sm:grid-cols-2 sm:divide-x xl:grid-cols-4">
+        {statCards.map((s, i) => {
           const inner = (
             <>
-              <div className="flex items-start justify-between">
-                <IconTile icon={s.icon} tone={s.tone} />
-                {s.to && <ArrowUpRight className="h-4 w-4 text-ink-300 transition group-hover:text-ink-600" strokeWidth={2.4} />}
-              </div>
-              <p className="mt-4 text-[1.5rem] font-extrabold leading-none tabular-nums tracking-tight text-ink-900">
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-400">{s.label}</p>
+              <p className="mt-3 text-[1.6rem] font-semibold leading-none tabular-nums tracking-[-0.02em] text-ink-900">
                 {s.value}
               </p>
-              <p className="mt-2 text-[13px] font-extrabold tracking-tight text-ink-700">{s.label}</p>
-              <p className="mt-0.5 text-[12px] text-ink-400">{s.hint}</p>
+              <p className="mt-2 text-[12.5px] text-ink-500">{s.hint}</p>
             </>
           );
-          const cls =
-            'group rounded-card border border-ink-200 bg-white p-5 shadow-xs transition duration-300 hover:-translate-y-0.5 hover:border-ink-300 hover:shadow-raised';
+          const cls = `group block px-5 py-5 transition-colors hover:bg-ink-50 ${
+            i >= 4 ? 'border-t border-ink-100' : ''
+          }`;
           return s.to ? (
             <Link key={s.label} to={s.to} className={cls}>
               {inner}
@@ -353,7 +350,7 @@ export default function AdminDashboard() {
                 >
                   <IconTile icon={a.icon} tone="light" size="sm" />
                   <span className="text-[13.5px] font-bold text-ink-800">{a.label}</span>
-                  <ArrowUpRight className="ml-auto h-4 w-4 text-ink-300" strokeWidth={2.4} />
+
                 </Link>
               ))}
             </div>
@@ -381,9 +378,9 @@ export default function AdminDashboard() {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="animate-pop flex items-center gap-3 rounded-card bg-ink-900 px-4 py-3 text-[13.5px] font-bold text-white shadow-pop"
+            className="animate-pop flex items-center gap-3 rounded-card bg-ink-900 px-4 py-3 text-[13.5px] font-bold text-white"
           >
-            <BellRing className="h-4 w-4 text-flame-400" strokeWidth={2.4} />
+            <BellRing className="h-4 w-4 text-mayford-600" strokeWidth={2.4} />
             {t.text}
           </div>
         ))}

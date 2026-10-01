@@ -26,23 +26,23 @@ export type ButtonVariant =
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const BTN_BASE =
-  'relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-pill font-bold tracking-[-0.01em] transition-[background-color,color,box-shadow,transform,border-color] duration-200 active:scale-[0.975] disabled:pointer-events-none disabled:opacity-50';
+  'relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-tile font-semibold tracking-[-0.01em] transition-colors duration-150 disabled:pointer-events-none disabled:opacity-40';
 
 const BTN_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-mayford-600 text-white shadow-brand hover:bg-mayford-700',
-  accent: 'bg-flame-500 text-white shadow-glow hover:bg-flame-600',
+  primary: 'bg-mayford-600 text-white hover:bg-mayford-700',
+  accent: 'bg-mayford-600 text-white hover:bg-mayford-700',
   dark: 'bg-ink-900 text-white hover:bg-ink-800',
-  outline: 'border border-ink-200 bg-white text-ink-800 hover:border-ink-300 hover:bg-ink-50',
-  ghost: 'text-ink-600 hover:bg-ink-100 hover:text-ink-900',
-  white: 'bg-white text-ink-900 shadow-raised hover:bg-ink-50',
+  outline: 'border border-ink-300 bg-white text-ink-900 hover:border-ink-900',
+  ghost: 'text-ink-700 hover:bg-ink-100 hover:text-ink-900',
+  white: 'bg-white text-ink-900 hover:bg-ink-100',
   whatsapp: 'bg-whatsapp text-white hover:bg-whatsapp-dark',
   danger: 'bg-danger-600 text-white hover:bg-danger-700',
 };
 
 const BTN_SIZES: Record<ButtonSize, string> = {
-  sm: 'h-9 px-4 text-[13px]',
-  md: 'h-11 px-5 text-sm',
-  lg: 'h-[52px] px-7 text-[15px]',
+  sm: 'h-9 px-3.5 text-[13px]',
+  md: 'h-11 px-4 text-sm',
+  lg: 'h-12 px-5 text-[15px]',
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -162,29 +162,24 @@ export function IconTile({
   className?: string;
   strokeWidth?: number;
 }) {
+  // Plain line icons. No coloured tiles, no glow — the icon carries the weight.
   const tones: Record<string, string> = {
-    brand: 'bg-mayford-600 text-white shadow-brand',
-    flame: 'bg-flame-500 text-white shadow-glow',
-    dark: 'bg-ink-900 text-white',
-    light: 'bg-mayford-50 text-mayford-700',
-    success: 'bg-success-50 text-success-700',
-    glass: 'bg-white/10 text-white ring-1 ring-inset ring-white/15 backdrop-blur',
-    outline: 'bg-white text-ink-700 ring-1 ring-inset ring-ink-200',
-  };
-  const sizes: Record<string, string> = {
-    sm: 'h-9 w-9 rounded-xl',
-    md: 'h-11 w-11 rounded-tile',
-    lg: 'h-14 w-14 rounded-2xl',
-    xl: 'h-16 w-16 rounded-[1.25rem]',
+    brand: 'text-mayford-600',
+    flame: 'text-mayford-600',
+    dark: 'text-ink-900',
+    light: 'text-ink-500',
+    success: 'text-success-700',
+    glass: 'text-white',
+    outline: 'text-ink-700',
   };
   const glyph: Record<string, string> = {
-    sm: 'h-[18px] w-[18px]',
-    md: 'h-[22px] w-[22px]',
-    lg: 'h-7 w-7',
-    xl: 'h-8 w-8',
+    sm: 'h-5 w-5',
+    md: 'h-6 w-6',
+    lg: 'h-8 w-8',
+    xl: 'h-10 w-10',
   };
   return (
-    <span className={`inline-flex shrink-0 items-center justify-center ${tones[tone]} ${sizes[size]} ${className}`}>
+    <span className={`inline-flex shrink-0 items-center justify-center ${tones[tone]} ${className}`}>
       <Icon className={glyph[size]} strokeWidth={strokeWidth} />
     </span>
   );
@@ -209,18 +204,18 @@ export function Badge({
   const tones: Record<string, string> = {
     neutral: 'bg-ink-100 text-ink-700',
     brand: 'bg-mayford-50 text-mayford-700',
-    flame: 'bg-flame-50 text-flame-700',
+    flame: 'bg-mayford-50 text-mayford-700',
     success: 'bg-success-50 text-success-700',
     warning: 'bg-warning-50 text-warning-700',
     info: 'bg-info-50 text-info-700',
     danger: 'bg-danger-50 text-danger-700',
     dark: 'bg-ink-900 text-white',
-    white: 'bg-white/95 text-ink-900 shadow-xs backdrop-blur',
+    white: 'bg-white text-ink-900 border border-ink-200',
   };
-  const sizes = size === 'sm' ? 'h-6 gap-1 px-2 text-[11px]' : 'h-7 gap-1.5 px-2.5 text-xs';
+  const sizes = size === 'sm' ? 'h-5 gap-1 px-1.5 text-[10.5px]' : 'h-6 gap-1.5 px-2 text-[11.5px]';
   return (
     <span
-      className={`inline-flex items-center rounded-pill font-extrabold tracking-[-0.01em] ${tones[tone]} ${sizes} ${className}`}
+      className={`inline-flex items-center rounded-[5px] font-semibold tracking-[0.01em] ${tones[tone]} ${sizes} ${className}`}
     >
       {Icon && <Icon className={size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5'} strokeWidth={2.4} />}
       {children}
@@ -231,12 +226,10 @@ export function Badge({
 /** Rating chip like the delivery apps: ★ 4.8 */
 export function RatingPill({ value, count, className = '' }: { value: number; count?: number; className?: string }) {
   return (
-    <span
-      className={`inline-flex h-7 items-center gap-1 rounded-pill bg-white/95 px-2.5 text-xs font-extrabold text-ink-900 shadow-xs backdrop-blur ${className}`}
-    >
-      <Star className="h-3.5 w-3.5 fill-flame-500 text-flame-500" strokeWidth={2} />
+    <span className={`inline-flex items-center gap-1 text-[12.5px] font-semibold text-ink-900 ${className}`}>
+      <Star className="h-3.5 w-3.5 fill-ink-900 text-ink-900" strokeWidth={1.5} />
       {value.toFixed(1)}
-      {count !== undefined && <span className="font-semibold text-ink-400">({count})</span>}
+      {count !== undefined && <span className="font-normal text-ink-500">({count})</span>}
     </span>
   );
 }
@@ -259,10 +252,10 @@ export function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-pill border px-4 text-sm font-bold transition ${
+      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-tile border px-3.5 text-[13.5px] font-semibold transition ${
         active
-          ? 'border-ink-900 bg-ink-900 text-white shadow-raised'
-          : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300 hover:text-ink-900'
+          ? 'border-ink-900 bg-ink-900 text-white'
+          : 'border-ink-200 bg-white text-ink-600 hover:border-ink-900 hover:text-ink-900'
       } ${className}`}
     >
       {Icon && <Icon className="h-4 w-4 shrink-0" strokeWidth={2.2} />}
@@ -286,9 +279,7 @@ export function Card({
   return (
     <div
       className={`overflow-hidden rounded-card border border-ink-200 bg-white ${
-        interactive
-          ? 'shadow-xs transition duration-300 hover:-translate-y-1 hover:border-ink-300 hover:shadow-raised'
-          : 'shadow-xs'
+        interactive ? 'transition-colors duration-200 hover:border-ink-400' : ''
       } ${className}`}
     >
       {children}
@@ -304,7 +295,7 @@ export function ZoomImg({ src, alt, className = '' }: { src: string; alt: string
         src={src}
         alt={alt}
         loading="lazy"
-        className={`${className} w-full object-cover transition duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/img:scale-[1.06]`}
+        className={`${className} w-full object-cover transition duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/img:scale-[1.03]`}
       />
     </div>
   );
@@ -325,13 +316,13 @@ export function Section({
   tone?: 'default' | 'white' | 'tint' | 'dark';
 }) {
   const tones: Record<string, string> = {
-    default: 'bg-ink-50',
+    default: 'bg-white',
     white: 'bg-white',
-    tint: 'bg-mayford-50/50',
+    tint: 'bg-ink-50',
     dark: 'bg-ink-950',
   };
   return (
-    <section id={id} className={`py-14 md:py-20 ${tones[tone]} ${className}`}>
+    <section id={id} className={`py-12 md:py-16 ${tones[tone]} ${className}`}>
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">{children}</div>
     </section>
   );
@@ -340,11 +331,10 @@ export function Section({
 export function Eyebrow({ children, light = false }: { children: ReactNode; light?: boolean }) {
   return (
     <p
-      className={`mb-3 inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.2em] ${
-        light ? 'text-flame-300' : 'text-mayford-600'
+      className={`mb-2.5 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+        light ? 'text-white/60' : 'text-ink-400'
       }`}
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${light ? 'bg-flame-400' : 'bg-flame-500'}`} />
       {children}
     </p>
   );
@@ -361,7 +351,7 @@ export function SectionTitle({
 }) {
   return (
     <h2
-      className={`text-[1.75rem] font-extrabold leading-[1.15] tracking-tight md:text-[2.1rem] ${
+      className={`text-[1.6rem] font-semibold leading-[1.15] tracking-[-0.02em] md:text-[2rem] ${
         light ? 'text-white' : 'text-ink-900'
       } ${className}`}
     >
@@ -400,7 +390,7 @@ export function SectionHeader({
           {index && (
             <span
               aria-hidden="true"
-              className={`hidden text-[11px] font-extrabold tracking-[0.3em] md:block ${light ? 'text-flame-300/70' : 'text-ink-400'}`}
+              className={`hidden text-[11px] font-semibold tracking-[0.3em] md:block ${light ? 'text-white/40' : 'text-ink-300'}`}
             >
               {index}
             </span>
@@ -432,16 +422,14 @@ export function HeroSmall({
   return (
     <section className="relative flex min-h-[19rem] items-end overflow-hidden bg-ink-950 md:min-h-[23rem]">
       <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover" />
-      <div className="absolute inset-0 scrim" />
-      <div className="absolute inset-0 bg-dots-dark opacity-25" />
+      <div className="absolute inset-0 bg-ink-950/60" />
       <div className="relative mx-auto w-full max-w-6xl px-4 pb-10 pt-24 sm:px-6 lg:px-8">
         {badge && (
-          <span className="mb-4 inline-flex h-7 items-center gap-2 rounded-pill bg-white/10 px-3 text-[11px] font-extrabold uppercase tracking-[0.2em] text-flame-300 ring-1 ring-inset ring-white/20 backdrop-blur">
-            <span className="h-1.5 w-1.5 rounded-full bg-flame-400" />
+          <span className="mb-4 inline-flex h-6 items-center gap-2 rounded-[5px] border border-white/30 px-2 text-[10.5px] font-semibold uppercase tracking-[0.18em] text-white">
             {badge}
           </span>
         )}
-        <h1 className="max-w-3xl text-[2rem] font-extrabold leading-[1.08] tracking-tight text-white md:text-[3rem]">
+        <h1 className="max-w-3xl text-[2rem] font-semibold leading-[1.08] tracking-[-0.025em] text-white md:text-[2.9rem]">
           {title}
         </h1>
         {text && <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-ink-200 md:text-base">{text}</p>}
@@ -545,7 +533,7 @@ export function SearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`h-12 w-full rounded-pill border border-ink-200 bg-white pr-11 text-[15px] text-ink-900 outline-none transition placeholder:text-ink-400 focus:border-mayford-500 focus:ring-4 focus:ring-mayford-500/12 ${
+        className={`h-12 w-full rounded-tile border border-ink-200 bg-white pr-11 text-[15px] text-ink-900 outline-none transition placeholder:text-ink-400 focus:border-ink-900 ${
           Icon ? 'pl-11' : 'pl-4'
         }`}
       />
@@ -554,7 +542,7 @@ export function SearchInput({
           type="button"
           aria-label="Clear search"
           onClick={() => (onClear ? onClear() : onChange(''))}
-          className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-ink-100 text-ink-500 transition hover:bg-ink-200 hover:text-ink-800"
+          className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-tile bg-ink-100 text-ink-500 transition hover:bg-ink-200 hover:text-ink-800"
         >
           <X className="h-3.5 w-3.5" strokeWidth={2.6} />
         </button>
@@ -583,13 +571,13 @@ export function QtyStepper({
       : 'h-10 w-10';
   const dim = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
   return (
-    <div className="inline-flex items-center gap-1 rounded-pill border border-ink-200 bg-white p-1">
+    <div className="inline-flex items-center gap-0.5 rounded-tile border border-ink-200 bg-white p-0.5">
       <button
         type="button"
         aria-label="Decrease quantity"
         disabled={value <= min}
         onClick={() => onChange(Math.max(min, value - 1))}
-        className={`flex ${btn} items-center justify-center rounded-full text-ink-600 transition hover:bg-ink-100 hover:text-ink-900 disabled:opacity-30`}
+        className={`flex ${btn} items-center justify-center rounded-[6px] text-ink-600 transition hover:bg-ink-100 hover:text-ink-900 disabled:opacity-30`}
       >
         <Minus className={dim} strokeWidth={2.6} />
       </button>
@@ -601,7 +589,7 @@ export function QtyStepper({
         aria-label="Increase quantity"
         disabled={value >= max}
         onClick={() => onChange(Math.min(max, value + 1))}
-        className={`flex ${btn} items-center justify-center rounded-full bg-ink-900 text-white transition hover:bg-mayford-600 disabled:opacity-30`}
+        className={`flex ${btn} items-center justify-center rounded-[6px] bg-ink-900 text-white transition hover:bg-mayford-600 disabled:opacity-30`}
       >
         <Plus className={dim} strokeWidth={2.6} />
       </button>
@@ -658,7 +646,7 @@ export function SkeletonCard() {
         <Skeleton className="h-3 w-1/2" />
         <div className="flex items-center justify-between pt-2">
           <Skeleton className="h-5 w-20" />
-          <Skeleton className="h-9 w-24 rounded-pill" />
+          <Skeleton className="h-9 w-24 rounded-tile" />
         </div>
       </div>
     </div>
@@ -680,13 +668,13 @@ export function EmptyState({
 }) {
   return (
     <div className={`flex flex-col items-center justify-center rounded-card border border-dashed border-ink-200 bg-white px-6 py-16 text-center ${className}`}>
-      <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-ink-100 text-ink-400">
+      <span className="text-ink-300">
         {(() => {
           const Icon = icon;
-          return <Icon className="h-8 w-8" strokeWidth={1.9} />;
+          return <Icon className="h-7 w-7" strokeWidth={1.7} />;
         })()}
       </span>
-      <h3 className="mt-5 text-lg font-extrabold tracking-tight text-ink-900">{title}</h3>
+      <h3 className="mt-4 text-[17px] font-semibold tracking-tight text-ink-900">{title}</h3>
       {text && <p className="mt-2 max-w-sm text-sm leading-relaxed text-ink-500">{text}</p>}
       {action && <div className="mt-6">{action}</div>}
     </div>
@@ -728,14 +716,14 @@ export function Sheet({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-ink-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-ink-950/50 p-0 sm:items-center sm:p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`animate-pop flex max-h-[92vh] w-full ${maxWidth} flex-col overflow-hidden rounded-t-[1.75rem] bg-white shadow-pop sm:rounded-card`}
+        className={`animate-pop flex max-h-[92vh] w-full ${maxWidth} flex-col overflow-hidden rounded-t-xl bg-white sm:rounded-card`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-ink-100 px-5 py-4 sm:px-6">
           <div>
@@ -746,13 +734,13 @@ export function Sheet({
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink-100 text-ink-500 transition hover:bg-ink-200 hover:text-ink-900"
+            className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-tile text-ink-400 transition hover:bg-ink-100 hover:text-ink-900"
           >
             <X className="h-4 w-4" strokeWidth={2.4} />
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
-        {footer && <div className="border-t border-ink-100 bg-ink-50/70 px-5 py-4 sm:px-6">{footer}</div>}
+        {footer && <div className="border-t border-ink-100 bg-white px-5 py-4 sm:px-6">{footer}</div>}
       </div>
     </div>
   );
@@ -769,7 +757,7 @@ export function Stars({ n, className = '', size = 'md' }: { n: number; className
       {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}
-          className={`${dim} ${i < full ? 'fill-flame-500 text-flame-500' : 'fill-ink-200 text-ink-200'}`}
+          className={`${dim} ${i < full ? 'fill-ink-900 text-ink-900' : 'fill-ink-200 text-ink-200'}`}
           strokeWidth={1.5}
         />
       ))}
@@ -823,7 +811,7 @@ export function DeleteBtn({
       onClick={() => {
         if (confirm(confirmText)) void onConfirm();
       }}
-      className="rounded-pill bg-danger-50 px-3.5 py-1.5 text-xs font-extrabold text-danger-700 ring-1 ring-inset ring-danger-100 transition hover:bg-danger-600 hover:text-white"
+      className="rounded-[6px] px-2.5 py-1.5 text-xs font-semibold text-danger-700 transition hover:bg-danger-600 hover:text-white"
     >
       {label}
     </button>
@@ -844,10 +832,10 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-      <div className="flex items-center gap-3.5">
-        {Icon && <IconTile icon={Icon} tone="brand" />}
+      <div className="flex items-center gap-3">
+        {Icon && <Icon className="h-6 w-6 text-ink-900" strokeWidth={1.8} />}
         <div>
-          <h1 className="text-xl font-extrabold tracking-tight text-ink-900 md:text-2xl">{title}</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-ink-900 md:text-[26px]">{title}</h1>
           {subtitle && <p className="mt-0.5 text-[13px] text-ink-500">{subtitle}</p>}
         </div>
       </div>
@@ -883,13 +871,13 @@ export function Panel({
   padded?: boolean;
 }) {
   return (
-    <section className={`overflow-hidden rounded-card border border-ink-200 bg-white shadow-xs ${className}`}>
+    <section className={`overflow-hidden rounded-card border border-ink-200 bg-white ${className}`}>
       {(title || action) && (
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 px-5 py-4">
           <div className="flex items-center gap-3">
             {Icon && <IconTile icon={Icon} tone="light" size="sm" />}
             <div>
-              {title && <h2 className="text-[15px] font-extrabold tracking-tight text-ink-900">{title}</h2>}
+              {title && <h2 className="text-[15px] font-semibold tracking-tight text-ink-900">{title}</h2>}
               {subtitle && <p className="mt-0.5 text-[12.5px] text-ink-500">{subtitle}</p>}
             </div>
           </div>
