@@ -5,9 +5,9 @@ import type { CateringBooking, ContactMessage, Rating, TrainingApplication } fro
 
 function Card({ value, label }: { value: React.ReactNode; label: string }) {
   return (
-    <div className="rounded-2xl bg-white p-6 text-center shadow-md">
-      <p className="text-3xl font-extrabold text-mayford">{value}</p>
-      <p className="mt-1 text-gray-700">{label}</p>
+    <div className="rounded-card border border-ink-200 bg-white p-5 text-center">
+      <p className="text-3xl font-semibold text-mayford">{value}</p>
+      <p className="mt-1 text-ink-600">{label}</p>
     </div>
   );
 }
@@ -40,20 +40,20 @@ export function AdminRatings() {
         <Card value={`${(data?.avg_rating ?? 0).toFixed(1)} / 5`} label="Average Rating" />
         <Card value={`${data?.highest_rating ?? 0} / 5`} label="Highest Rating" />
       </div>
-      <div className="rounded-2xl bg-white p-6 shadow-md">
-        <h1 className="mb-5 text-2xl font-bold text-mayford">Customer Ratings</h1>
+      <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
+        <h1 className="mb-5 text-xl font-semibold tracking-tight text-ink-900 md:text-2xl">Customer Ratings</h1>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] border-collapse text-sm">
             <thead>
-              <tr className="bg-mayford text-left text-white">
-                <th className="p-3">ID</th>
-                <th className="p-3">Name</th>
-                <th className="p-3">Phone</th>
-                <th className="p-3">Service</th>
-                <th className="p-3">Rating</th>
-                <th className="p-3">Comment</th>
-                <th className="p-3">Date</th>
-                <th className="p-3">Action</th>
+              <tr className="border-b border-ink-200 bg-ink-50/70 text-[11px] font-semibold text-ink-500">
+                <th className="px-4 py-3 text-ink-600">ID</th>
+                <th className="px-4 py-3 text-ink-600">Name</th>
+                <th className="px-4 py-3 text-ink-600">Phone</th>
+                <th className="px-4 py-3 text-ink-600">Service</th>
+                <th className="px-4 py-3 text-ink-600">Rating</th>
+                <th className="px-4 py-3 text-ink-600">Comment</th>
+                <th className="px-4 py-3 text-ink-600">Date</th>
+                <th className="px-4 py-3 text-ink-600">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -63,17 +63,17 @@ export function AdminRatings() {
                 <EmptyRow colSpan={8} />
               ) : (
                 data.ratings.map((r) => (
-                  <tr key={r.id} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="p-3">{r.id}</td>
+                  <tr key={r.id} className="transition hover:bg-ink-50/70">
+                    <td className="px-4 py-3 text-ink-600">{r.id}</td>
                     <td className="p-3 font-semibold">{r.customer_name}</td>
-                    <td className="p-3">{r.phone || '—'}</td>
-                    <td className="p-3">{r.service_type}</td>
-                    <td className="p-3">
+                    <td className="px-4 py-3 text-ink-600">{r.phone || '—'}</td>
+                    <td className="px-4 py-3 text-ink-600">{r.service_type}</td>
+                    <td className="px-4 py-3 text-ink-600">
                       <Stars n={r.rating} />
                     </td>
                     <td className="max-w-[260px] p-3">{r.comment || '—'}</td>
                     <td className="p-3 whitespace-nowrap">{String(r.created_at).slice(0, 16).replace('T', ' ')}</td>
-                    <td className="p-3">
+                    <td className="px-4 py-3 text-ink-600">
                       <DeleteBtn confirmText="Delete this rating?" onConfirm={() => remove(r)} />
                     </td>
                   </tr>
@@ -106,21 +106,21 @@ export function AdminCateringBookings() {
   }
 
   return (
-    <div className="rounded-2xl bg-white p-6 shadow-md">
-      <h1 className="mb-5 text-2xl font-bold text-mayford">Catering Bookings</h1>
+    <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
+      <h1 className="mb-5 text-xl font-semibold tracking-tight text-ink-900 md:text-2xl">Catering Bookings</h1>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[820px] border-collapse text-sm">
           <thead>
-            <tr className="bg-mayford text-left text-white">
-              <th className="p-3">ID</th>
-              <th className="p-3">Customer</th>
-              <th className="p-3">Phone</th>
-              <th className="p-3">Event Type</th>
-              <th className="p-3">Event Date</th>
-              <th className="p-3">Guests</th>
-              <th className="p-3">Message</th>
-              <th className="p-3">Date Submitted</th>
-              <th className="p-3">Action</th>
+            <tr className="border-b border-ink-200 bg-ink-50/70 text-[11px] font-semibold text-ink-500">
+              <th className="px-4 py-3 text-ink-600">ID</th>
+              <th className="px-4 py-3 text-ink-600">Customer</th>
+              <th className="px-4 py-3 text-ink-600">Phone</th>
+              <th className="px-4 py-3 text-ink-600">Event Type</th>
+              <th className="px-4 py-3 text-ink-600">Event Date</th>
+              <th className="px-4 py-3 text-ink-600">Guests</th>
+              <th className="px-4 py-3 text-ink-600">Message</th>
+              <th className="px-4 py-3 text-ink-600">Date Submitted</th>
+              <th className="px-4 py-3 text-ink-600">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -130,16 +130,16 @@ export function AdminCateringBookings() {
               <EmptyRow colSpan={9} />
             ) : (
               bookings.map((b) => (
-                <tr key={b.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="p-3">{b.id}</td>
+                <tr key={b.id} className="transition hover:bg-ink-50/70">
+                  <td className="px-4 py-3 text-ink-600">{b.id}</td>
                   <td className="p-3 font-semibold">{b.customer_name}</td>
-                  <td className="p-3">{b.phone}</td>
-                  <td className="p-3">{b.event_type}</td>
+                  <td className="px-4 py-3 text-ink-600">{b.phone}</td>
+                  <td className="px-4 py-3 text-ink-600">{b.event_type}</td>
                   <td className="p-3 whitespace-nowrap">{b.event_date}</td>
-                  <td className="p-3">{b.guest_count}</td>
+                  <td className="px-4 py-3 text-ink-600">{b.guest_count}</td>
                   <td className="max-w-[220px] p-3">{b.message || '—'}</td>
                   <td className="p-3 whitespace-nowrap">{String(b.created_at).slice(0, 16).replace('T', ' ')}</td>
-                  <td className="p-3">
+                  <td className="px-4 py-3 text-ink-600">
                     <DeleteBtn onConfirm={() => remove(b)} />
                   </td>
                 </tr>
@@ -171,19 +171,19 @@ export function AdminContactMessages() {
   }
 
   return (
-    <div className="rounded-2xl bg-white p-6 shadow-md">
-      <h1 className="mb-5 text-2xl font-bold text-mayford">Contact Messages</h1>
+    <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
+      <h1 className="mb-5 text-xl font-semibold tracking-tight text-ink-900 md:text-2xl">Contact Messages</h1>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse text-sm">
           <thead>
-            <tr className="bg-mayford text-left text-white">
-              <th className="p-3">ID</th>
-              <th className="p-3">Name</th>
-              <th className="p-3">Phone / Email</th>
-              <th className="p-3">Subject</th>
-              <th className="p-3">Message</th>
-              <th className="p-3">Date</th>
-              <th className="p-3">Action</th>
+            <tr className="border-b border-ink-200 bg-ink-50/70 text-[11px] font-semibold text-ink-500">
+              <th className="px-4 py-3 text-ink-600">ID</th>
+              <th className="px-4 py-3 text-ink-600">Name</th>
+              <th className="px-4 py-3 text-ink-600">Phone / Email</th>
+              <th className="px-4 py-3 text-ink-600">Subject</th>
+              <th className="px-4 py-3 text-ink-600">Message</th>
+              <th className="px-4 py-3 text-ink-600">Date</th>
+              <th className="px-4 py-3 text-ink-600">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -193,14 +193,14 @@ export function AdminContactMessages() {
               <EmptyRow colSpan={7} />
             ) : (
               messages.map((m) => (
-                <tr key={m.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="p-3">{m.id}</td>
+                <tr key={m.id} className="transition hover:bg-ink-50/70">
+                  <td className="px-4 py-3 text-ink-600">{m.id}</td>
                   <td className="p-3 font-semibold">{m.full_name}</td>
-                  <td className="p-3">{m.email}</td>
-                  <td className="p-3">{m.subject}</td>
+                  <td className="px-4 py-3 text-ink-600">{m.email}</td>
+                  <td className="px-4 py-3 text-ink-600">{m.subject}</td>
                   <td className="max-w-[280px] p-3">{m.message}</td>
                   <td className="p-3 whitespace-nowrap">{String(m.created_at).slice(0, 16).replace('T', ' ')}</td>
-                  <td className="p-3">
+                  <td className="px-4 py-3 text-ink-600">
                     <DeleteBtn onConfirm={() => remove(m)} />
                   </td>
                 </tr>
@@ -232,21 +232,21 @@ export function AdminTrainingApplications() {
   }
 
   return (
-    <div className="rounded-2xl bg-white p-6 shadow-md">
-      <h1 className="mb-5 text-2xl font-bold text-mayford">Training Applications</h1>
+    <div className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
+      <h1 className="mb-5 text-xl font-semibold tracking-tight text-ink-900 md:text-2xl">Training Applications</h1>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] border-collapse text-sm">
           <thead>
-            <tr className="bg-mayford text-left text-white">
-              <th className="p-3">ID</th>
-              <th className="p-3">Name</th>
-              <th className="p-3">Phone</th>
-              <th className="p-3">Email</th>
-              <th className="p-3">Training School</th>
-              <th className="p-3">Program</th>
-              <th className="p-3">Message</th>
-              <th className="p-3">Date</th>
-              <th className="p-3">Action</th>
+            <tr className="border-b border-ink-200 bg-ink-50/70 text-[11px] font-semibold text-ink-500">
+              <th className="px-4 py-3 text-ink-600">ID</th>
+              <th className="px-4 py-3 text-ink-600">Name</th>
+              <th className="px-4 py-3 text-ink-600">Phone</th>
+              <th className="px-4 py-3 text-ink-600">Email</th>
+              <th className="px-4 py-3 text-ink-600">Training School</th>
+              <th className="px-4 py-3 text-ink-600">Program</th>
+              <th className="px-4 py-3 text-ink-600">Message</th>
+              <th className="px-4 py-3 text-ink-600">Date</th>
+              <th className="px-4 py-3 text-ink-600">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -256,16 +256,16 @@ export function AdminTrainingApplications() {
               <EmptyRow colSpan={9} />
             ) : (
               apps.map((a) => (
-                <tr key={a.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="p-3">{a.id}</td>
+                <tr key={a.id} className="transition hover:bg-ink-50/70">
+                  <td className="px-4 py-3 text-ink-600">{a.id}</td>
                   <td className="p-3 font-semibold">{a.full_name}</td>
-                  <td className="p-3">{a.phone}</td>
-                  <td className="p-3">{a.email}</td>
-                  <td className="p-3">{a.training_school}</td>
-                  <td className="p-3">{a.program}</td>
+                  <td className="px-4 py-3 text-ink-600">{a.phone}</td>
+                  <td className="px-4 py-3 text-ink-600">{a.email}</td>
+                  <td className="px-4 py-3 text-ink-600">{a.training_school}</td>
+                  <td className="px-4 py-3 text-ink-600">{a.program}</td>
                   <td className="max-w-[220px] p-3">{a.message || '—'}</td>
                   <td className="p-3 whitespace-nowrap">{String(a.created_at).slice(0, 16).replace('T', ' ')}</td>
-                  <td className="p-3">
+                  <td className="px-4 py-3 text-ink-600">
                     <DeleteBtn onConfirm={() => remove(a)} />
                   </td>
                 </tr>

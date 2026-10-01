@@ -1,7 +1,62 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, KeyRound, Lock, ShieldCheck, User } from 'lucide-react';
 import { api } from '../../api';
-import { Btn, Input } from '../../components/ui';
+import { Alert, Button, Field, IconTile, Input } from '../../components/ui';
+
+/** Shared shell for the two-step admin gate. */
+function AuthShell({
+  icon,
+  step,
+  title,
+  subtitle,
+  children,
+}: {
+  icon: typeof KeyRound;
+  step: string;
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-ink-950 p-4">
+      <div className="pointer-events-none absolute inset-0  opacity-20" aria-hidden="true" />
+
+      <div className="relative w-full max-w-[26rem] rounded-card border border-ink-200 bg-white p-7 sm:p-8">
+        <div className="flex items-center gap-3">
+          <img src="/assets/images/logo.png" alt="" className="h-10 w-10 rounded-tile object-cover ring-1 ring-ink-900/5" />
+          <div>
+            <p className="text-[14px] font-semibold tracking-tight text-ink-900">Mayford Foods</p>
+            <p className="text-[12px] font-semibold text-mayford-600">Admin console</p>
+          </div>
+        </div>
+
+        <div className="mt-7 flex items-center gap-3">
+          <IconTile icon={icon} tone="brand" />
+          <div>
+            <p className="text-[12px] font-semibold text-ink-400">{step}</p>
+            <h1 className="text-[20px] font-semibold tracking-tight text-ink-900">{title}</h1>
+          </div>
+        </div>
+        <p className="mt-3 text-[14px] leading-relaxed text-ink-500">{subtitle}</p>
+
+        <div className="mt-6">{children}</div>
+
+        <div className="mt-6 flex items-center justify-between border-t border-ink-100 pt-5">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-[13px] font-bold text-ink-500 transition hover:text-ink-900"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.4} /> Back to website
+          </Link>
+          <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-400">
+            <ShieldCheck className="h-3.5 w-3.5 text-success-600" strokeWidth={2.4} /> Secure access
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /** Admin PIN gate (original admin-pin.php) */
 export function AdminPinPage() {
@@ -25,31 +80,31 @@ export function AdminPinPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
-      <div className="w-full max-w-sm rounded-xl bg-white p-8 text-center shadow-lg">
-        <img src="/assets/images/logo.png" alt="" className="mx-auto mb-4 h-16 w-16 rounded-full object-cover" />
-        <h2 className="mb-4 text-2xl font-bold text-mayford">Admin Access</h2>
-        {error && <p className="mb-3 font-semibold text-red-600">{error}</p>}
-        <form onSubmit={submit}>
+    <AuthShell
+      icon={KeyRound}
+      step="Step 1 of 2"
+      title="Enter the access PIN"
+      subtitle="This gate keeps the admin console separate from the public website."
+    >
+      {error && <Alert tone="red">{error}</Alert>}
+      <form onSubmit={submit}>
+        <Field label="Admin PIN">
           <Input
             type="password"
-            placeholder="Enter Admin PIN"
+            inputMode="numeric"
+            autoFocus
+            placeholder="• • • • • •"
             value={pin}
             onChange={(e) => setPin(e.target.value)}
             required
-            className="mb-4"
+            className="text-center text-lg tracking-[0.4em]"
           />
-          <Btn type="submit" disabled={busy} className="w-full">
-            Continue
-          </Btn>
-        </form>
-        <p className="mt-4 text-sm text-gray-500">
-          <Link to="/" className="underline">
-            ← Back to website
-          </Link>
-        </p>
-      </div>
-    </div>
+        </Field>
+        <Button type="submit" variant="primary" size="lg" full loading={busy} iconRight={ArrowRight}>
+          {busy ? 'Checking…' : 'Continue'}
+        </Button>
+      </form>
+    </AuthShell>
   );
 }
 
@@ -81,49 +136,52 @@ export function AdminLoginPage() {
       await api.post('/auth/login', { username, password });
       navigate('/admin/dashboard');
     } catch (err) {
-      const e2 = err as Error & { needPin?: boolean };
-      if (e2.needPin) {
-        navigate('/admin-pin', { replace: true });
-        return;
-      }
-      setError(e2.message);
+      setError((err as Error).message);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div
-      className="relative flex min-h-screen items-center justify-center bg-cover bg-center p-4"
-      style={{ backgroundImage: "url('/assets/images/hero.png')" }}
+    <AuthShell
+      icon={Lock}
+      step="Step 2 of 2"
+      title="Sign in to the console"
+      subtitle="Use the username and password issued to your outlet account."
     >
-      <div className="absolute inset-0 bg-black/45" />
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white/95 p-8 shadow-2xl">
-        <div className="text-center">
-          <img src="/assets/images/logo.png" alt="" className="mx-auto mb-3 h-20 w-20 rounded-full object-cover" />
-          <h2 className="text-2xl font-bold text-mayford">Mayford Foods Admin</h2>
-        </div>
-        {error && <p className="mt-4 text-center font-semibold text-red-600">{error}</p>}
-        <form onSubmit={submit} className="mt-4">
-          <Input placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} required className="mb-3" />
-          <Input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="mb-4"
-          />
-          <Btn type="submit" disabled={busy} className="w-full !bg-mayford hover:!bg-mayford-dark">
-            Login
-          </Btn>
-        </form>
-        <div className="mt-5 text-center text-sm text-gray-600">
-          Forgot Password?
-          <br />
-          Contact Super Admin <span className="font-semibold">0244143271</span>
-        </div>
-      </div>
-    </div>
+      {error && <Alert tone="red">{error}</Alert>}
+      <form onSubmit={submit}>
+        <Field label="Username">
+          <div className="relative">
+            <User className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" strokeWidth={2.2} />
+            <Input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="e.g. mainadmin"
+              autoComplete="username"
+              required
+              className="pl-11"
+            />
+          </div>
+        </Field>
+        <Field label="Password">
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" strokeWidth={2.2} />
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••"
+              autoComplete="current-password"
+              required
+              className="pl-11"
+            />
+          </div>
+        </Field>
+        <Button type="submit" variant="primary" size="lg" full loading={busy} iconRight={ArrowRight}>
+          {busy ? 'Signing in…' : 'Sign in'}
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

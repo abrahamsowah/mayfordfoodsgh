@@ -8,6 +8,8 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // The app is previewed behind a proxied host (e.g. *.e2b.app); allow it.
+    allowedHosts: ['.e2b.app', '.arena.ai', 'localhost', '127.0.0.1'],
     proxy: {
       '/api': { target: 'http://127.0.0.1:4000', changeOrigin: true },
       '/assets': { target: 'http://127.0.0.1:4000', changeOrigin: true },
