@@ -12,6 +12,7 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://127.0.0.1:4000', changeOrigin: true },
       '/assets': { target: 'http://127.0.0.1:4000', changeOrigin: true },
+      '/sajama-tag.js': { target: 'http://127.0.0.1:5000', changeOrigin: true },
     },
   },
   build: {
