@@ -140,7 +140,7 @@ cd ../server && npm start
 
 ## Standalone Sajama Shield
 
-Sajama Shield runs independently under [`sajama-shield/`](sajama-shield/). Mayford does not mount the Shield dashboard or management API; it only serves the tag file and forwards the public telemetry beacon through a same-origin endpoint. The storefront uses the stable registered site ID `site_mayford_gh_001` (an identifier, not a secret).
+Sajama Shield runs independently under [`sajama-shield/`](sajama-shield/). Mayford should load the tag directly from the publicly reachable Shield host, and the browser sends telemetry straight to that service. No Mayford Shield proxy or `SAJAMA_SHIELD_API_BASE_URL` setting is needed. The registered Mayford site ID is `site_mayford_gh_001` (a public identifier, not a secret); configure Shield's `CORS_ORIGINS` to allow Mayford's origin.
 
 ```bash
 cd sajama-shield
@@ -150,7 +150,7 @@ cp .env.example .env
 npm start
 ```
 
-By default it serves its own dashboard and `/api/shield` API on port `5000`. Local Mayford development proxies the tag's telemetry to `http://127.0.0.1:5000/api/shield`; in production, set `SAJAMA_SHIELD_API_BASE_URL` in the Mayford server environment to the Shield service's reachable API base. Configure Shield secrets and allowed telemetry origins as described in [`sajama-shield/README.md`](sajama-shield/README.md). The optional Node telemetry client can be built from `sajama-shield/client-sdk`.
+By default it serves its own dashboard and `/api/shield` API on port `5000`. For remote Mayford monitoring, the tag should be loaded from the public Shield host and send telemetry there directly; allow Mayford's origin in Shield's `CORS_ORIGINS`. Configure Shield secrets and allowed telemetry origins as described in [`sajama-shield/README.md`](sajama-shield/README.md). The optional Node telemetry client can be built from `sajama-shield/client-sdk`.
 
 ---
 

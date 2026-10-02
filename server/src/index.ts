@@ -29,11 +29,6 @@ const PORT = Number(process.env.PORT || 4000);
 const PUBLIC_DIR = path.resolve(__dirname, '../../react/public');
 const DIST_DIR = path.resolve(__dirname, '../../react/dist');
 const ASSETS_DIR = path.join(PUBLIC_DIR, 'assets');
-const SAJAMA_TAG_FILE = path.resolve(__dirname, '../../sajama-shield/sajama-tag.js');
-const SAJAMA_SHIELD_API_BASE_URL = (
-  process.env.SAJAMA_SHIELD_API_BASE_URL ||
-  (process.env.NODE_ENV === 'production' ? '' : 'http://127.0.0.1:5000/api/shield')
-).replace(/\/+$/, '');
 
 // Official Accra Delivery Zones & Rider Fees (GHS)
 export const DELIVERY_ZONES: Array<{ id: string; label: string; fee: number }> = [
@@ -666,39 +661,6 @@ app.use(
 
 // Static assets (images, videos, sounds + admin uploads)
 app.use('/assets', express.static(ASSETS_DIR, { maxAge: '1h' }));
-
-// Serve Sajama's tag from its standalone package. Only the public telemetry
-// beacon is proxied through Mayford so the browser can use a same-origin URL.
-app.get('/sajama-tag.js', (_req, res, next) => {
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.sendFile(SAJAMA_TAG_FILE, (err) => {
-    if (err) next(err);
-  });
-});
-
-app.post(
-  '/api/shield/telemetry',
-  createRateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Telemetry rate limit reached.' }),
-  async (req, res) => {
-    if (!SAJAMA_SHIELD_API_BASE_URL) {
-      return res.status(503).json({ ok: false, error: 'Set SAJAMA_SHIELD_API_BASE_URL to enable Shield telemetry.' });
-    }
-    try {
-      const collectorResponse = await fetch(`${SAJAMA_SHIELD_API_BASE_URL}/telemetry`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(req.body || {}),
-        signal: AbortSignal.timeout(5000),
-      });
-      if (collectorResponse.status !== 204) {
-        return res.status(502).json({ ok: false, error: 'Sajama Shield collector returned an unexpected response.' });
-      }
-      return res.status(204).end();
-    } catch {
-      return res.status(502).json({ ok: false, error: 'Sajama Shield telemetry collector is unavailable.' });
-    }
-  }
-);
 
 app.get('/api/health', (_req, res) =>
   res.json({
