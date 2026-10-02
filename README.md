@@ -138,6 +138,22 @@ cd ../server && npm start
 
 ---
 
+## Standalone Sajama Shield
+
+Sajama Shield is restored as an independent service under [`sajama-shield/`](sajama-shield/). Mayford no longer mounts the Shield dashboard or API; Mayford's storefront and admin backend can run independently.
+
+```bash
+cd sajama-shield
+npm ci
+cp .env.example .env
+# Set SAJAMA_SHIELD_KEY and SESSION_SECRET in .env before production use.
+npm start
+```
+
+By default it serves its own dashboard and `/api/shield` API on port `5000`. Configure production secrets and allowed telemetry origins as described in [`sajama-shield/README.md`](sajama-shield/README.md). The optional Node telemetry client can be built from `sajama-shield/client-sdk`.
+
+---
+
 ## Default Admin Credentials
 
 | Username    | Password | Role           | Scope                 |

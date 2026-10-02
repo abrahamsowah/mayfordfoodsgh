@@ -1,0 +1,19 @@
+{
+  "name": "@sajama/shield-agent",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Node.js client agent for the standalone Sajama Shield collector",
+  "main": "dist/sajama-shield-agent.js",
+  "types": "dist/sajama-shield-agent.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3"
+  }
+}

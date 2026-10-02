@@ -23,7 +23,6 @@ import { AdminMenuItems, AdminCategories, AdminDiscounts } from './pages/admin/M
 import { AdminAdverts, AdminBanners, AdminSlides, AdminVideos, AdminCommunity } from './pages/admin/ContentManagement';
 import { AdminRatings, AdminCateringBookings, AdminContactMessages, AdminTrainingApplications } from './pages/admin/Inquiries';
 import AdminSettings from './pages/admin/Settings';
-import ShieldDashboard from './pages/shield/ShieldDashboard';
 
 function ScrollToTop() {
   const { pathname, search, hash } = useLocation();
@@ -102,10 +101,6 @@ export default function App() {
         <Route path="training-applications" element={<AdminTrainingApplications />} />
         <Route path="settings" element={<AdminSettings />} />
       </Route>
-
-      {/* Sajama Shield In-House Telemetry & Observability Platform */}
-      <Route path="/sajama-shield" element={<ShieldDashboard />} />
-      <Route path="/shield" element={<ShieldDashboard />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
