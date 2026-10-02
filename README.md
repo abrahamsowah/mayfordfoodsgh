@@ -150,7 +150,7 @@ cp .env.example .env
 npm start
 ```
 
-By default it serves its own dashboard and `/api/shield` API on port `5000`. In production, allow the Mayford origin in the Shield service's `CORS_ORIGINS` (for example, `https://sajamashield.com,https://mayfordfoodsgh.com`). Mayford itself does not need a Shield server URL or relay. Configure Shield secrets and allowed telemetry origins as described in [`sajama-shield/README.md`](sajama-shield/README.md). The optional Node telemetry client can be built from `sajama-shield/client-sdk`.
+By default it serves its own dashboard and `/api/shield` API on port `5000`. In production, set the Shield service's `CORS_ORIGINS` to the Mayford page origin, `https://mayfordfoodsgh.com` (add `https://www.mayfordfoodsgh.com` too only if Mayford is served from that origin). This is the embedding site's origin—not the Shield host. Mayford itself does not need a Shield server URL or relay. Configure Shield secrets and allowed telemetry origins as described in [`sajama-shield/README.md`](sajama-shield/README.md). The optional Node telemetry client can be built from `sajama-shield/client-sdk`.
 
 ---
 

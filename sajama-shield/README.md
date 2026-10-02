@@ -22,7 +22,7 @@ Set these in `.env` or the hosting environment before starting with `NODE_ENV=pr
 
 - `SAJAMA_SHIELD_KEY`: a unique, long master key. Production startup rejects the development default.
 - `SESSION_SECRET`: a stable random secret of at least 32 characters.
-- `CORS_ORIGINS`: comma-separated origins for the Shield dashboard and client sites embedding the telemetry tag, such as `https://shield.example.com,https://client.example.com`.
+- `CORS_ORIGINS`: comma-separated browser origins allowed to send telemetry. Add the client-site origins embedding the tag; for Mayford, use `https://mayfordfoodsgh.com`. This is not the Shield service URL.
 - `SAJAMA_SHIELD_TOKEN`: optional shared token for the Node client agent's server-to-server heartbeat/log endpoints.
 - `HOST` and `PORT`: default to `0.0.0.0` and `5000`.
 
