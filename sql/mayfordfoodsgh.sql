@@ -1,5 +1,5 @@
 -- =====================================================================
---  MAYFORD FOODS GH — COMPLETE DATABASE SCHEMA + SEED DATA
+--  MAYFORD FOODS GH - COMPLETE DATABASE SCHEMA + SEED DATA
 --  MySQL / MariaDB (phpMyAdmin or mysql CLI)
 --
 --  HOW TO USE:
@@ -151,6 +151,7 @@ CREATE TABLE `orders` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `customer_name` varchar(255) NOT NULL,
   `phone` varchar(50) NOT NULL,
+  `customer_email` varchar(255) DEFAULT NULL,
   `food_item` varchar(255) NOT NULL,
   `quantity` int(11) NOT NULL,
   `outlet` varchar(100) NOT NULL,
@@ -158,15 +159,19 @@ CREATE TABLE `orders` (
   `address` text DEFAULT NULL,
   `order_details` text DEFAULT NULL,
   `total` decimal(10,2) NOT NULL,
+  `payment_method` varchar(50) NOT NULL DEFAULT 'Paystack',
+  `payment_status` varchar(50) NOT NULL DEFAULT 'Paid',
+  `payment_reference` varchar(100) DEFAULT NULL,
   `status` varchar(50) NOT NULL DEFAULT 'Pending',
   `notification_status` varchar(20) NOT NULL DEFAULT 'new',
   `order_date` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_payment_reference` (`payment_reference`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `orders` (`id`, `customer_name`, `phone`, `food_item`, `quantity`, `outlet`, `order_type`, `address`, `order_details`, `total`, `status`, `notification_status`, `order_date`) VALUES
-(1, 'Sowh', '055760526', 'Jollof', 3, 'Dzorwulu', 'Delivery', 'accra', 'Jollof x 3', 240.00, 'Pending', 'new', '2026-06-19 17:28:56'),
-(2, 'abbbb', '567', 'Multiple Foods', 0, 'Adabraka', 'Delivery', 'centrrs', 'Jollof x 1 = GH₵80.00\nBanku x 1 = GH₵45.00\n', 125.00, 'Pending', 'new', '2026-06-19 19:10:52');
+INSERT INTO `orders` (`id`, `customer_name`, `phone`, `customer_email`, `food_item`, `quantity`, `outlet`, `order_type`, `address`, `order_details`, `total`, `payment_method`, `payment_status`, `payment_reference`, `status`, `notification_status`, `order_date`) VALUES
+(1, 'Sowh', '055760526', 'sowh@example.com', 'Jollof', 3, 'Dzorwulu', 'Delivery', 'accra', 'Jollof x 3', 240.00, 'Paystack', 'Paid', 'PSK_MF_1001882', 'Pending', 'new', '2026-06-19 17:28:56'),
+(2, 'abbbb', '567', 'guest@example.com', 'Multiple Foods', 0, 'Adabraka', 'Delivery', 'centrrs', 'Jollof x 1 = GH₵80.00\nBanku x 1 = GH₵45.00\n', 125.00, 'Paystack', 'Paid', 'PSK_MF_1001944', 'Pending', 'new', '2026-06-19 19:10:52');
 
 -- --------------------------------------------------------
 --  Ratings (Rate Mayford popup)
@@ -277,11 +282,12 @@ CREATE TABLE `website_settings` (
   `facebook_link` text NOT NULL,
   `tiktok_link` text NOT NULL,
   `opening_hours` varchar(255) NOT NULL,
+  `paystack_public_key` varchar(255) DEFAULT 'pk_test_mayfordfoodsgh_public_key',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `website_settings` (`id`, `email`, `adabraka_phone`, `dzorwulu_phone`, `facebook_link`, `tiktok_link`, `opening_hours`) VALUES
-(1, 'mayfordfoods@gmail.com', '0244143271', '0533634378', 'https://www.facebook.com/share/1PDFLKArpt/', 'https://www.tiktok.com/@maryafuahboakye?_r=1&_t=ZS-97IIPfQ9uRo', 'Monday - Sunday 9:00 AM - 9:30 PM');
+INSERT INTO `website_settings` (`id`, `email`, `adabraka_phone`, `dzorwulu_phone`, `facebook_link`, `tiktok_link`, `opening_hours`, `paystack_public_key`) VALUES
+(1, 'mayfordfoods@gmail.com', '0244143271', '0533634378', 'https://www.facebook.com/share/1PDFLKArpt/', 'https://www.tiktok.com/@maryafuahboakye?_r=1&_t=ZS-97IIPfQ9uRo', 'Monday - Sunday 9:00 AM - 9:30 PM', 'pk_test_mayfordfoodsgh_public_key');
 
 COMMIT;
 

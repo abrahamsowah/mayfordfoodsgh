@@ -4,158 +4,150 @@ import {
   ArrowUpRight,
   Award,
   Check,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
-  Flame,
   GraduationCap,
+  HeartHandshake,
   MapPin,
+  MessageCircle,
   Phone,
   ShoppingBag,
   Star,
-  Users,
+  Tag,
+  Utensils,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useSettings } from '../components/SiteLayout';
 import { useCart } from '../context/CartContext';
-import { CountUp, Reveal } from '../components/motion';
-import { Card, Eyebrow, LinkBtn, Section, SectionHeader, Stars, ZoomImg } from '../components/ui';
+import { Reveal } from '../components/motion';
+import { Eyebrow, FoodCard, FoodCardSkeleton, LinkBtn, Section, SectionHeader, Stars } from '../components/ui';
 import type { Advert, AdVideo, MenuItem, Rating, Slide } from '../types';
-import { effectivePrice, ghs, waLink } from '../utils';
+import { ghs, waLink } from '../utils';
 
-/** Background image slider (original hero-slider, 5s rotation) with Ken Burns zoom */
-function HeroSlider({ slides }: { slides: Slide[] }) {
+function HeroGallery({ slides }: { slides: Slide[] }) {
   const [index, setIndex] = useState(0);
+
   useEffect(() => {
     if (slides.length < 2) return;
-    const t = setInterval(() => setIndex((i) => (i + 1) % slides.length), 5000);
+    const t = setInterval(() => setIndex((i) => (i + 1) % slides.length), 5500);
     return () => clearInterval(t);
   }, [slides.length]);
-  if (slides.length === 0) return <div className="absolute inset-0 bg-mayford-800" />;
+
+  const fallbackImages = ['hero.png', 'hero2.png', 'hero3.png'];
+  const list = slides.length > 0 ? slides.map((s) => s.image) : fallbackImages;
+
   return (
-    <>
-      {slides.map((s, i) => (
+    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-neutral-900 lg:aspect-[5/4]">
+      {list.map((img, i) => (
         <img
-          key={s.id}
-          src={`/assets/images/${s.image}`}
-          alt="Mayford Foods"
-          className={`hero-slide absolute inset-0 h-full w-full object-cover ${i === index ? 'kenburns opacity-100' : 'opacity-0'}`}
+          key={`${img}-${i}`}
+          src={`/assets/images/${img}`}
+          alt="Mayford Foods signature dishes"
+          className={`hero-slide absolute inset-0 h-full w-full object-cover ${
+            i === index ? 'opacity-100' : 'pointer-events-none opacity-0'
+          }`}
         />
       ))}
-      <div className="absolute inset-0 bg-gradient-to-r from-stone-950/95 via-stone-950/65 to-stone-950/30" />
-      <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-transparent to-stone-950/40" />
-    </>
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+      {/* Bottom caption & controls */}
+      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between p-4 sm:p-5">
+        <div className="flex items-center gap-2">
+          {list.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              aria-label={`Show slide ${i + 1}`}
+              onClick={() => setIndex(i)}
+              className={`h-1.5 transition-all ${
+                i === index ? 'w-6 bg-white' : 'w-1.5 bg-neutral-400 hover:bg-neutral-200'
+              }`}
+            />
+          ))}
+        </div>
+
+        {list.length > 1 && (
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              aria-label="Previous slide"
+              onClick={() => setIndex((i) => (i - 1 + list.length) % list.length)}
+              className="flex h-8 w-8 items-center justify-center rounded-md bg-[#111111] text-white transition-colors hover:bg-[#262626]"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Next slide"
+              onClick={() => setIndex((i) => (i + 1) % list.length)}
+              className="flex h-8 w-8 items-center justify-center rounded-md bg-[#111111] text-white transition-colors hover:bg-[#262626]"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
-/** Rotating advertisement cards (original .advert-slide, 7s rotation) */
-function AdvertCarousel({ adverts }: { adverts: Advert[] }) {
+function AdvertShowcase({ adverts }: { adverts: Advert[] }) {
   const [index, setIndex] = useState(0);
+
   useEffect(() => {
     if (adverts.length < 2) return;
-    const t = setInterval(() => setIndex((i) => (i + 1) % adverts.length), 7000);
+    const t = setInterval(() => setIndex((i) => (i + 1) % adverts.length), 6500);
     return () => clearInterval(t);
   }, [adverts.length]);
+
   if (adverts.length === 0) return null;
+  const active = adverts[index] || adverts[0];
+
   return (
-    <div className="relative min-h-[380px]">
-      {adverts.map((a, i) => (
-        <div
-          key={a.id}
-          className={`advert-slide absolute inset-0 flex flex-col overflow-hidden rounded-[2rem] bg-white shadow-lift ring-1 ring-white/20 md:flex-row ${
-            i === index ? 'opacity-100' : 'pointer-events-none opacity-0'
-          }`}
-        >
-          <div className="flex flex-1 flex-col justify-center p-6 text-center md:p-8 md:text-left">
-            <span className="mb-3 w-fit rounded-full bg-gradient-to-r from-mayford-600 to-flame-500 px-4 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.2em] text-white">
-              Special Offer
-            </span>
-            <h2 className="text-2xl font-extrabold tracking-tight text-stone-900">{a.title}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-stone-600">{a.description}</p>
-            <div className="mt-5">
-              <LinkBtn href={a.button_link || '/menu'}>{a.button_text || 'View Menu'}</LinkBtn>
-            </div>
+    <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      <div className="grid items-center md:grid-cols-[1.15fr_0.85fr]">
+        <div className="p-6 sm:p-8 lg:p-10">
+          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-mayford-600">
+            <Tag className="h-3.5 w-3.5" />
+            <span>Featured Promotion</span>
+          </div>
+          <h3 className="mt-2.5 text-2xl font-bold tracking-tight text-[#111111] sm:text-3xl">{active.title}</h3>
+          <p className="mt-2.5 max-w-xl text-sm leading-relaxed text-[#6B6B6B] sm:text-base">{active.description}</p>
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <LinkBtn href={active.button_link || '/menu'} variant="dark">
+              <span>{active.button_text || 'Order Now'}</span>
+              <ArrowRight className="h-4 w-4" />
+            </LinkBtn>
             {adverts.length > 1 && (
-              <div className="mt-5 flex gap-1.5">
-                {adverts.map((_, d) => (
-                  <span
-                    key={d}
-                    className={`h-1.5 rounded-full transition-all ${d === index ? 'w-6 bg-flame-500' : 'w-1.5 bg-stone-300'}`}
+              <div className="flex items-center gap-1.5">
+                {adverts.map((a, idx) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    aria-label={`View offer ${idx + 1}`}
+                    onClick={() => setIndex(idx)}
+                    className={`h-1.5 transition-all ${
+                      idx === index ? 'w-6 bg-[#111111]' : 'w-2 bg-neutral-300 hover:bg-neutral-400'
+                    }`}
                   />
                 ))}
               </div>
             )}
           </div>
-          <div className="relative h-44 md:h-auto md:w-1/2">
-            <img
-              src={`/assets/adverts/${a.banner_image}`}
-              alt="Mayford Foods Advertisement"
-              className="absolute inset-0 h-full w-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = `/assets/images/${a.banner_image}`;
-              }}
-            />
-          </div>
         </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Single "hero" video player: the frame adopts the video's TRUE aspect ratio
- * (portrait videos get a phone-style frame, landscape videos a wide one), so
- * the player always sits neatly in the section instead of stretching awkwardly.
- */
-function HeroVideo({ src }: { src: string }) {
-  const [ratio, setRatio] = useState<number | null>(null);
-  const portrait = ratio !== null && ratio < 1;
-  return (
-    <div
-      className={`relative mx-auto transition-[max-width] duration-500 ${portrait ? 'max-w-[24rem]' : 'max-w-5xl'}`}
-    >
-      <div
-        className="absolute -inset-5 rounded-[3rem] bg-gradient-to-br from-mayford-600/15 via-flame-500/20 to-transparent blur-sm"
-        aria-hidden="true"
-      />
-      <Card className="relative overflow-hidden !rounded-[2.5rem] p-2.5 ring-1 ring-stone-900/10">
-        <div
-          className="relative overflow-hidden rounded-[1.8rem] bg-stone-950"
-          style={ratio ? { aspectRatio: `${ratio}` } : { aspectRatio: '16 / 9' }}
-        >
-          <video
-            controls
-            preload="metadata"
-            className="absolute inset-0 h-full w-full object-contain"
-            onLoadedMetadata={(e) => {
-              const v = e.currentTarget;
-              if (v.videoWidth && v.videoHeight) setRatio(v.videoWidth / v.videoHeight);
+        <div className="relative aspect-[16/10] w-full bg-neutral-100 md:aspect-auto md:h-full md:min-h-[260px]">
+          <img
+            src={`/assets/adverts/${active.banner_image}`}
+            alt={active.title}
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = `/assets/images/${active.banner_image}`;
             }}
-          >
-            <source src={src} type="video/mp4" />
-            Your browser does not support the video tag.
-          </video>
+          />
         </div>
-      </Card>
-      <span className="absolute -top-4 left-8 flex items-center gap-2.5 rounded-full bg-white px-4 py-2 text-[11px] font-extrabold uppercase tracking-widest text-mayford-700 shadow-lift ring-1 ring-stone-900/5">
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-flame-500 opacity-75" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-flame-500" />
-        </span>
-        Now Showing
-      </span>
-    </div>
-  );
-}
-
-/** Uniform 16:9 grid cell: letterboxes any video so mixed clips line up perfectly. */
-function VideoFrame({ src }: { src: string }) {
-  return (
-    <div className="relative aspect-video overflow-hidden rounded-[1.4rem] bg-stone-950">
-      <video controls preload="metadata" className="absolute inset-0 h-full w-full object-contain">
-        <source src={src} type="video/mp4" />
-        Your browser does not support the video tag.
-      </video>
+      </div>
     </div>
   );
 }
@@ -164,11 +156,11 @@ export default function HomePage() {
   const [slides, setSlides] = useState<Slide[]>([]);
   const [adverts, setAdverts] = useState<Advert[]>([]);
   const [videos, setVideos] = useState<AdVideo[]>([]);
-  const [menu, setMenu] = useState<MenuItem[]>([]);
-  const [justAdded, setJustAdded] = useState<number | null>(null);
+  const [menu, setMenu] = useState<MenuItem[] | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<'Adabraka' | 'Dzorwulu'>('Adabraka');
   const [ratings, setRatings] = useState<{ ratings: Rating[]; average: number; count: number } | null>(null);
   const { settings } = useSettings();
-  const { addItem } = useCart();
+  const { count, total } = useCart();
 
   useEffect(() => {
     api.get<{ slides: Slide[] }>('/slides').then((d) => setSlides(d.slides)).catch(() => undefined);
@@ -177,132 +169,370 @@ export default function HomePage() {
     api
       .get<{ items: MenuItem[] }>('/menu')
       .then((d) => setMenu(d.items.slice(0, 6)))
-      .catch(() => undefined);
+      .catch(() => setMenu([]));
     api
       .get<{ ratings: Rating[]; average: number; count: number }>('/public-ratings')
       .then(setRatings)
       .catch(() => undefined);
   }, []);
 
-  function quickAdd(item: MenuItem) {
-    addItem(item);
-    setJustAdded(item.id);
-    window.setTimeout(() => setJustAdded((v) => (v === item.id ? null : v)), 1400);
-  }
+  const adabrakaPhone = settings?.adabraka_phone || '0244143271';
+  const dzorwuluPhone = settings?.dzorwulu_phone || '0533634378';
+  const activeBranchPhone = selectedBranch === 'Adabraka' ? adabrakaPhone : dzorwuluPhone;
 
   return (
     <>
-      {/* ================= HERO ================= */}
-      <section className="noise relative flex min-h-[680px] items-center overflow-hidden md:min-h-[94vh]">
-        <HeroSlider slides={slides} />
-        <div className="absolute inset-0 bg-dots-dark opacity-20" />
-
-        <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pb-24 pt-20 sm:px-6 md:grid-cols-[1.05fr_0.95fr] md:pb-0">
-          {/* Left: statement */}
+      {/* ================= HERO (UBER EATS + AIRBNB ARCHITECTURE) ================= */}
+      <section className="border-b border-neutral-200 bg-white py-10 md:py-16 lg:py-20">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:px-8">
+          {/* Left Column: Editorial Headline + Branch Fulfillment Selector */}
           <div>
-            <Reveal>
-              <p className="mb-6 inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.3em] text-flame-300 backdrop-blur">
-                <span className="h-1.5 w-1.5 rounded-full bg-flame-400" />
-                Proudly Accra Born &amp; Raised
-              </p>
-              <h1 className="text-[2.75rem] font-extrabold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-[4.5rem]">
-                Taste Of Ghana,
-                <br />
-                Served With <span className="text-gradient">Heart</span>
-              </h1>
-              <div className="kente-stripe mt-6 h-1.5 w-28 rounded-full" />
-              <p className="mt-6 max-w-lg text-base leading-relaxed text-stone-300 md:text-lg">
-                Fresh Ghanaian &amp; continental meals, outside catering, community outreach and professional
-                training, all under one roof in the heart of Accra.
-              </p>
-            </Reveal>
-            <Reveal delay={150}>
-              <div className="mt-9 flex flex-wrap items-center gap-4">
-                <LinkBtn href="/menu" className="!px-8 !py-4 !text-base">
-                  <ShoppingBag className="h-5 w-5" />
-                  Browse Our Menu
-                </LinkBtn>
-                <LinkBtn href="/outlets" variant="ghost" className="!px-8 !py-4 !text-base">
-                  <MapPin className="h-5 w-5" />
-                  Visit Our Outlets
-                </LinkBtn>
-              </div>
-            </Reveal>
-            <Reveal delay={300}>
-              <dl className="glass mt-11 grid max-w-md grid-cols-3 divide-x divide-white/15 rounded-2xl p-6">
-                {[
-                  { value: 2, suffix: '', label: 'Accra Outlets' },
-                  { value: 7, suffix: ' days', label: 'Open Every Week' },
-                  { value: 100, suffix: '+', label: 'Happy Customers / Mo' },
-                ].map((s) => (
-                  <div key={s.label} className="px-4 first:pl-0 last:pr-0">
-                    <dt className="sr-only">{s.label}</dt>
-                    <dd className="text-2xl font-extrabold text-white md:text-3xl">
-                      <CountUp value={s.value} suffix={s.suffix} />
-                    </dd>
-                    <dd className="mt-1 text-[10px] font-bold uppercase tracking-widest text-stone-400">{s.label}</dd>
-                  </div>
-                ))}
-              </dl>
-            </Reveal>
-          </div>
+            <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-mayford-600">
+              <MapPin className="h-3.5 w-3.5" />
+              <span>Accra · Adabraka &amp; Dzorwulu</span>
+            </div>
 
-          {/* Right: live offers with floating proof chips */}
-          <Reveal delay={200} className="relative hidden md:block">
-            <div className="absolute -inset-6 rounded-[3rem] bg-flame-500/10 blur-2xl" aria-hidden="true" />
-            {adverts.length > 0 && <AdvertCarousel adverts={adverts} />}
-            <div className="animate-float glass absolute -left-8 -top-8 z-20 flex items-center gap-3 rounded-2xl px-5 py-3.5">
-              <Star className="h-5 w-5 fill-flame-400 text-flame-400" />
-              <div className="leading-tight">
-                <p className="text-sm font-extrabold text-white">Loved By Locals</p>
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-stone-400">Adabraka &amp; Dzorwulu</p>
+            <h1 className="mt-3 text-4xl font-bold leading-[1.06] tracking-[-0.03em] text-[#111111] sm:text-5xl lg:text-[3.35rem]">
+              Ghanaian &amp; Continental Kitchen, Prepared Fresh Daily.
+            </h1>
+
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-[#6B6B6B] sm:text-lg">
+              Order signature local dishes and continental favourites for pickup or delivery, book full-service event catering, or train at our culinary academy in Accra.
+            </p>
+
+            {/* Uber-style Fulfillment Widget */}
+            <div className="mt-8 rounded-lg border border-neutral-200 bg-[#F7F7F7] p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-3.5">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                  Select Nearest Kitchen
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#111111]">
+                  <Clock className="h-3.5 w-3.5 text-mayford-600" />
+                  {settings?.opening_hours || '9:00 AM - 9:30 PM Daily'}
+                </span>
+              </div>
+
+              <div className="mt-3.5 grid grid-cols-2 gap-2.5">
+                {(['Adabraka', 'Dzorwulu'] as const).map((branch) => {
+                  const active = selectedBranch === branch;
+                  return (
+                    <button
+                      key={branch}
+                      type="button"
+                      onClick={() => setSelectedBranch(branch)}
+                      className={`flex flex-col items-start rounded-md border p-3 text-left transition-colors ${
+                        active
+                          ? 'border-[#111111] bg-white text-[#111111] shadow-2xs'
+                          : 'border-neutral-200 bg-white/60 text-[#6B6B6B] hover:border-neutral-300 hover:text-[#111111]'
+                      }`}
+                    >
+                      <span className="flex w-full items-center justify-between text-xs font-bold uppercase tracking-wider">
+                        <span>{branch}</span>
+                        {active && <span className="h-2 w-2 bg-mayford-600" />}
+                      </span>
+                      <span className="mt-1 text-xs text-[#6B6B6B]">
+                        {branch === 'Adabraka' ? 'Mayford Locals · Adabraka' : 'Mayford Fast Food · Dzorwulu'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
+                <Link
+                  to="/menu"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-[#111111] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#262626]"
+                >
+                  <Utensils className="h-4 w-4" />
+                  <span>Explore Menu &amp; Order</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <a
+                  href={waLink(activeBranchPhone, `Hello Mayford Foods ${selectedBranch}, I would like to place an order.`)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-3 text-sm font-semibold text-[#111111] transition-colors hover:border-[#111111]"
+                >
+                  <MessageCircle className="h-4 w-4 text-whatsapp" />
+                  <span>WhatsApp {selectedBranch}</span>
+                </a>
               </div>
             </div>
-            <div className="animate-float-late glass absolute -bottom-6 -right-6 z-20 flex items-center gap-3 rounded-2xl px-5 py-3.5">
-              <Clock className="h-5 w-5 text-flame-400" />
-              <div className="leading-tight">
-                <p className="text-sm font-extrabold text-white">Open Today</p>
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-stone-400">
-                  {settings?.opening_hours || '9:00 AM to 9:30 PM'}
-                </p>
+
+            {/* Key Metrics Strip */}
+            <dl className="mt-8 grid grid-cols-3 gap-4 border-t border-neutral-200 pt-6">
+              <div>
+                <dt className="text-xs font-medium text-[#6B6B6B]">Accra Branches</dt>
+                <dd className="mt-1 text-xl font-bold tracking-tight text-[#111111] sm:text-2xl">2 Locations</dd>
+              </div>
+              <div className="border-l border-neutral-200 pl-4">
+                <dt className="text-xs font-medium text-[#6B6B6B]">Practical Academy</dt>
+                <dd className="mt-1 text-xl font-bold tracking-tight text-[#111111] sm:text-2xl">70% Hands-On</dd>
+              </div>
+              <div className="border-l border-neutral-200 pl-4">
+                <dt className="text-xs font-medium text-[#6B6B6B]">Guest Rating</dt>
+                <dd className="mt-1 flex items-center gap-1.5 text-xl font-bold tracking-tight text-[#111111] sm:text-2xl">
+                  <Star className="h-4 w-4 fill-[#111111] text-[#111111]" />
+                  <span>{ratings && ratings.count > 0 ? ratings.average.toFixed(1) : '4.9'}</span>
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          {/* Right Column: Hero Photography Frame */}
+          <div>
+            <HeroGallery slides={slides} />
+          </div>
+        </div>
+      </section>
+
+      {/* ================= THE MAYFORD STANDARD (PILLARS) ================= */}
+      <section className="border-b border-neutral-200 bg-[#F7F7F7]">
+        <div className="mx-auto grid max-w-7xl divide-y divide-neutral-200 px-4 sm:grid-cols-2 sm:divide-y-0 sm:px-6 lg:grid-cols-4 lg:divide-x lg:px-8">
+          {[
+            {
+              icon: Utensils,
+              title: 'Cooked Fresh Every Morning',
+              text: 'Prepared from scratch daily using local produce and traditional recipes.',
+            },
+            {
+              icon: MapPin,
+              title: 'Adabraka & Dzorwulu',
+              text: 'Two established Accra kitchens offering dine-in, pickup, and delivery.',
+            },
+            {
+              icon: Award,
+              title: 'Full-Service Event Catering',
+              text: 'End-to-end food service for weddings, corporate functions, and family events.',
+            },
+            {
+              icon: GraduationCap,
+              title: 'Hospitality Training Academy',
+              text: 'Practical culinary and restaurant management programmes led by working chefs.',
+            },
+          ].map((pillar, idx) => (
+            <div
+              key={pillar.title}
+              className={`py-7 ${idx > 0 ? 'lg:pl-7' : ''} ${idx < 3 ? 'lg:pr-7' : ''}`}
+            >
+              <div className="flex items-start gap-3.5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white border border-neutral-200 text-[#111111]">
+                  <pillar.icon className="h-4 w-4" />
+                </span>
+                <div>
+                  <h2 className="text-sm font-bold text-[#111111]">{pillar.title}</h2>
+                  <p className="mt-1 text-xs leading-relaxed text-[#6B6B6B]">{pillar.text}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ================= ACTIVE PROMOTIONS (IF ANY) ================= */}
+      {adverts.length > 0 && (
+        <Section tone="white" className="!pb-0 !pt-14">
+          <AdvertShowcase adverts={adverts} />
+        </Section>
+      )}
+
+      {/* ================= FEATURED MENU ================= */}
+      <Section id="featured" tone="white">
+        <SectionHeader
+          eyebrow="Daily Kitchen Menu"
+          title="Popular Dishes"
+          text="Prepared fresh each morning at our Adabraka and Dzorwulu branches. Add items to your cart or place an instant order."
+          action={
+            <div className="flex items-center gap-3">
+              {count > 0 && (
+                <Link
+                  to="/cart"
+                  className="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2.5 text-xs font-semibold text-[#111111] hover:border-[#111111]"
+                >
+                  <ShoppingBag className="h-3.5 w-3.5 text-mayford-600" />
+                  <span>Cart ({count}) · {ghs(total)}</span>
+                </Link>
+              )}
+              <LinkBtn href="/menu" variant="dark">
+                <span>Full Menu</span>
+                <ArrowRight className="h-4 w-4" />
+              </LinkBtn>
+            </div>
+          }
+        />
+
+        {menu === null ? (
+          <FoodCardSkeleton count={3} />
+        ) : menu.length > 0 ? (
+          <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+            {menu.map((item, i) => (
+              <Reveal key={item.id} delay={(i % 3) * 60}>
+                <FoodCard item={item} />
+              </Reveal>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-neutral-200 bg-[#F7F7F7] p-12 text-center">
+            <p className="text-sm text-[#6B6B6B]">Menu items are being updated. Please check back shortly.</p>
+          </div>
+        )}
+      </Section>
+
+      {/* ================= OUTSIDE CATERING ================= */}
+      <Section tone="default" className="border-y border-neutral-200">
+        <div className="grid items-center gap-12 lg:grid-cols-12">
+          {/* Photo Grid */}
+          <Reveal className="lg:col-span-7">
+            <div className="grid grid-cols-12 gap-3 sm:gap-4">
+              <div className="col-span-7 overflow-hidden rounded-lg bg-neutral-200">
+                <img
+                  src="/assets/images/outsidecater1.jpeg"
+                  alt="Mayford outside catering service"
+                  className="h-full max-h-[420px] min-h-[260px] w-full object-cover"
+                />
+              </div>
+              <div className="col-span-5 flex flex-col gap-3 sm:gap-4">
+                <div className="flex-1 overflow-hidden rounded-lg bg-neutral-200">
+                  <img
+                    src="/assets/images/outsidecater4.jpeg"
+                    alt="Event buffet setup"
+                    className="h-full max-h-[202px] min-h-[124px] w-full object-cover"
+                  />
+                </div>
+                <div className="flex-1 overflow-hidden rounded-lg bg-neutral-200">
+                  <img
+                    src="/assets/images/outsidecater7.jpeg"
+                    alt="Catering team in action"
+                    className="h-full max-h-[202px] min-h-[124px] w-full object-cover"
+                  />
+                </div>
               </div>
             </div>
           </Reveal>
+
+          {/* Copy & Actions */}
+          <Reveal delay={100} className="lg:col-span-5">
+            <Eyebrow>Event Hospitality</Eyebrow>
+            <h2 className="text-3xl font-bold tracking-[-0.02em] text-[#111111] sm:text-4xl">
+              Outside Catering for Weddings, Corporate &amp; Private Events
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-[#6B6B6B]">
+              From intimate executive lunches to large wedding receptions and family gatherings, our catering team manages menu planning, preparation, chafing setup, and professional service across Greater Accra.
+            </p>
+
+            <ul className="mt-6 space-y-3 border-t border-neutral-200 pt-6 text-sm text-[#111111]">
+              {[
+                'Tailored Ghanaian and continental buffet menus for any guest count',
+                'Uniformed service staff, chafing dishes, and complete buffet setup',
+                'Punctual delivery and on-site coordination anywhere in Accra',
+              ].map((point) => (
+                <li key={point} className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-[#111111] text-white">
+                    <Check className="h-3 w-3" strokeWidth={2.5} />
+                  </span>
+                  <span className="font-medium">{point}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <LinkBtn href="/catering" variant="primary">
+                <span>Book Event Catering</span>
+                <ArrowRight className="h-4 w-4" />
+              </LinkBtn>
+              <LinkBtn
+                href={waLink(adabrakaPhone, 'Hello Mayford Foods, I would like to inquire about event catering.')}
+                external
+                variant="outline"
+              >
+                <Phone className="h-4 w-4" />
+                <span>Inquire on WhatsApp</span>
+              </LinkBtn>
+            </div>
+          </Reveal>
         </div>
+      </Section>
 
-        {/* Mobile ad carousel */}
-        <div className="relative z-10 px-4 pb-16 md:hidden">
-          {adverts.length > 0 && <AdvertCarousel adverts={adverts} />}
-        </div>
+      {/* ================= OUR OUTLETS ================= */}
+      <Section tone="white">
+        <SectionHeader
+          eyebrow="Our Locations"
+          title="Visit Our Kitchens in Accra"
+          text="Open seven days a week for dine-in, takeaway, and direct delivery orders."
+          action={
+            <LinkBtn href="/outlets" variant="outline">
+              <span>Branch Details</span>
+              <ArrowUpRight className="h-4 w-4" />
+            </LinkBtn>
+          }
+        />
 
-        {/* Scroll cue */}
-        <a
-          href="#featured"
-          aria-label="Scroll to menu"
-          className="absolute bottom-6 left-1/2 z-10 hidden -translate-x-1/2 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.25em] text-stone-300 backdrop-blur transition hover:bg-white/15 md:flex"
-        >
-          Scroll
-          <ChevronDown className="h-3.5 w-3.5 animate-bounce" />
-        </a>
-      </section>
-
-      {/* ================= WHY MAYFORD ================= */}
-      <Section tone="white" className="!py-10 md:!py-12">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-8 md:grid-cols-2">
           {[
-            { icon: Flame, title: 'Cooked Fresh, Daily', text: 'Every dish prepared from scratch each morning.' },
-            { icon: Users, title: 'Family Owned', text: 'Run with pride and consistency since day one.' },
-            { icon: Award, title: 'Trusted In Accra', text: 'Two neighbourhoods, one standard of quality.' },
-            { icon: GraduationCap, title: 'Training Academy', text: '70% hands-on hospitality education.' },
-          ].map((v, i) => (
-            <Reveal key={v.title} delay={i * 70}>
-              <div className="group flex h-full items-start gap-4 rounded-2xl bg-stone-50 p-5 ring-1 ring-stone-900/5 transition duration-300 hover:-translate-y-1 hover:bg-mayford-50 hover:shadow-soft hover:ring-mayford-200">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-mayford-600 to-mayford-800 text-white shadow-glow transition duration-300 group-hover:scale-110">
-                  <v.icon className="h-5 w-5" />
-                </span>
-                <div>
-                  <h3 className="text-sm font-extrabold tracking-tight text-stone-900">{v.title}</h3>
-                  <p className="mt-1 text-xs leading-relaxed text-stone-500">{v.text}</p>
+            {
+              name: 'Mayford Locals, Adabraka',
+              area: 'Adabraka Market, Building A, Shop 5, Accra',
+              img: 'adabraka.webp',
+              phone: adabrakaPhone,
+              map: 'https://maps.app.goo.gl/2ppyyaRxGfyJE4CM7',
+            },
+            {
+              name: 'Mayford Fast Food, Dzorwulu',
+              area: 'Dzorwulu Market, Shop 12 & 14, Accra',
+              img: 'dzorwulu.jpeg',
+              phone: dzorwuluPhone,
+              map: 'https://maps.app.goo.gl/gmKTiQe96npfgTDN7',
+            },
+          ].map((branch, i) => (
+            <Reveal key={branch.name} delay={i * 80}>
+              <div className="group flex h-full flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white">
+                <div className="relative aspect-[16/9] overflow-hidden bg-neutral-100">
+                  <img
+                    src={`/assets/images/${branch.img}`}
+                    alt={branch.name}
+                    className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+                  />
+                </div>
+                <div className="flex flex-1 flex-col justify-between p-6 sm:p-7">
+                  <div>
+                    <div className="flex items-center justify-between gap-4">
+                      <h3 className="text-xl font-bold tracking-tight text-[#111111]">{branch.name}</h3>
+                      <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#111111]">
+                        <span className="h-2 w-2 bg-emerald-600" />
+                        <span>Open Daily</span>
+                      </span>
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm text-[#6B6B6B]">
+                      <p className="flex items-center gap-2.5">
+                        <MapPin className="h-4 w-4 shrink-0 text-[#111111]" />
+                        <span>{branch.area}</span>
+                      </p>
+                      <p className="flex items-center gap-2.5">
+                        <Clock className="h-4 w-4 shrink-0 text-[#111111]" />
+                        <span>{settings?.opening_hours || 'Monday - Sunday, 9:00 AM - 9:30 PM'}</span>
+                      </p>
+                      <p className="flex items-center gap-2.5">
+                        <Phone className="h-4 w-4 shrink-0 text-[#111111]" />
+                        <span className="font-semibold text-[#111111]">{branch.phone}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap items-center gap-2.5 border-t border-neutral-100 pt-5">
+                    <LinkBtn href={branch.map} external variant="dark" className="flex-1">
+                      <MapPin className="h-4 w-4" />
+                      <span>Directions</span>
+                    </LinkBtn>
+                    <LinkBtn
+                      href={waLink(branch.phone, `Hello ${branch.name}!`)}
+                      external
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      <MessageCircle className="h-4 w-4 text-whatsapp" />
+                      <span>WhatsApp</span>
+                    </LinkBtn>
+                  </div>
                 </div>
               </div>
             </Reveal>
@@ -310,399 +540,195 @@ export default function HomePage() {
         </div>
       </Section>
 
-      {/* ================= FEATURED MEALS (live menu) ================= */}
-      <Section id="featured" className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-dots opacity-60" aria-hidden="true" />
-        <div className="relative">
+      {/* ================= VIDEO SHOWCASE (IF ANY) ================= */}
+      {videos.length > 0 && (
+        <Section tone="default" className="border-t border-neutral-200">
           <SectionHeader
-            index="01"
-            eyebrow="Fresh Daily"
-            title={
-              <>
-                Featured <span className="text-flame-600">Meals</span>
-              </>
-            }
-            text="Signature plates prepared from scratch every morning, served hot at both outlets."
+            eyebrow="Inside Mayford"
+            title="Kitchen & Event Highlights"
+            text="A closer look at our food preparation, catering service, and daily operations."
           />
-          {menu.length > 0 ? (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {menu.map((m, i) => (
-                <Reveal key={m.id} delay={(i % 3) * 90}>
-                  <Card className="group flex h-full flex-col">
-                    <div className="relative overflow-hidden">
-                      <ZoomImg src={`/assets/images/${m.image}`} alt={m.food_name} className="h-52" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-stone-950/50 via-transparent to-transparent opacity-0 transition duration-300 group-hover:opacity-100" />
-                      <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-mayford-700 backdrop-blur">
-                        {m.category}
-                      </span>
-                      {m.discount_percent > 0 && (
-                        <span className="absolute right-4 top-4 rounded-full bg-flame-500 px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-glow">
-                          {m.discount_percent}% Off
-                        </span>
-                      )}
+          {videos.length === 1 ? (
+            <Reveal>
+              <div className="mx-auto max-w-4xl overflow-hidden rounded-lg border border-neutral-200 bg-[#111111]">
+                <div className="relative aspect-video w-full">
+                  <video controls preload="metadata" className="absolute inset-0 h-full w-full object-contain">
+                    <source src={`/assets/videos/${videos[0].video_name}`} type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+              </div>
+            </Reveal>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {videos.map((v, i) => (
+                <Reveal key={v.id} delay={i * 80}>
+                  <div className="overflow-hidden rounded-lg border border-neutral-200 bg-[#111111]">
+                    <div className="relative aspect-video w-full">
+                      <video controls preload="metadata" className="absolute inset-0 h-full w-full object-contain">
+                        <source src={`/assets/videos/${v.video_name}`} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
                     </div>
-                    <div className="flex flex-1 flex-col p-6">
-                      <div className="flex items-start justify-between gap-3">
-                        <h3 className="text-lg font-extrabold tracking-tight text-stone-900">{m.food_name}</h3>
-                        <div className="text-right">
-                          <p className="text-lg font-extrabold text-mayford-700">{ghs(effectivePrice(m))}</p>
-                          {m.discount_percent > 0 && (
-                            <p className="text-xs text-stone-400 line-through">{ghs(m.price)}</p>
-                          )}
-                        </div>
-                      </div>
-                      <p className="mt-1.5 line-clamp-2 flex-1 text-sm text-stone-600">{m.description}</p>
-                      <button
-                        type="button"
-                        onClick={() => quickAdd(m)}
-                        className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full py-3 text-sm font-bold transition duration-300 ${
-                          justAdded === m.id
-                            ? 'bg-green-600 text-white'
-                            : 'bg-stone-900 text-white hover:gap-3 hover:bg-mayford-600'
-                        }`}
-                      >
-                        {justAdded === m.id ? (
-                          <>
-                            <Check className="h-4 w-4" /> Added To Cart
-                          </>
-                        ) : (
-                          <>
-                            <ShoppingBag className="h-4 w-4" /> Add To Cart
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </Card>
+                  </div>
                 </Reveal>
               ))}
             </div>
-          ) : (
-            <p className="text-center text-stone-500">Menu is being updated, please check back soon.</p>
           )}
-          <Reveal className="mt-10 text-center">
-            <LinkBtn href="/menu" variant="dark" className="!px-8 !py-3.5">
-              View Full Menu <ArrowRight className="h-4 w-4" />
-            </LinkBtn>
-          </Reveal>
-        </div>
-      </Section>
-
-      {/* ================= LATEST ADVERTISEMENTS (videos) ================= */}
-      {videos.length > 0 && (
-        <Section tone="white" className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-dots opacity-60" aria-hidden="true" />
-          <div className="relative">
-            <SectionHeader
-              index="02"
-              eyebrow="Now Showing"
-              title={
-                <>
-                  Latest <span className="text-flame-600">Advertisements</span>
-                </>
-              }
-              text="See our food, our events and our people in action."
-            />
-            {videos.length === 1 ? (
-              <Reveal>
-                <HeroVideo src={`/assets/videos/${videos[0].video_name}`} />
-              </Reveal>
-            ) : (
-              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {videos.map((v, i) => (
-                  <Reveal key={v.id} delay={i * 100}>
-                    <Card className="h-full overflow-hidden !rounded-[2rem] p-2.5 ring-1 ring-stone-900/10">
-                      <VideoFrame src={`/assets/videos/${v.video_name}`} />
-                    </Card>
-                  </Reveal>
-                ))}
-              </div>
-            )}
-          </div>
         </Section>
       )}
 
-      {/* ================= OUTSIDE CATERING ================= */}
-      <Section className="relative overflow-hidden">
-        <span
-          className="outline-text pointer-events-none absolute -right-4 top-8 hidden select-none text-[6.5rem] font-extrabold leading-none lg:block"
-          aria-hidden="true"
-        >
-          CATERING
-        </span>
-        <div className="relative grid items-center gap-10 lg:grid-cols-2">
-          <Reveal>
-            <div className="relative">
-              <div className="grid grid-cols-2 gap-4">
-                <img src="/assets/images/outsidecater1.jpeg" alt="Catering" className="h-56 w-full rounded-3xl object-cover shadow-soft md:h-72" />
-                <img src="/assets/images/outsidecater4.jpeg" alt="Catering" className="mt-8 h-56 w-full rounded-3xl object-cover shadow-soft md:h-72" />
-                <img src="/assets/images/outsidecater7.jpeg" alt="Catering" className="-mt-8 h-56 w-full rounded-3xl object-cover shadow-soft md:h-72" />
-              </div>
-              <div className="glass absolute -bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full px-5 py-2.5 text-xs font-extrabold uppercase tracking-widest text-white shadow-lift">
-                <Flame className="h-4 w-4 text-flame-400" />
-                Weddings, Corporate, Funerals
-              </div>
-            </div>
-          </Reveal>
-          <Reveal delay={150}>
-            <Eyebrow>Events That Matter</Eyebrow>
-            <h2 className="text-3xl font-extrabold tracking-tight text-stone-900 md:text-[2.75rem] md:leading-[1.1]">
-              Outside Catering <span className="text-flame-600">Services</span>
-            </h2>
-            <p className="mt-4 leading-relaxed text-stone-600">
-              Weddings, funerals, birthdays and corporate events: Mayford Foods handles the food end to end, from
-              menu planning and preparation to serving and cleanup, so you can enjoy every moment.
-            </p>
-            <ul className="mt-7 space-y-4 text-sm font-semibold text-stone-700">
-              {['Custom menus for any guest count', 'Professional wait & setup team', 'Delivery anywhere in Accra'].map(
-                (li) => (
-                  <li key={li} className="flex items-center gap-3">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-flame-500 text-white">
-                      <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                    </span>
-                    {li}
-                  </li>
-                )
-              )}
-            </ul>
-            <div className="mt-9">
-              <LinkBtn href="/catering">
-                Explore Catering <ArrowRight className="h-4 w-4" />
-              </LinkBtn>
-            </div>
-          </Reveal>
-        </div>
-      </Section>
-
-      {/* ================= COMMUNITY IMPACT (dark chapter) ================= */}
-      <section className="noise relative overflow-hidden bg-stone-950 py-16 md:py-24">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(178,34,34,0.4),transparent_60%)]" />
-        <div className="absolute inset-0 bg-dots-dark opacity-30" />
-        <div className="relative mx-auto w-full max-w-6xl px-4 sm:px-6">
+      {/* ================= COMMUNITY IMPACT ================= */}
+      <section className="bg-[#111111] py-16 text-white md:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <SectionHeader
             light
-            index="03"
-            eyebrow="Giving Back"
-            title={
-              <>
-                Community <span className="text-flame-400">Impact</span>
-              </>
+            eyebrow="Social Responsibility"
+            title="Community Impact & Outreach"
+            text="We believe a neighbourhood kitchen should strengthen the community it serves through food donations, outreach programmes, and local training."
+            action={
+              <LinkBtn href="/community" variant="ghost">
+                <span>View Outreach</span>
+                <ArrowRight className="h-4 w-4" />
+              </LinkBtn>
             }
-            text="Mayford Foods believes in giving back to society through food donations, outreach programs and community support."
           />
+
           <div className="grid gap-6 md:grid-cols-3">
             {[
-              { img: 'community1.png', title: 'Food Donations' },
-              { img: 'community2.png', title: 'Outreach Programs' },
-              { img: 'community5.png', title: 'Community Support' },
-            ].map((c, i) => (
-              <Reveal key={c.img} delay={i * 100} className={i === 1 ? 'md:mt-10' : ''}>
-                <Link
-                  to="/community"
-                  className="group relative block overflow-hidden rounded-3xl ring-1 ring-white/10 transition duration-300 hover:-translate-y-1.5 hover:shadow-lift hover:ring-flame-500/50"
-                >
-                  <img
-                    src={`/assets/images/${c.img}`}
-                    alt={c.title}
-                    className={`${i === 1 ? 'h-80' : 'h-64'} w-full object-cover transition-transform duration-700 group-hover:scale-105`}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/25 to-transparent" />
-                  <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-5">
+              {
+                img: 'community1.png',
+                title: 'Food Donations',
+                desc: 'Hot meals shared regularly with families and vulnerable groups in Accra.',
+              },
+              {
+                img: 'community2.png',
+                title: 'Outreach Programmes',
+                desc: 'Partnering with neighbourhood organizations to support local welfare.',
+              },
+              {
+                img: 'community5.png',
+                title: 'Community Support',
+                desc: 'Investing in youth skills and hospitality mentorship across Ghana.',
+              },
+            ].map((item, i) => (
+              <Reveal key={item.img} delay={i * 80}>
+                <Link to="/community" className="group block">
+                  <div className="aspect-[4/3] overflow-hidden rounded-lg bg-neutral-900">
+                    <img
+                      src={`/assets/images/${item.img}`}
+                      alt={item.title}
+                      className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+                    />
+                  </div>
+                  <div className="mt-4 flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[10px] font-extrabold uppercase tracking-[0.3em] text-flame-400">Mayford Cares</p>
-                      <p className="mt-1 text-sm font-extrabold uppercase tracking-widest text-white">{c.title}</p>
+                      <h3 className="text-base font-bold text-white group-hover:text-neutral-300 transition-colors">
+                        {item.title}
+                      </h3>
+                      <p className="mt-1 text-sm leading-relaxed text-neutral-400">{item.desc}</p>
                     </div>
-                    <span className="flex h-9 w-9 shrink-0 -translate-x-2 items-center justify-center rounded-full bg-white/10 text-white opacity-0 backdrop-blur transition duration-300 group-hover:translate-x-0 group-hover:opacity-100">
-                      <ArrowUpRight className="h-4 w-4" />
-                    </span>
+                    <ArrowUpRight className="mt-1 h-4 w-4 shrink-0 text-neutral-500 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white" />
                   </div>
                 </Link>
               </Reveal>
             ))}
           </div>
-          <Reveal className="mt-10 text-center">
-            <LinkBtn href="/community" variant="ghost" className="!border-white/30">
-              View Community Activities <ArrowRight className="h-4 w-4" />
-            </LinkBtn>
-          </Reveal>
         </div>
       </section>
 
-      {/* ================= OUR OUTLETS ================= */}
-      <Section tone="white">
-        <SectionHeader
-          index="04"
-          eyebrow="Find Us"
-          title={
-            <>
-              Our <span className="text-flame-600">Outlets</span>
-            </>
-          }
-          text="Two locations across Accra, open every day."
-        />
-        <div className="grid gap-6 md:grid-cols-2">
-          {[
-            {
-              name: 'Mayford Locals, Adabraka',
-              img: 'adabraka.webp',
-              phone: settings?.adabraka_phone || '0244143271',
-              map: 'https://maps.app.goo.gl/2ppyyaRxGfyJE4CM7',
-            },
-            {
-              name: 'Mayford Fast Food, Dzorwulu',
-              img: 'dzorwulu.jpeg',
-              phone: settings?.dzorwulu_phone || '0533634378',
-              map: 'https://maps.app.goo.gl/gmKTiQe96npfgTDN7',
-            },
-          ].map((o, i) => (
-            <Reveal key={o.name} delay={i * 120}>
-              <Card className="overflow-hidden">
-                <ZoomImg src={`/assets/images/${o.img}`} alt={o.name} className="h-56" />
-                <div className="p-7">
-                  <h3 className="text-lg font-extrabold tracking-tight text-stone-900">{o.name}</h3>
-                  <div className="mt-4 space-y-2.5 text-sm text-stone-600">
-                    <p className="flex items-center gap-3">
-                      <Clock className="h-4 w-4 shrink-0 text-flame-600" />
-                      {settings?.opening_hours || 'Monday - Sunday 9:00 AM - 9:30 PM'}
-                    </p>
-                    <p className="flex items-center gap-3">
-                      <Phone className="h-4 w-4 shrink-0 text-flame-600" />
-                      {o.phone}
-                    </p>
-                  </div>
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <LinkBtn href={o.map} external className="!px-5 !py-2.5 !text-xs">
-                      <MapPin className="h-3.5 w-3.5" /> Get Directions
-                    </LinkBtn>
-                    <LinkBtn
-                      href={waLink(o.phone, 'Hello Mayford Foods!')}
-                      external
-                      variant="dark"
-                      className="!px-5 !py-2.5 !text-xs"
-                    >
-                      <Phone className="h-3.5 w-3.5" /> WhatsApp
-                    </LinkBtn>
-                  </div>
-                </div>
-              </Card>
-            </Reveal>
-          ))}
-        </div>
-      </Section>
-
-      {/* ================= CUSTOMER RATING (social proof) ================= */}
+      {/* ================= CUSTOMER REVIEWS ================= */}
       {ratings && ratings.count > 0 && (
-        <section className="noise relative overflow-hidden bg-mayford-800 py-16 md:py-24">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,152,0,0.3),transparent_55%)]" />
-          <span className="pointer-events-none absolute -top-10 right-6 select-none text-[11rem] font-extrabold leading-none text-white/5" aria-hidden="true">
-            &rdquo;
-          </span>
-          <div className="relative mx-auto w-full max-w-6xl px-4 sm:px-6">
-            <Reveal className="mx-auto mb-12 max-w-2xl text-center">
-              <Eyebrow light>Social Proof</Eyebrow>
-              <div className="flex items-center justify-center gap-4">
-                <span className="text-6xl font-extrabold text-white">{ratings.average.toFixed(1)}</span>
-                <div className="text-left">
-                  <Stars n={ratings.average} className="text-xl text-flame-400" />
-                  <p className="mt-1 text-xs font-bold uppercase tracking-widest text-flame-200">
-                    from {ratings.count} customer{ratings.count > 1 ? 's' : ''}
-                  </p>
-                </div>
-              </div>
-              <h2 className="mt-5 text-3xl font-extrabold tracking-tight text-white md:text-4xl">
-                Loved By Our Customers
-              </h2>
-            </Reveal>
-            {ratings.ratings.length > 0 && (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                {ratings.ratings.map((r, i) => (
-                  <Reveal key={r.id} delay={i * 100}>
-                    <figure className="h-full rounded-3xl bg-white/10 p-6 ring-1 ring-white/15 backdrop-blur transition duration-300 hover:-translate-y-1 hover:bg-white/15">
-                      <Stars n={r.rating} className="text-flame-400" />
-                      <blockquote className="mt-3 text-sm leading-relaxed text-stone-200">
-                        &ldquo;{r.comment || `Rated ${r.service_type} ${r.rating}/5`}&rdquo;
+        <Section tone="default" className="border-b border-neutral-200">
+          <SectionHeader
+            eyebrow="Verified Feedback"
+            title={`Rated ${ratings.average.toFixed(1)} out of 5 by Our Guests`}
+            text={`Based on ${ratings.count} verified customer review${ratings.count > 1 ? 's' : ''} across food orders, catering, and training.`}
+          />
+
+          {ratings.ratings.length > 0 && (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {ratings.ratings.map((r, i) => (
+                <Reveal key={r.id} delay={i * 70}>
+                  <figure className="flex h-full flex-col justify-between rounded-lg border border-neutral-200 bg-white p-6">
+                    <div>
+                      <Stars n={r.rating} />
+                      <blockquote className="mt-4 text-sm leading-relaxed text-[#111111]">
+                        &ldquo;{r.comment || `Rated ${r.service_type} ${r.rating} out of 5.`}&rdquo;
                       </blockquote>
-                      <figcaption className="mt-4 text-xs font-bold uppercase tracking-widest text-flame-300">
-                        {r.customer_name} · {r.service_type}
-                      </figcaption>
-                    </figure>
-                  </Reveal>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
+                    </div>
+                    <figcaption className="mt-5 border-t border-neutral-100 pt-3.5">
+                      <p className="text-xs font-bold text-[#111111]">{r.customer_name}</p>
+                      <p className="mt-0.5 text-[11px] font-medium text-[#6B6B6B]">{r.service_type}</p>
+                    </figcaption>
+                  </figure>
+                </Reveal>
+              ))}
+            </div>
+          )}
+        </Section>
       )}
 
-      {/* ================= TRAINING CTA ================= */}
-      <Section>
-        <Reveal>
-          <div className="noise relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-stone-950 via-mayford-900 to-mayford-700 px-6 py-16 text-center shadow-lift md:px-16">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(255,152,0,0.35),transparent_60%)]" />
-            <span
-              className="outline-text-light pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2 select-none whitespace-nowrap text-[7rem] font-extrabold leading-none"
-              aria-hidden="true"
-            >
-              ACADEMY
-            </span>
-            <div className="relative">
-              <span className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-flame-500 text-white shadow-glow">
-                <GraduationCap className="h-8 w-8" />
-              </span>
-              <Eyebrow light>Mayford Training Academy</Eyebrow>
-              <h2 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-white md:text-4xl">
-                Train With Chefs Who Do It Every Day
-              </h2>
-              <p className="mx-auto mt-4 max-w-xl text-stone-300">
-                Practical food preparation and catering training, 70% hands-on in real kitchens, restaurants and
-                hospitality environments.
-              </p>
-              <div className="mt-9 flex flex-wrap justify-center gap-4">
-                <LinkBtn href="/training" className="!px-8 !py-4 !text-base">
-                  Explore Programmes <ArrowRight className="h-4 w-4" />
-                </LinkBtn>
-                <LinkBtn href="/contact" variant="ghost" className="!px-8 !py-4 !text-base">
-                  Ask A Question
-                </LinkBtn>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </Section>
-
-      {/* ================= OWNERS ================= */}
-      <Section tone="white" className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-dots opacity-60" aria-hidden="true" />
-        <div className="relative grid items-center gap-12 md:grid-cols-2">
+      {/* ================= TRAINING ACADEMY & FOUNDERS ================= */}
+      <Section tone="white">
+        <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
+          {/* Training Academy Card */}
           <Reveal>
-            <div className="relative">
-              <div className="absolute -inset-4 rounded-[3rem] border-2 border-mayford-600/25" aria-hidden="true" />
-              <img
-                src="/assets/images/ownersofmayford.jpeg"
-                alt="Owners"
-                className="relative h-full max-h-[28rem] w-full rounded-[2.5rem] object-cover object-top shadow-lift"
-              />
-              <div className="glass absolute -bottom-5 right-8 rounded-2xl px-5 py-3">
-                <p className="text-sm font-extrabold text-mayford-700">The Mayford Family</p>
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-stone-500">
-                  Founders &amp; Team
+            <div className="flex h-full flex-col justify-between rounded-lg border border-neutral-200 bg-[#F7F7F7] p-7 sm:p-10">
+              <div>
+                <div className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#111111] text-white">
+                  <GraduationCap className="h-5 w-5" />
+                </div>
+                <Eyebrow className="mt-5">Mayford Training Academy</Eyebrow>
+                <h2 className="text-2xl font-bold tracking-[-0.02em] text-[#111111] sm:text-3xl">
+                  Train With Working Chefs in Real Commercial Kitchens
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-[#6B6B6B] sm:text-base">
+                  Our curriculum is 70% practical and 30% theory, equipping students with culinary arts, restaurant operations, and hospitality leadership skills.
                 </p>
+              </div>
+              <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-neutral-200 pt-6">
+                <LinkBtn href="/training" variant="dark">
+                  <span>Explore Programmes</span>
+                  <ArrowRight className="h-4 w-4" />
+                </LinkBtn>
+                <LinkBtn href="/contact" variant="outline">
+                  <span>Admissions Inquiry</span>
+                </LinkBtn>
               </div>
             </div>
           </Reveal>
-          <Reveal delay={150}>
-            <Eyebrow>Meet The Owners</Eyebrow>
-            <h2 className="text-3xl font-extrabold tracking-tight text-stone-900 md:text-[2.75rem] md:leading-[1.1]">
-              A Family Business Built On <span className="text-flame-600">Ghanaian Hospitality</span>
-            </h2>
-            <p className="mt-4 leading-relaxed text-stone-600">
-              Dedicated to serving quality meals and supporting communities through food and training initiatives,
-              the Mayford family has grown from one kitchen to two thriving Accra outlets, plus a training academy
-              shaping the next generation of hospitality professionals.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-4">
-              <LinkBtn href="/about" variant="dark">
-                Read Our Story <ArrowRight className="h-4 w-4" />
-              </LinkBtn>
+
+          {/* Founders / Family Heritage Card */}
+          <Reveal delay={100}>
+            <div className="grid h-full gap-6 rounded-lg border border-neutral-200 bg-white p-6 sm:grid-cols-[0.85fr_1.15fr] sm:p-8">
+              <div className="overflow-hidden rounded-md bg-neutral-100">
+                <img
+                  src="/assets/images/ownersofmayford.jpeg"
+                  alt="Founders of Mayford Foods"
+                  className="h-64 w-full object-cover object-top sm:h-full"
+                />
+              </div>
+              <div className="flex flex-col justify-between">
+                <div>
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-[#F7F7F7] text-[#111111]">
+                    <HeartHandshake className="h-5 w-5" />
+                  </div>
+                  <Eyebrow className="mt-4">Family Owned &amp; Operated</Eyebrow>
+                  <h2 className="text-2xl font-bold tracking-[-0.02em] text-[#111111]">
+                    Built on Ghanaian Hospitality
+                  </h2>
+                  <p className="mt-3 text-sm leading-relaxed text-[#6B6B6B]">
+                    From a single kitchen to two bustling Accra branches and a professional training academy, the Mayford family remains hands-on in every plate served.
+                  </p>
+                </div>
+                <div className="mt-6 border-t border-neutral-100 pt-5">
+                  <LinkBtn href="/about" variant="outline" className="w-full sm:w-auto">
+                    <span>Read Our Story</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </LinkBtn>
+                </div>
+              </div>
             </div>
           </Reveal>
         </div>

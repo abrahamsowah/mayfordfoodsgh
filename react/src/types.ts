@@ -6,6 +6,7 @@ export interface Settings {
   facebook_link: string;
   tiktok_link: string;
   opening_hours: string;
+  paystack_public_key?: string;
 }
 
 export interface Banner {
@@ -41,6 +42,8 @@ export interface CommunityMedia {
   id: number;
   media_type: 'image' | 'video' | string;
   file_name: string;
+  title?: string;
+  description?: string;
   created_at: string;
 }
 
@@ -65,6 +68,7 @@ export interface Category {
 export interface Order {
   id: number;
   customer_name: string;
+  customer_email?: string | null;
   phone: string;
   food_item: string;
   quantity: number;
@@ -72,7 +76,13 @@ export interface Order {
   order_type: string;
   address: string | null;
   order_details: string | null;
+  delivery_zone?: string | null;
+  delivery_fee?: number;
   total: number;
+  payment_method?: string;
+  payment_status?: string;
+  payment_reference?: string | null;
+  receipt_signature?: string;
   status: string;
   order_date: string;
 }
@@ -109,12 +119,17 @@ export interface ContactMessage {
 
 export interface TrainingApplication {
   id: number;
+  application_ref?: string | null;
   full_name: string;
   phone: string;
   email: string;
   training_school: string;
   program: string;
   message: string | null;
+  status?: 'New' | 'Contacted' | 'Interview Scheduled' | 'Admitted' | 'Archived' | string;
+  admin_notes?: string | null;
+  email_sent?: number | boolean;
+  confirmation_email_html?: string | null;
   created_at: string;
 }
 
@@ -134,10 +149,26 @@ export interface CartItem {
 
 export interface DashStats {
   revenue: number;
+  paid_revenue: number;
+  avg_order_value: number;
+  total_orders: number;
   pending_orders: number;
+  preparing_orders: number;
+  ready_orders: number;
   completed_orders: number;
+  paid_orders: number;
+  unpaid_orders: number;
+  total_visitors: number;
+  menu_items_count: number;
+  categories_count: number;
+  avg_rating: number;
+  ratings_count: number;
   catering_bookings?: number;
   contact_messages?: number;
   training_applications?: number;
-  total_visitors?: number;
+  outlet_stats?: Array<{ outlet: string; orders: number; revenue: number }>;
+  fulfillment_stats?: Array<{ type: string; orders: number }>;
+  payment_stats?: Array<{ method: string; orders: number; revenue: number }>;
+  top_foods?: Array<{ name: string; count: number; revenue: number }>;
+  recent_orders?: Order[];
 }

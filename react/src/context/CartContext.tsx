@@ -3,9 +3,7 @@ import type { CartItem, MenuItem } from '../types';
 import { effectivePrice } from '../utils';
 
 /**
- * Shopping cart.
- * The PHP site kept the cart in $_SESSION; the SPA keeps it in localStorage
- * so it behaves the same way across page navigation and browser restarts.
+ * Shopping cart persisted in localStorage.
  */
 const STORAGE_KEY = 'mayford_cart';
 
@@ -15,6 +13,8 @@ interface CartContextValue {
   total: number;
   addItem: (item: MenuItem) => void;
   removeItem: (id: number) => void;
+  updateQuantity: (id: number, quantity: number) => void;
+  getItemQuantity: (id: number) => number;
   clear: () => void;
 }
 
@@ -54,6 +54,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
           ];
         }),
       removeItem: (id: number) => setItems((prev) => prev.filter((i) => i.id !== id)),
+      updateQuantity: (id: number, quantity: number) =>
+        setItems((prev) => {
+          if (quantity <= 0) {
+            return prev.filter((i) => i.id !== id);
+          }
+          return prev.map((i) => (i.id === id ? { ...i, quantity } : i));
+        }),
+      getItemQuantity: (id: number) => items.find((i) => i.id === id)?.quantity ?? 0,
       clear: () => setItems([]),
     };
   }, [items]);

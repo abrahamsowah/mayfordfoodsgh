@@ -5,6 +5,8 @@ dist/
 # Server runtime data (demo-mode SQLite database, session files)
 server/data/
 server/dist/
+sajama-shield/shield-data.json
+
 
 # Environment files
 .env
