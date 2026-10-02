@@ -22,7 +22,7 @@ Set these in `.env` or the hosting environment before starting with `NODE_ENV=pr
 
 - `SAJAMA_SHIELD_KEY`: a unique, long master key. Production startup rejects the development default.
 - `SESSION_SECRET`: a stable random secret of at least 32 characters.
-- `CORS_ORIGINS`: comma-separated browser origins allowed to send telemetry. Add the client-site origins embedding the tag; for Mayford, use `https://mayfordfoodsgh.com`. This is not the Shield service URL.
+- `CORS_ORIGINS`: optional comma-separated global fallback that applies to every site. Prefer managing each client origin in the dashboard so the allowlist stays site-specific and updates without a restart.
 - `SAJAMA_SHIELD_TOKEN`: optional shared token for the Node client agent's server-to-server heartbeat/log endpoints.
 - `HOST` and `PORT`: default to `0.0.0.0` and `5000`.
 
@@ -45,19 +45,19 @@ The standalone UI and API are shipped together. Main routes include:
 
 ## Install the telemetry tag
 
-Add the hosted tag to a client website, replacing the host and site ID:
+In the dashboard, select **Add Site** and enter the site name and Target URL. Shield generates a unique `site_<UUID>` identifier and includes it in the **Client Tag** snippet. Paste that snippet into the client website, replacing the host only if your Shield deployment uses a different domain:
 
 ```html
-<script src="https://shield.example.com/sajama-tag.js" data-site-id="site_client_name_001" async></script>
+<script src="https://shield.example.com/sajama-tag.js" data-site-id="site_550e8400-e29b-41d4-a716-446655440000" async></script>
 ```
 
 For Mayford Foods GH, the deployed tag uses its registered site ID and sends directly to Sajama Shield:
 
 ```html
-<script src="https://sajamashield.com/sajama-tag.js" data-site-id="site_mayford_gh_001" async></script>
+<script src="https://sajamashield.com/sajama-tag.js" data-site-id="site_82be20b5-58ca-412a-998b-6a904a20eda7" async></script>
 ```
 
-The tag posts anonymous page/performance/error telemetry to the Shield host. Set `CORS_ORIGINS` to include every client-site origin that should be allowed to send telemetry, including `https://mayfordfoodsgh.com`. Do not put the master key or agent token in browser code.
+The tag posts page/performance/error telemetry directly to the Shield host. The registered Target URL origin is allowed automatically. Open **Origins** in the Shield dashboard to add or remove other exact origins; updates are persisted and apply immediately without editing environment variables or restarting. The site ID is public, not a secret credential. Do not put the master key or agent token in browser code. CORS restricts browsers but does not authenticate non-browser requests.
 
 ## Build and use the Node client SDK
 
@@ -75,7 +75,7 @@ Install that local package in a monitored Node service and configure its collect
 import { initSajamaShield } from '@sajama/shield-agent';
 
 initSajamaShield({
-  clientId: 'site_mayford_gh_001',
+  clientId: 'site_82be20b5-58ca-412a-998b-6a904a20eda7',
   clientToken: process.env.SAJAMA_SHIELD_TOKEN!,
   shieldCollectorUrl: 'https://shield.example.com/api/shield',
   environment: 'production',

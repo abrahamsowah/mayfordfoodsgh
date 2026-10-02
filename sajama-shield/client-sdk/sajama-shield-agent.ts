@@ -4,7 +4,7 @@
  * HOW IT WORKS:
  * 1. Initialize once in client server backend:
  *    const shield = initSajamaShield({
- *      clientId: 'site_mayford_gh_001',
+ *      clientId: 'site_82be20b5-58ca-412a-998b-6a904a20eda7',
  *      clientToken: process.env.SAJAMA_SHIELD_TOKEN || '...',
  *      shieldCollectorUrl: 'https://shield.sajama.internal/api/shield',
  *      environment: 'production',

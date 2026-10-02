@@ -30,12 +30,94 @@ const DEFAULT_SHIELD_KEY = 'sajama2026';
 const SHIELD_MASTER_KEY = process.env.SAJAMA_SHIELD_KEY || (IS_PRODUCTION ? '' : DEFAULT_SHIELD_KEY);
 const CLIENT_AGENT_TOKEN = process.env.SAJAMA_SHIELD_TOKEN || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || (IS_PRODUCTION ? '' : crypto.randomBytes(32).toString('hex'));
+function normalizeOrigin(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return null;
+    if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSiteUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(candidate);
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) return null;
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function getSiteAllowedOrigins(site) {
+  const origins = new Set();
+  if (site && site.site_url) {
+    try {
+      const siteOrigin = normalizeOrigin(new URL(site.site_url).origin);
+      if (siteOrigin) origins.add(siteOrigin);
+    } catch {}
+  }
+  for (const value of Array.isArray(site?.allowed_origins) ? site.allowed_origins : []) {
+    const origin = normalizeOrigin(value);
+    if (origin) origins.add(origin);
+  }
+  return origins;
+}
+
+function normalizeAllowedOrigins(values, siteUrl) {
+  const entries = Array.isArray(values)
+    ? values
+    : typeof values === 'string'
+      ? values.split(/[\n,]+/)
+      : [];
+  const origins = new Set();
+  if (siteUrl) {
+    const siteOrigin = normalizeOrigin(new URL(siteUrl).origin);
+    if (siteOrigin) origins.add(siteOrigin);
+  }
+  for (const entry of entries) {
+    const value = String(entry || '').trim();
+    if (!value) continue;
+    const origin = normalizeOrigin(value);
+    if (!origin) {
+      throw new Error(`Invalid origin "${value}". Use only scheme and host, for example https://example.com.`);
+    }
+    origins.add(origin);
+  }
+  return [...origins];
+}
+
+function isTelemetryOriginAllowed(origin) {
+  const normalized = normalizeOrigin(origin);
+  if (!normalized) return false;
+  if (CORS_ORIGINS.has(normalized)) return true;
+  if (!IS_PRODUCTION && CORS_ORIGINS.size === 0) return true;
+  return SITES.some((site) => getSiteAllowedOrigins(site).has(normalized));
+}
+
+function isSiteOriginAllowed(site, origin) {
+  const normalized = normalizeOrigin(origin);
+  if (!normalized) return false;
+  if (CORS_ORIGINS.has(normalized)) return true;
+  if (!IS_PRODUCTION && CORS_ORIGINS.size === 0) return true;
+  return getSiteAllowedOrigins(site).has(normalized);
+}
+
 const CORS_ORIGINS = new Set(
   String(process.env.CORS_ORIGINS || '')
     .split(',')
-    .map((origin) => origin.trim())
+    .map(normalizeOrigin)
     .filter(Boolean)
 );
+const LEGACY_MAYFORD_SITE_ID = 'site_mayford_gh_001';
+const MAYFORD_SITE_ID = 'site_82be20b5-58ca-412a-998b-6a904a20eda7';
 const DATA_FILE = path.join(__dirname, 'shield-data.json');
 const SESSION_FILE = path.join(__dirname, 'shield-sessions.json');
 const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -150,14 +232,21 @@ app.use((_req, res, next) => {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
 });
+// Cross-origin browser access is needed only for the public telemetry beacon.
+// Client-site origins are loaded from each registered site's dashboard settings.
 app.use(
+  '/api/shield/telemetry',
   cors({
     origin(origin, callback) {
       if (!origin) return callback(null, false);
-      const allowed = CORS_ORIGINS.size ? CORS_ORIGINS.has(origin) : !IS_PRODUCTION;
-      return callback(null, allowed ? origin : false);
+      const normalized = normalizeOrigin(origin);
+      const allowed = normalized && isTelemetryOriginAllowed(normalized);
+      return callback(null, allowed ? normalized : false);
     },
-    credentials: true,
+    methods: ['POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type'],
+    maxAge: 600,
+    credentials: false,
   })
 );
 app.use(express.json({ limit: '2mb' }));
@@ -227,9 +316,10 @@ const PROBE_NODES = [
 let SITES = [
   {
     id: 1,
-    client_id: 'site_mayford_gh_001',
+    client_id: MAYFORD_SITE_ID,
     site_name: 'Mayford Foods GH (Accra Outlets & Academy)',
     site_url: 'https://mayfordfoodsgh.com',
+    allowed_origins: ['https://mayfordfoodsgh.com'],
     environment: 'production',
     category: 'E-Commerce & Food Hospitality',
     status: 'operational',
@@ -296,7 +386,7 @@ let SITES = [
 let LOGS = [
   {
     id: 1,
-    client_id: 'site_mayford_gh_001',
+    client_id: MAYFORD_SITE_ID,
     severity: 'INFO',
     subsystem: 'shield_radar',
     event_type: 'SYSTEM_ONLINE',
@@ -306,7 +396,7 @@ let LOGS = [
   },
   {
     id: 2,
-    client_id: 'site_mayford_gh_001',
+    client_id: MAYFORD_SITE_ID,
     severity: 'INFO',
     subsystem: 'telemetry_stream',
     event_type: 'CORE_WEB_VITALS_OPTIMAL',
@@ -329,7 +419,7 @@ let LOGS = [
 let ERROR_EVENTS = [
   {
     id: 1,
-    client_id: 'site_mayford_gh_001',
+    client_id: MAYFORD_SITE_ID,
     error_type: 'UncaughtException',
     message: 'TypeError: Cannot read properties of null (reading "scrollIntoView")',
     filename: '/assets/app.js',
@@ -353,7 +443,7 @@ for (let i = 24; i >= 0; i--) {
   const ts = new Date(now - i * 15 * 60 * 1000).toISOString();
   LATENCY_HISTORY.push({
     timestamp: ts,
-    site_mayford_gh_001: 24 + Math.floor(Math.random() * 12),
+    [MAYFORD_SITE_ID]: 24 + Math.floor(Math.random() * 12),
     site_osu_bistro_002: 32 + Math.floor(Math.random() * 14),
     site_accra_logistics_003: 19 + Math.floor(Math.random() * 8),
   });
@@ -398,6 +488,22 @@ function savePersistedData() {
 }
 
 loadPersistedData();
+
+// Rotate the old predictable Mayford site key while preserving persisted history.
+function migrateLegacyMayfordSiteId() {
+  let changed = false;
+  for (const collection of [SITES, LOGS, ERROR_EVENTS, INCIDENTS]) {
+    for (const record of collection) {
+      if (record && record.client_id === LEGACY_MAYFORD_SITE_ID) {
+        record.client_id = MAYFORD_SITE_ID;
+        changed = true;
+      }
+    }
+  }
+  if (changed) savePersistedData();
+}
+
+migrateLegacyMayfordSiteId();
 
 // ============================================================================
 // AUTHENTICATION & ACCESS CONTROL
@@ -526,6 +632,7 @@ app.get('/api/shield/sites', requireShieldAuth, (_req, res) => {
 
   const enrichedSites = SITES.map((s) => ({
     ...s,
+    allowed_origins: [...getSiteAllowedOrigins(s)],
     live_visitors: (siteCounts[s.client_id] || 0) + (s.live_visitors ? Math.floor(s.live_visitors * 0.8) : 5),
   }));
 
@@ -534,36 +641,47 @@ app.get('/api/shield/sites', requireShieldAuth, (_req, res) => {
 
 // Create New Client Site
 app.post('/api/shield/sites', requireShieldAuth, (req, res) => {
-  const { site_name, site_url, environment, category, sla_target, alert_email, webhook_url } = req.body || {};
-  if (!site_name || !site_url) {
+  const body = req.body || {};
+  const siteName = String(body.site_name || '').trim();
+  if (!siteName || !body.site_url) {
     return res.status(400).json({ ok: false, error: 'Site Name and Site URL are required.' });
   }
 
-  const cleanUrl = site_url.startsWith('http') ? site_url : `https://${site_url}`;
-  const slug = site_name.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20);
-  const clientId = `site_${slug}_${Math.floor(100 + Math.random() * 900)}`;
+  const cleanUrl = normalizeSiteUrl(body.site_url);
+  if (!cleanUrl) {
+    return res.status(400).json({ ok: false, error: 'Enter a valid http or https site URL.' });
+  }
 
+  let allowedOrigins;
+  try {
+    allowedOrigins = normalizeAllowedOrigins(body.allowed_origins, cleanUrl);
+  } catch (error) {
+    return res.status(400).json({ ok: false, error: error.message });
+  }
+
+  const clientId = `site_${crypto.randomUUID()}`;
   const newSite = {
     id: Date.now(),
     client_id: clientId,
-    site_name: site_name.trim(),
-    site_url: cleanUrl.trim(),
-    environment: environment || 'production',
-    category: category || 'Web Application',
+    site_name: siteName,
+    site_url: cleanUrl,
+    allowed_origins: allowedOrigins,
+    environment: body.environment || 'production',
+    category: body.category || 'Web Application',
     status: 'operational',
     health_score: 100,
     uptime_percentage: 100.0,
     avg_latency_ms: 25,
     p95_latency_ms: 40,
     primary_region: 'af-south-1 (Accra / West Africa)',
-    sla_target: Number(sla_target) || 99.95,
+    sla_target: Number(body.sla_target) || 99.95,
     ssl_days_remaining: 90,
     security_score: 'A+',
     last_heartbeat: new Date().toISOString(),
     live_visitors: 1,
     created_at: new Date().toISOString(),
-    alert_email: alert_email || '',
-    webhook_url: webhook_url || '',
+    alert_email: body.alert_email || '',
+    webhook_url: body.webhook_url || '',
   };
 
   SITES.push(newSite);
@@ -591,17 +709,36 @@ app.put('/api/shield/sites/:clientId', requireShieldAuth, (req, res) => {
     return res.status(404).json({ ok: false, error: 'Site not found.' });
   }
 
-  const { site_name, site_url, environment, category, sla_target, alert_email, webhook_url } = req.body || {};
-  if (site_name) SITES[siteIndex].site_name = site_name.trim();
-  if (site_url) SITES[siteIndex].site_url = site_url.trim();
-  if (environment) SITES[siteIndex].environment = environment;
-  if (category) SITES[siteIndex].category = category;
-  if (sla_target) SITES[siteIndex].sla_target = Number(sla_target);
-  if (alert_email !== undefined) SITES[siteIndex].alert_email = alert_email;
-  if (webhook_url !== undefined) SITES[siteIndex].webhook_url = webhook_url;
+  const body = req.body || {};
+  const site = SITES[siteIndex];
+  const nextUrl = body.site_url !== undefined ? normalizeSiteUrl(body.site_url) : site.site_url;
+  if (!nextUrl) return res.status(400).json({ ok: false, error: 'Enter a valid http or https site URL.' });
+
+  let allowedOrigins;
+  try {
+    const requestedOrigins = body.allowed_origins !== undefined
+      ? body.allowed_origins
+      : [...getSiteAllowedOrigins(site)];
+    allowedOrigins = normalizeAllowedOrigins(requestedOrigins, nextUrl);
+  } catch (error) {
+    return res.status(400).json({ ok: false, error: error.message });
+  }
+
+  if (body.site_name !== undefined) {
+    const siteName = String(body.site_name).trim();
+    if (!siteName) return res.status(400).json({ ok: false, error: 'Site Name cannot be empty.' });
+    site.site_name = siteName;
+  }
+  site.site_url = nextUrl;
+  site.allowed_origins = allowedOrigins;
+  if (body.environment) site.environment = body.environment;
+  if (body.category) site.category = body.category;
+  if (body.sla_target !== undefined) site.sla_target = Number(body.sla_target) || site.sla_target;
+  if (body.alert_email !== undefined) site.alert_email = body.alert_email;
+  if (body.webhook_url !== undefined) site.webhook_url = body.webhook_url;
 
   savePersistedData();
-  return res.json({ ok: true, site: SITES[siteIndex] });
+  return res.json({ ok: true, site: { ...site, allowed_origins: [...getSiteAllowedOrigins(site)] } });
 });
 
 // Delete Monitored Site
@@ -715,7 +852,7 @@ app.get('/api/shield/sites/:clientId', requireShieldAuth, (req, res) => {
 
   return res.json({
     ok: true,
-    site,
+    site: { ...site, allowed_origins: [...getSiteAllowedOrigins(site)] },
     routes,
     probe_nodes: PROBE_NODES,
     latency_history: LATENCY_HISTORY,
@@ -926,13 +1063,24 @@ app.get('/api/shield/reports/:clientId', requireShieldAuth, (req, res) => {
 
 app.post('/api/shield/telemetry', (req, res) => {
   try {
-    const { siteId, sessionId, type, data, url: pageUrl } = req.body || {};
+    const payload = req.body || {};
+    const requestedSiteId = String(payload.siteId || '').trim();
+    const siteId = requestedSiteId === LEGACY_MAYFORD_SITE_ID ? MAYFORD_SITE_ID : requestedSiteId;
+    const site = SITES.find((entry) => entry.client_id === siteId);
+    if (!site) return res.status(404).end();
+
+    const origin = req.get('origin');
+    if ((IS_PRODUCTION && !origin) || (origin && !isSiteOriginAllowed(site, origin))) {
+      return res.status(403).end();
+    }
+
+    const { sessionId, type, data, url: pageUrl } = payload;
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
     const ipHash = anonymizeIp(ip);
 
     if (sessionId) {
       ACTIVE_SESSIONS[sessionId] = {
-        siteId: siteId || 'site_unknown',
+        siteId,
         lastSeen: Date.now(),
         ipHash,
         path: pageUrl || '/',
@@ -998,7 +1146,8 @@ app.post('/api/shield/telemetry', (req, res) => {
 // Authenticated server-side agent heartbeat ingestion. The client agent uses
 // X-Shield-Token, separate from the dashboard's cookie-backed master session.
 app.post('/api/shield/ingest', requireClientAgentToken, (req, res) => {
-  const clientId = String(req.body?.client_id || '').trim();
+  const requestedClientId = String(req.body?.client_id || '').trim();
+  const clientId = requestedClientId === LEGACY_MAYFORD_SITE_ID ? MAYFORD_SITE_ID : requestedClientId;
   const site = SITES.find((entry) => entry.client_id === clientId);
   if (!site) return res.status(404).json({ ok: false, error: 'Unknown monitored client_id.' });
   if (req.body?.type !== 'heartbeat' || !req.body?.diagnostic || typeof req.body.diagnostic !== 'object') {
@@ -1036,7 +1185,8 @@ app.post('/api/shield/ingest', requireClientAgentToken, (req, res) => {
 // Authenticated server-side agent logs. Keep payload sizes bounded before storing.
 app.post('/api/shield/logs', requireClientAgentToken, (req, res) => {
   const body = req.body || {};
-  const clientId = String(body.client_id || '').trim();
+  const requestedClientId = String(body.client_id || '').trim();
+  const clientId = requestedClientId === LEGACY_MAYFORD_SITE_ID ? MAYFORD_SITE_ID : requestedClientId;
   if (!clientId || !SITES.some((entry) => entry.client_id === clientId)) {
     return res.status(404).json({ ok: false, error: 'Unknown monitored client_id.' });
   }
@@ -1207,7 +1357,7 @@ setInterval(() => {
   if (LATENCY_HISTORY.length > 50) LATENCY_HISTORY.shift();
   LATENCY_HISTORY.push({
     timestamp: ts,
-    site_mayford_gh_001: (SITES[0] && SITES[0].avg_latency_ms) || 28,
+    [MAYFORD_SITE_ID]: (SITES[0] && SITES[0].avg_latency_ms) || 28,
     site_osu_bistro_002: (SITES[1] && SITES[1].avg_latency_ms) || 36,
     site_accra_logistics_003: (SITES[2] && SITES[2].avg_latency_ms) || 22,
   });

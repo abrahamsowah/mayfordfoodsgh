@@ -54,7 +54,7 @@
       activeTab: 'mission_control', // 'mission_control' | 'security' | 'vitals' | 'errors' | 'funnels' | 'reports' | 'logs'
       sites: [],
       probeNodes: [],
-      selectedSiteId: 'site_mayford_gh_001',
+      selectedSiteId: 'site_82be20b5-58ca-412a-998b-6a904a20eda7',
       siteData: null,
       executiveReport: null,
       errors: [],
@@ -68,10 +68,13 @@
       loginError: '',
       showAddSiteModal: false,
       showSnippetModal: false,
+      showOriginsModal: false,
+      originsForm: '',
       currentTime: new Date().toISOString(),
       newSiteForm: {
         site_name: '',
         site_url: '',
+        allowed_origins: '',
         category: 'E-Commerce & Food Hospitality',
         environment: 'production',
         sla_target: '99.95',
@@ -217,6 +220,7 @@
           state.newSiteForm = {
             site_name: '',
             site_url: '',
+            allowed_origins: '',
             category: 'E-Commerce & Food Hospitality',
             environment: 'production',
             sla_target: '99.95',
@@ -229,6 +233,40 @@
       } catch (err) {
         alert('Failed to connect: ' + err.message);
       }
+    }
+
+    function openOriginsModal() {
+      const site = state.sites.find((entry) => entry.client_id === state.selectedSiteId);
+      if (!site) return;
+      state.originsForm = (site.allowed_origins || []).join('\n');
+      state.showOriginsModal = true;
+      render();
+    }
+
+    async function saveSiteOrigins(event) {
+      event.preventDefault();
+      try {
+        const response = await fetch('/api/shield/sites/' + encodeURIComponent(state.selectedSiteId), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ allowed_origins: state.originsForm })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) {
+          alert(result.error || 'Could not save the allowed origins.');
+          return;
+        }
+        state.showOriginsModal = false;
+        await loadAllData();
+      } catch (error) {
+        alert('Could not save the allowed origins: ' + error.message);
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, (character) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[character]));
     }
 
     // Main Master Render
@@ -371,6 +409,15 @@
             <!-- Right: Action Buttons & Probe Status -->
             <div class="flex items-center gap-2">
               <button
+                onclick="openOriginsModal()"
+                title="Manage allowed browser origins for this site"
+                class="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#161B26] hover:bg-slate-800 border border-[#232B3E] rounded-md text-xs font-mono text-slate-200 transition"
+              >
+                <i data-lucide="globe" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>Origins</span>
+              </button>
+
+              <button
                 onclick="state.showSnippetModal = true; render();"
                 class="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#161B26] hover:bg-slate-800 border border-[#232B3E] rounded-md text-xs font-mono text-slate-200 transition"
               >
@@ -433,6 +480,7 @@
 
         <!-- Modals -->
         ${state.showAddSiteModal ? renderAddSiteModal() : ''}
+        ${state.showOriginsModal ? renderOriginsModal(activeSite) : ''}
         ${state.showSnippetModal ? renderSnippetModal(activeSite) : ''}
       `;
 
@@ -1326,6 +1374,17 @@
                 />
               </div>
 
+              <div>
+                <label class="block text-slate-300 mb-1">Additional Allowed Origins <span class="text-slate-500">(optional)</span></label>
+                <textarea
+                  rows="2"
+                  placeholder="https://www.clientdomain.com&#10;https://staging.clientdomain.com"
+                  oninput="state.newSiteForm.allowed_origins = this.value"
+                  class="w-full bg-[#090B10] border border-[#232B3E] rounded px-3 py-2 text-white focus:outline-none focus:border-amber-500 text-xs font-mono"
+                >${escapeHtml(state.newSiteForm.allowed_origins)}</textarea>
+                <p class="text-[10px] text-slate-500 mt-1">The Target URL origin is added automatically. Enter any other exact origins, one per line.</p>
+              </div>
+
               <div class="grid grid-cols-2 gap-2">
                 <div>
                   <label class="block text-slate-300 mb-1">Category</label>
@@ -1363,6 +1422,42 @@
       `;
     }
 
+    // Modal: Manage per-site CORS origins
+    function renderOriginsModal(site) {
+      return `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+          <div class="bg-[#11151F] border border-[#232B3E] rounded-lg max-w-lg w-full p-6 shadow-2xl relative font-mono">
+            <button
+              type="button"
+              onclick="state.showOriginsModal = false; render();"
+              class="absolute right-4 top-4 text-slate-400 hover:text-white"
+              aria-label="Close allowed origins"
+            >
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-1">Allowed Website Origins</h3>
+            <p class="text-xs text-slate-400 mb-4">For ${escapeHtml(site.site_name)}. Changes take effect immediately; no environment edit or Shield restart is needed.</p>
+            <form onsubmit="saveSiteOrigins(event)" class="space-y-3 text-xs">
+              <label class="block text-slate-300 mb-1" for="site-origin-list">One origin per line</label>
+              <textarea
+                id="site-origin-list"
+                rows="6"
+                spellcheck="false"
+                placeholder="https://mayfordfoodsgh.com&#10;https://www.mayfordfoodsgh.com"
+                oninput="state.originsForm = this.value"
+                class="w-full bg-[#090B10] border border-[#232B3E] rounded px-3 py-2 text-white focus:outline-none focus:border-amber-500 text-xs font-mono"
+              >${escapeHtml(state.originsForm)}</textarea>
+              <p class="text-[10px] text-slate-500">The registered Target URL origin is always retained. Enter only scheme and host—no path. CORS is a browser restriction, not an authentication secret.</p>
+              <div class="flex justify-end gap-2 pt-1">
+                <button type="button" onclick="state.showOriginsModal = false; render();" class="px-3 py-2 rounded border border-[#30394D] text-slate-300 hover:text-white">Cancel</button>
+                <button type="submit" class="px-3 py-2 rounded bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">Save Origins</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
     // Modal: Install Tag
     function renderSnippetModal(site) {
       const tagCode = `<script src="${window.location.origin}/sajama-tag.js" data-site-id="${site.client_id}" async><\/script>`;
@@ -1382,6 +1477,7 @@
               Drop-In Client Telemetry Tag (${site.site_name})
             </h3>
             <p class="text-[11px] text-slate-400 mb-3">Paste before &lt;/head&gt; or &lt;/body&gt; on client website.</p>
+            <p class="text-[10px] text-slate-500 mb-2">Generated site ID: <code class="text-slate-300">${escapeHtml(site.client_id)}</code> (public identifier, not a secret).</p>
 
             <div class="bg-[#090B10] border border-[#232B3E] rounded p-3 text-xs text-amber-300">
               <code>${tagCode.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code>
