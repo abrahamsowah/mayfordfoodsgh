@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { useLayoutEffect } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { SiteLayout } from './components/SiteLayout';
 import { AdminLayout, RequireAdmin } from './components/AdminLayout';
 import HomePage from './pages/HomePage';
@@ -13,6 +14,8 @@ import CateringPage from './pages/CateringPage';
 import CommunityPage from './pages/CommunityPage';
 import ContactPage from './pages/ContactPage';
 import TrainingPage from './pages/TrainingPage';
+import TrackOrderPage from './pages/TrackOrderPage';
+import LegalPage from './pages/LegalPage';
 import { AdminPinPage, AdminLoginPage } from './pages/admin/LoginPages';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminOrders from './pages/admin/Orders';
@@ -20,6 +23,24 @@ import { AdminMenuItems, AdminCategories, AdminDiscounts } from './pages/admin/M
 import { AdminAdverts, AdminBanners, AdminSlides, AdminVideos, AdminCommunity } from './pages/admin/ContentManagement';
 import { AdminRatings, AdminCateringBookings, AdminContactMessages, AdminTrainingApplications } from './pages/admin/Inquiries';
 import AdminSettings from './pages/admin/Settings';
+import ShieldDashboard from './pages/shield/ShieldDashboard';
+
+function ScrollToTop() {
+  const { pathname, search, hash } = useLocation();
+  useLayoutEffect(() => {
+    if (hash) {
+      const el = document.querySelector(hash);
+      if (el) {
+        el.scrollIntoView();
+        return;
+      }
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [pathname, search, hash]);
+  return null;
+}
 
 function Public({ children }: { children: React.ReactNode }) {
   return <SiteLayout>{children}</SiteLayout>;
@@ -27,7 +48,9 @@ function Public({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <ScrollToTop />
+      <Routes>
       {/* Public site */}
       <Route
         path="/"
@@ -48,6 +71,8 @@ export default function App() {
       <Route path="/community" element={<Public><CommunityPage /></Public>} />
       <Route path="/contact" element={<Public><ContactPage /></Public>} />
       <Route path="/training" element={<Public><TrainingPage /></Public>} />
+      <Route path="/track-order" element={<Public><TrackOrderPage /></Public>} />
+      <Route path="/legal" element={<Public><LegalPage /></Public>} />
 
       {/* Admin gate */}
       <Route path="/admin-pin" element={<AdminPinPage />} />
@@ -78,7 +103,12 @@ export default function App() {
         <Route path="settings" element={<AdminSettings />} />
       </Route>
 
+      {/* Sajama Shield In-House Telemetry & Observability Platform */}
+      <Route path="/sajama-shield" element={<ShieldDashboard />} />
+      <Route path="/shield" element={<ShieldDashboard />} />
+
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }

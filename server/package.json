@@ -8,16 +8,18 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js"
+    "start": "sh -c '[ -d node_modules ] || npm install; [ -f dist/index.js ] || npm run build; exec node dist/index.js'"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
     "multer": "^2.4.0",
-    "mysql2": "^3.14.1"
+    "mysql2": "^3.14.1",
+    "pg": "^8.13.3"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.9",
@@ -25,8 +27,9 @@
     "@types/express": "^4.17.23",
     "@types/express-session": "^1.18.2",
     "@types/multer": "^2.2.0",
-    "@types/node": "^22.15.0",
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.11.11",
     "tsx": "^4.19.4",
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.3"
   }
 }

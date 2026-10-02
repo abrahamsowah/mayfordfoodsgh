@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { HeartHandshake, Users, Utensils } from 'lucide-react';
 import { api } from '../api';
 import { Reveal } from '../components/motion';
-import { Card, HeroSmall, Section, SectionHeader, Spinner } from '../components/ui';
+import { Card, Eyebrow, HeroSmall, LinkBtn, MediaCardSkeleton, Section, SectionHeader } from '../components/ui';
 import type { CommunityMedia } from '../types';
 
 export default function CommunityPage() {
@@ -18,58 +19,99 @@ export default function CommunityPage() {
     <>
       <HeroSmall
         image="/assets/images/community1.png"
-        title="Community Impact"
-        text="Supporting lives, sharing hope and giving back to communities through outreach programs and food donations."
+        eyebrow="Social Responsibility"
+        title="Community Impact & Outreach"
+        text="Supporting families, sharing freshly cooked meals, and investing in Accra neighbourhoods through regular outreach initiatives."
       />
 
-      <Section>
-        <div className="mx-auto max-w-3xl">
-          <Card className="p-9 text-center md:p-12">
-            <h2 className="text-2xl font-extrabold tracking-tight text-mayford-700 md:text-3xl">
-              Giving Back To Society
-            </h2>
-            <p className="mt-4 leading-relaxed text-stone-600">
-              At Mayford Foods, our mission extends beyond serving delicious meals. We are committed to supporting
-              vulnerable individuals, families and communities through food donations, outreach programs and acts of
-              kindness.
-            </p>
-          </Card>
+      <Section tone="white">
+        <div className="grid gap-6 md:grid-cols-3">
+          {[
+            {
+              icon: Utensils,
+              title: 'Food Donations',
+              text: 'Sharing freshly prepared, nutritious meals with vulnerable individuals and families across Accra.',
+            },
+            {
+              icon: HeartHandshake,
+              title: 'Neighbourhood Outreach',
+              text: 'Partnering with community leaders, schools, and local organizations on welfare drives.',
+            },
+            {
+              icon: Users,
+              title: 'Youth Empowerment',
+              text: 'Providing practical culinary mentorship and hospitality skills to young people.',
+            },
+          ].map((item, i) => (
+            <Reveal key={item.title} delay={i * 70}>
+              <Card className="h-full p-6 sm:p-7">
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-[#F7F7F7] text-[#111111]">
+                  <item.icon className="h-5 w-5" />
+                </span>
+                <h2 className="mt-5 text-lg font-bold tracking-tight text-[#111111]">{item.title}</h2>
+                <p className="mt-2 text-sm leading-relaxed text-[#6B6B6B]">{item.text}</p>
+              </Card>
+            </Reveal>
+          ))}
         </div>
       </Section>
 
-      <Section tone="white">
+      <Section tone="default" className="border-y border-neutral-200">
         <SectionHeader
-          eyebrow="In The Community"
-          title={
-            <>
-              Community <span className="text-flame-600">Activities</span>
-            </>
-          }
+          eyebrow="Field Documentation"
+          title="Community Activities"
+          text="Photos and videos from our food donation drives, youth mentorship, and neighbourhood outreach programmes."
         />
+
         {!media ? (
-          <Spinner />
+          <MediaCardSkeleton count={3} />
         ) : media.length === 0 ? (
-          <p className="text-center text-stone-500">No community activities posted yet.</p>
+          <div className="rounded-lg border border-neutral-200 bg-white p-12 text-center">
+            <p className="text-sm text-[#6B6B6B]">No community activities posted yet.</p>
+          </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {media.map((m, i) => (
-              <Reveal key={m.id} delay={(i % 3) * 80}>
-                <div className="overflow-hidden rounded-3xl shadow-soft ring-1 ring-stone-900/5">
+              <Reveal key={m.id} delay={(i % 3) * 60}>
+                <div className="flex h-full flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white">
                   {m.media_type === 'video' ? (
-                    <div className="relative aspect-video bg-stone-950">
+                    <div className="relative aspect-[4/3] bg-[#111111]">
                       <video controls preload="metadata" className="absolute inset-0 h-full w-full object-contain">
                         <source src={`/assets/community/${m.file_name}`} type="video/mp4" />
+                        <source src={`/assets/videos/${m.file_name}`} type="video/mp4" />
                       </video>
                     </div>
                   ) : (
-                    <div className="group">
+                    <div className="group aspect-[4/3] overflow-hidden bg-neutral-100">
                       <img
                         src={`/assets/community/${m.file_name}`}
-                        alt="Community Impact"
-                        className="h-64 w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        onError={(e) => {
+                          const img = e.currentTarget;
+                          if (!img.dataset.fallback) {
+                            img.dataset.fallback = '1';
+                            img.src = `/assets/images/${m.file_name}`;
+                          }
+                        }}
+                        alt={m.title || 'Mayford Community Impact'}
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
                       />
                     </div>
                   )}
+
+                  <div className="flex flex-1 flex-col justify-between p-5">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-mayford-600">
+                        Outreach Activity
+                      </span>
+                      <h3 className="mt-1 text-base font-bold tracking-tight text-[#111111]">
+                        {m.title || 'Community Outreach Initiative'}
+                      </h3>
+                      {m.description && (
+                        <p className="mt-1.5 text-xs leading-relaxed text-[#6B6B6B]">{m.description}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </Reveal>
             ))}
@@ -77,17 +119,20 @@ export default function CommunityPage() {
         )}
       </Section>
 
-      <Section>
-        <div className="mx-auto max-w-3xl rounded-[2.5rem] bg-gradient-to-br from-mayford-700 to-mayford-900 p-10 text-center text-white shadow-lift md:p-14">
-          <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">Our Impact</h2>
-          <p className="mt-4 leading-relaxed text-stone-200">
-            Through food donations, outreach initiatives and community support activities, Mayford Foods continues
-            to touch lives and contribute positively to society.
-          </p>
-          <p className="mt-3 leading-relaxed text-stone-200">
-            We believe every act of kindness creates a stronger, healthier and more united community.
-          </p>
-          <div className="kente-stripe mx-auto mt-8 h-1 w-24 rounded-full" />
+      <Section tone="white">
+        <div className="flex flex-col items-start justify-between gap-6 rounded-lg border border-neutral-200 bg-[#111111] p-8 text-white sm:p-10 lg:flex-row lg:items-center">
+          <div className="max-w-2xl">
+            <Eyebrow light>Partner With Us</Eyebrow>
+            <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              Committed to Stronger Communities
+            </h2>
+            <p className="mt-2.5 text-sm leading-relaxed text-neutral-300 sm:text-base">
+              Through food donations, outreach initiatives, and practical training, Mayford Foods works to make a lasting positive impact in Accra.
+            </p>
+          </div>
+          <LinkBtn href="/contact" variant="white">
+            <span>Get in Touch</span>
+          </LinkBtn>
         </div>
       </Section>
     </>

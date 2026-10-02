@@ -1,24 +1,23 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------
-   Mayford Foods GH design tokens
-   Same brand colours as the original site, expanded into full scales:
-   primary red  #b22222  (was: header/sidebar/headings)
-   dark red     #8b1a1a
-   accent orange #ff9800 (was: buttons/marquee)
-   dark orange  #e68900
+   Mayford Foods GH Design System
+   Inspired by Airbnb DLS & Uber Base:
+   - 85% crisp neutrals (#FFFFFF, #F7F7F7)
+   - 10% deep charcoal/black ink (#111111, #222222, #6B6B6B)
+   - 5% disciplined Mayford Red (#B22222) accent
 ------------------------------------------------------------------- */
 @theme {
-  --font-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", ui-sans-serif, system-ui, Arial, sans-serif;
+  --font-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
   --color-mayford-50: #fdf3f3;
   --color-mayford-100: #fbe7e7;
   --color-mayford-200: #f6cfcf;
   --color-mayford-300: #efa5a5;
   --color-mayford-400: #e27070;
-  --color-mayford-500: #c94444;
-  --color-mayford-600: #b22222; /* original brand red */
-  --color-mayford-700: #8b1a1a; /* original dark red */
+  --color-mayford-500: #c93b3b;
+  --color-mayford-600: #b22222;
+  --color-mayford-700: #8b1a1a;
   --color-mayford-800: #6d1414;
   --color-mayford-900: #551010;
 
@@ -27,55 +26,56 @@
   --color-flame-200: #ffdba8;
   --color-flame-300: #ffc370;
   --color-flame-400: #ffab40;
-  --color-flame-500: #ff9800; /* original brand orange */
-  --color-flame-600: #e68900; /* original dark orange */
-  --color-flame-700: #c06e02;
+  --color-flame-500: #e07a00;
+  --color-flame-600: #c46800;
+  --color-flame-700: #9e5300;
 
   --color-mayford: #b22222;
   --color-mayford-dark: #8b1a1a;
-  --color-mayford-orange: #ff9800;
-  --color-mayford-orange-dark: #e68900;
-  --color-whatsapp: #25d366;
-  --color-whatsapp-dark: #1ebe5b;
+  --color-mayford-orange: #e07a00;
+  --color-mayford-orange-dark: #c46800;
+  --color-whatsapp: #1fa855;
+  --color-whatsapp-dark: #178a43;
 
-  --shadow-soft: 0 2px 12px -2px rgb(85 16 16 / 0.08), 0 12px 32px -8px rgb(85 16 16 / 0.12);
-  --shadow-lift: 0 8px 24px -6px rgb(85 16 16 / 0.18), 0 24px 48px -12px rgb(85 16 16 / 0.22);
-  --shadow-glow: 0 8px 30px -6px rgb(255 152 0 / 0.45);
+  --shadow-soft: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 4px 12px 0 rgb(0 0 0 / 0.05);
+  --shadow-lift: 0 4px 16px -2px rgb(0 0 0 / 0.08), 0 12px 32px -4px rgb(0 0 0 / 0.08);
+  --shadow-glow: 0 2px 8px 0 rgb(178 34 34 / 0.2);
 }
 
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
 }
 
 body {
   font-family: var(--font-sans);
-  background: #fafaf9;
-  color: #1c1917;
+  background: #ffffff;
+  color: #111111;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 ::selection {
-  background: #b22222;
-  color: #fff;
+  background: #111111;
+  color: #ffffff;
 }
 
-/* thin branded scrollbar */
+/* Minimal scrollbar */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #f5f5f4;
+  background: #f7f7f7;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d6d3d1;
-  border-radius: 8px;
+  background: #d4d4d4;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #b22222;
+  background: #a3a3a3;
 }
 
-/* ---- Scrolling marquee (replaces the old <marquee> tag) ---- */
+/* Subtle announcement ticker */
 @keyframes mayford-marquee {
   0% {
     transform: translateX(0);
@@ -87,165 +87,50 @@ body {
 .animate-marquee {
   display: inline-block;
   white-space: nowrap;
-  animation: mayford-marquee 45s linear infinite;
+  animation: mayford-marquee 48s linear infinite;
 }
 .animate-marquee:hover {
   animation-play-state: paused;
 }
 
-/* ---- Hero slide crossfade + slow Ken Burns zoom ---- */
+/* Hero slide crossfade */
 .hero-slide {
-  transition: opacity 1.4s ease-in-out;
-}
-@keyframes kenburns {
-  0% {
-    transform: scale(1);
-  }
-  100% {
-    transform: scale(1.08);
-  }
-}
-.kenburns {
-  animation: kenburns 12s ease-out forwards;
+  transition: opacity 1s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* ---- Advert card crossfade ---- */
+/* Advert slide crossfade */
 .advert-slide {
-  transition: opacity 0.8s ease-in-out;
+  transition: opacity 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* ---- Scroll reveal ---- */
+/* Subtle scroll reveal */
 .reveal {
   opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateY(12px);
+  transition: opacity 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
   transition-delay: var(--reveal-delay, 0ms);
 }
 .reveal.is-visible {
   opacity: 1;
   transform: translateY(0);
 }
+
 @media (prefers-reduced-motion: reduce) {
   .reveal {
     opacity: 1;
     transform: none;
     transition: none;
   }
-  .animate-marquee,
-  .kenburns {
+  .animate-marquee {
     animation: none;
   }
 }
 
-/* ---- Floating WhatsApp button pulse ---- */
-@keyframes wa-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgb(37 211 102 / 0.5);
-  }
-  70% {
-    box-shadow: 0 0 0 16px rgb(37 211 102 / 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgb(37 211 102 / 0);
-  }
+/* Hide scrollbar utility for horizontal category bars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
-.wa-pulse {
-  animation: wa-pulse 2.4s infinite;
-}
-
-/* ---- Gradient text accent ---- */
-.text-gradient {
-  background: linear-gradient(92deg, #ff9800 0%, #ffc370 55%, #ff9800 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-/* ---- Kente-inspired accent stripe (subtle, brand colours) ---- */
-.kente-stripe {
-  background: repeating-linear-gradient(
-    90deg,
-    #b22222 0 24px,
-    #ff9800 24px 40px,
-    #8b1a1a 40px 64px,
-    #e68900 64px 80px
-  );
-}
-
-/* ---- Fine film grain (adds depth to dark/photo sections) ---- */
-.noise {
-  position: relative;
-  isolation: isolate;
-}
-.noise::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-}
-
-/* ---- Dot grid texture for light sections ---- */
-.bg-dots {
-  background-image: radial-gradient(rgb(28 25 23 / 0.07) 1px, transparent 1px);
-  background-size: 22px 22px;
-}
-.bg-dots-dark {
-  background-image: radial-gradient(rgb(255 255 255 / 0.09) 1px, transparent 1px);
-  background-size: 22px 22px;
-}
-
-/* ---- Frosted glass panel ---- */
-.glass {
-  background: rgb(255 255 255 / 0.08);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgb(255 255 255 / 0.16);
-}
-
-/* ---- Giant outline watermark text ---- */
-.outline-text {
-  color: transparent;
-  -webkit-text-stroke: 1.5px rgb(28 25 23 / 0.08);
-}
-.outline-text-light {
-  color: transparent;
-  -webkit-text-stroke: 1.5px rgb(255 255 255 / 0.12);
-}
-
-/* ---- Gentle floating for hero badges ---- */
-@keyframes float-soft {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-12px);
-  }
-}
-.animate-float {
-  animation: float-soft 5s ease-in-out infinite;
-}
-.animate-float-late {
-  animation: float-soft 5s ease-in-out 1.2s infinite;
-}
-
-/* ---- Slow spin for decorative rings ---- */
-@keyframes spin-slow {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.animate-spin-slow {
-  animation: spin-slow 24s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-float,
-  .animate-float-late,
-  .animate-spin-slow {
-    animation: none;
-  }
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

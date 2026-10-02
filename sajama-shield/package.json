@@ -1,0 +1,28 @@
+{
+  "name": "sajama-shield",
+  "version": "2.0.0",
+  "description": "Enterprise In-House Autonomous Observability, Security Radar & Client Intelligence SaaS",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "observability",
+    "uptime",
+    "telemetry",
+    "security-scanner",
+    "core-web-vitals",
+    "client-intelligence",
+    "executive-reports",
+    "ghana-dpa-compliant"
+  ],
+  "author": "Sajama Technology Solutions",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1"
+  }
+}

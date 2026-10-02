@@ -1,22 +1,42 @@
+import { ArrowRight, QrCode, Smartphone } from 'lucide-react';
 import { Card, Eyebrow, LinkBtn, Section } from '../components/ui';
 
 export default function MenuAccessPage() {
   return (
-    <Section>
-      <div className="mx-auto max-w-xl">
-        <Card className="p-10 text-center">
-          <Eyebrow>Digital Menu</Eyebrow>
-          <h1 className="text-3xl font-extrabold tracking-tight text-stone-900">Scan To View Menu</h1>
-          <p className="mt-3 text-stone-600">
-            Scan the QR Code below with your phone camera to access the Mayford Foods digital menu anytime.
-          </p>
-          <img
-            src="/assets/images/menuqr.jpeg"
-            alt="Menu QR Code"
-            className="mx-auto mt-7 w-60 max-w-full rounded-3xl shadow-lift ring-1 ring-stone-900/10 sm:w-72"
-          />
-          <div className="mt-8">
-            <LinkBtn href="/menu">View Menu Directly →</LinkBtn>
+    <Section tone="default">
+      <div className="mx-auto max-w-2xl">
+        <Card className="p-8 sm:p-12">
+          <div className="grid items-center gap-8 sm:grid-cols-[1fr_auto]">
+            <div>
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#111111] text-white">
+                <QrCode className="h-5 w-5" />
+              </div>
+              <Eyebrow className="mt-4">Contactless Digital Menu</Eyebrow>
+              <h1 className="text-2xl font-bold tracking-[-0.02em] text-[#111111] sm:text-3xl">
+                Scan to Open the Menu
+              </h1>
+              <p className="mt-3 text-sm leading-relaxed text-[#6B6B6B]">
+                Point your smartphone camera at the QR code to browse dishes, check daily prices, and place an order from your table or anywhere in Accra.
+              </p>
+              <div className="mt-6 flex items-center gap-2 text-xs font-medium text-[#6B6B6B]">
+                <Smartphone className="h-4 w-4 text-[#111111]" />
+                <span>Works with iOS and Android camera apps</span>
+              </div>
+              <div className="mt-7">
+                <LinkBtn href="/menu" variant="dark">
+                  <span>Open Menu Directly</span>
+                  <ArrowRight className="h-4 w-4" />
+                </LinkBtn>
+              </div>
+            </div>
+
+            <div className="mx-auto shrink-0 rounded-lg border border-neutral-200 bg-[#F7F7F7] p-3">
+              <img
+                src="/assets/images/menuqr.jpeg"
+                alt="Mayford Foods Menu QR Code"
+                className="h-48 w-48 rounded-md object-contain bg-white sm:h-52 sm:w-52"
+              />
+            </div>
           </div>
         </Card>
       </div>

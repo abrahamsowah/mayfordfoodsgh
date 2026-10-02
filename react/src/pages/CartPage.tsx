@@ -1,24 +1,38 @@
-import { useNavigate } from 'react-router-dom';
-import { ShoppingBag } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Minus,
+  Plus,
+  ShieldCheck,
+  ShoppingBag,
+  Trash2,
+  Utensils,
+} from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { Btn, Card, Eyebrow, LinkBtn, Section } from '../components/ui';
 import { ghs } from '../utils';
 
 export default function CartPage() {
-  const { items, count, total, removeItem } = useCart();
+  const { items, count, total, updateQuantity, removeItem, clear } = useCart();
   const navigate = useNavigate();
 
   if (items.length === 0) {
     return (
-      <Section>
-        <div className="mx-auto max-w-md rounded-[2.5rem] bg-white p-12 text-center shadow-soft">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-mayford-50 text-mayford-600">
-            <ShoppingBag className="h-9 w-9" />
+      <Section tone="default">
+        <div className="mx-auto max-w-md rounded-lg border border-neutral-200 bg-white p-10 text-center sm:p-12">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-[#F7F7F7] text-[#111111]">
+            <ShoppingBag className="h-6 w-6" />
           </div>
-          <h1 className="mt-5 text-3xl font-extrabold tracking-tight text-stone-900">Your Cart Is Empty</h1>
-          <p className="mt-3 text-stone-600">Fresh Ghanaian &amp; continental meals are waiting for you.</p>
+          <h1 className="mt-5 text-2xl font-bold tracking-tight text-[#111111]">Your cart is empty</h1>
+          <p className="mt-2 text-sm leading-relaxed text-[#6B6B6B]">
+            Add freshly prepared Ghanaian and continental dishes from our menu to get started.
+          </p>
           <div className="mt-7">
-            <LinkBtn href="/menu">Browse The Menu</LinkBtn>
+            <LinkBtn href="/menu" variant="dark" className="w-full">
+              <Utensils className="h-4 w-4" />
+              <span>Browse Menu</span>
+            </LinkBtn>
           </div>
         </div>
       </Section>
@@ -26,77 +40,136 @@ export default function CartPage() {
   }
 
   return (
-    <Section>
-      <div className="mb-10 text-center">
-        <Eyebrow>Review Your Order</Eyebrow>
-        <h1 className="text-4xl font-extrabold tracking-tight text-stone-900">Your Cart</h1>
+    <Section tone="default">
+      {/* Header */}
+      <div className="mb-8 flex flex-col justify-between gap-4 border-b border-neutral-200 pb-6 sm:flex-row sm:items-end">
+        <div>
+          <Eyebrow>Your Order</Eyebrow>
+          <h1 className="text-3xl font-bold tracking-[-0.02em] text-[#111111] sm:text-4xl">
+            Shopping Cart ({count} {count === 1 ? 'item' : 'items'})
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/menu"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#111111] hover:text-mayford-600"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>Add more dishes</span>
+          </Link>
+          <span className="text-neutral-300">|</span>
+          <button
+            type="button"
+            onClick={clear}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6B6B6B] transition-colors hover:text-red-600"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            <span>Clear cart</span>
+          </button>
+        </div>
       </div>
-      <div className="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
-        {/* Items */}
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-stone-100 text-left text-[11px] font-extrabold uppercase tracking-widest text-stone-400">
-                  <th className="p-4">Food</th>
-                  <th className="p-4">Price</th>
-                  <th className="p-4">Qty</th>
-                  <th className="p-4">Subtotal</th>
-                  <th className="p-4" />
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.id} className="border-b border-stone-100 last:border-0">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <img src={`/assets/images/${item.image}`} alt={item.food_name} className="h-14 w-14 rounded-xl object-cover" />
-                        <span className="font-bold text-stone-800">{item.food_name}</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-stone-600">{ghs(item.price)}</td>
-                    <td className="p-4 font-bold text-stone-800">{item.quantity}</td>
-                    <td className="p-4 font-extrabold text-mayford-700">{ghs(item.price * item.quantity)}</td>
-                    <td className="p-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => removeItem(item.id)}
-                        aria-label={`Remove ${item.food_name}`}
-                        className="rounded-full bg-stone-100 px-3.5 py-2 text-xs font-bold text-stone-600 transition hover:bg-red-600 hover:text-white"
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+
+      <div className="grid gap-8 lg:grid-cols-[1.65fr_1fr]">
+        {/* Itemized List */}
+        <Card className="divide-y divide-neutral-200">
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center sm:p-6"
+            >
+              <div className="flex items-center gap-4">
+                <img
+                  src={`/assets/images/${item.image}`}
+                  alt={item.food_name}
+                  className="h-16 w-20 shrink-0 rounded-md bg-neutral-100 object-cover"
+                />
+                <div>
+                  <h2 className="text-base font-bold text-[#111111]">{item.food_name}</h2>
+                  <p className="mt-0.5 text-xs font-medium tabular-nums text-[#6B6B6B]">
+                    {ghs(item.price)} each
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-5 sm:justify-end">
+                {/* Quantity Stepper */}
+                <div className="inline-flex h-9 items-center rounded-md border border-neutral-300 bg-white p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                    aria-label={`Decrease quantity of ${item.food_name}`}
+                    className="flex h-7 w-7 items-center justify-center rounded-sm text-[#111111] transition-colors hover:bg-neutral-100"
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="min-w-8 px-2 text-center text-xs font-bold tabular-nums text-[#111111]">
+                    {item.quantity}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                    aria-label={`Increase quantity of ${item.food_name}`}
+                    className="flex h-7 w-7 items-center justify-center rounded-sm text-[#111111] transition-colors hover:bg-neutral-100"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {/* Line Subtotal */}
+                <div className="min-w-24 text-right tabular-nums">
+                  <span className="text-sm font-bold text-[#111111]">
+                    {ghs(item.price * item.quantity)}
+                  </span>
+                </div>
+
+                {/* Remove Button */}
+                <button
+                  type="button"
+                  onClick={() => removeItem(item.id)}
+                  aria-label={`Remove ${item.food_name}`}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
         </Card>
 
-        {/* Summary */}
-        <Card className="h-fit p-7">
-          <h2 className="text-lg font-extrabold tracking-tight text-stone-900">Order Summary</h2>
-          <dl className="mt-5 space-y-3 text-sm">
-            <div className="flex justify-between text-stone-600">
-              <dt>Items</dt>
-              <dd className="font-bold text-stone-900">{count}</dd>
+        {/* Order Summary */}
+        <Card className="h-fit p-6 sm:p-7">
+          <h2 className="text-lg font-bold tracking-tight text-[#111111]">Order Summary</h2>
+
+          <dl className="mt-5 space-y-3 border-t border-neutral-100 pt-5 text-sm">
+            <div className="flex justify-between text-[#6B6B6B]">
+              <dt>Items ({count})</dt>
+              <dd className="font-semibold tabular-nums text-[#111111]">{ghs(total)}</dd>
             </div>
-            <div className="flex justify-between text-stone-600">
-              <dt>Delivery</dt>
-              <dd className="font-bold text-stone-900">Confirmed on WhatsApp</dd>
+            <div className="flex justify-between text-[#6B6B6B]">
+              <dt>Fulfillment</dt>
+              <dd className="font-medium text-[#111111]">Pickup or Delivery</dd>
             </div>
-            <div className="flex justify-between border-t border-dashed border-stone-200 pt-4 text-base">
-              <dt className="font-extrabold text-stone-900">Total</dt>
-              <dd className="text-xl font-extrabold text-mayford-700">{ghs(total)}</dd>
+            <div className="flex justify-between border-t border-neutral-200 pt-4 text-base">
+              <dt className="font-bold text-[#111111]">Total</dt>
+              <dd className="text-xl font-bold tabular-nums text-[#111111]">{ghs(total)}</dd>
             </div>
           </dl>
-          <Btn className="mt-6 w-full !py-3.5" onClick={() => navigate('/checkout')}>
-            Proceed To Checkout →
+
+          <Btn
+            type="button"
+            className="mt-6 w-full !bg-mayford-600 !py-3 hover:!bg-mayford-700"
+            onClick={() => navigate('/checkout')}
+          >
+            <span>Proceed to Checkout</span>
+            <ArrowRight className="h-4 w-4" />
           </Btn>
-          <p className="mt-4 text-center text-xs text-stone-500">
-            Checkout is fast. You&apos;ll confirm the order with the branch on WhatsApp.
-          </p>
+
+          <div className="mt-4 flex items-start gap-2.5 rounded-md bg-[#F7F7F7] p-3 text-xs text-[#6B6B6B]">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#111111]" />
+            <span>
+              Select your preferred branch (Adabraka or Dzorwulu) at checkout and confirm instantly via WhatsApp.
+            </span>
+          </div>
         </Card>
       </div>
     </Section>

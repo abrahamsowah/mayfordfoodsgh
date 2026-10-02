@@ -1,395 +1,481 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import React, { useState } from 'react';
 import {
-  BellRing,
-  Briefcase,
-  Building2,
-  CalendarDays,
+  Award,
+  BookOpen,
   CheckCircle2,
   ChefHat,
+  Clock,
+  Eye,
   GraduationCap,
-  Handshake,
-  Hotel,
-  Lightbulb,
-  Megaphone,
-  Rocket,
-  Store,
-  TrendingUp,
+  Mail,
+  Printer,
+  Sparkles,
   UtensilsCrossed,
-  Wallet,
-  type LucideIcon,
 } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
-import { CountUp, Reveal } from '../components/motion';
-import { Alert, Btn, Card, Eyebrow, Input, LinkBtn, Section, Select, Textarea } from '../components/ui';
+import {
+  Alert,
+  Btn,
+  Card,
+  Field,
+  HeroSmall,
+  Input,
+  Section,
+  SectionHeader,
+  Select,
+  Textarea,
+} from '../components/ui';
 
-function Details({ title, items }: { title: string; items: string[] }) {
-  return (
-    <details className="group rounded-2xl border border-stone-200 bg-stone-50/60 p-4 transition open:border-flame-500/40 open:bg-white open:shadow-soft">
-      <summary className="cursor-pointer list-none font-bold text-mayford-700 group-open:mb-3">
-        {title}
-      </summary>
-      <ul className="list-inside list-disc text-sm text-stone-700">
-        {items.map((i) => (
-          <li key={i}>{i}</li>
-        ))}
-      </ul>
-    </details>
-  );
-}
-
-function SchoolCard({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children: ReactNode }) {
-  return (
-    <Card className="h-full p-7">
-      <div className="mb-5 flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-mayford-600 text-white shadow-glow">
-          <Icon className="h-5 w-5" />
-        </span>
-        <h3 className="text-lg font-extrabold leading-tight tracking-tight text-stone-900">{title}</h3>
-      </div>
-      {children}
-    </Card>
-  );
-}
-
-const PATHWAYS = [
+const TRACKS = [
   {
-    icon: CalendarDays,
-    title: 'Short Professional Courses',
-    duration: ['2 Weeks', '4 Weeks', '6 Weeks'],
-    audience: ['Working Professionals', 'Entrepreneurs', 'Business Owners'],
+    title: 'West African & Continental Culinary Arts',
+    school: 'School of Culinary Arts',
+    defaultProgram: 'Professional Chef Training (3-Month Certificate)',
+    duration: '3 Months / 6 Months',
+    level: 'Beginner to Professional',
+    img: '/assets/images/outsidecater3.jpeg',
+    icon: ChefHat,
+    modules: [
+      'Authentic Ghanaian sauces, soups, and smokehouse techniques',
+      'Commercial kitchen workflow, mise en place, and portion control',
+      'Continental plating, grilling, and protein mastery',
+      'Food safety, HACCP hygiene, and allergen management',
+    ],
   },
   {
-    icon: GraduationCap,
-    title: 'Certificate Programmes',
-    duration: ['3 Months', '6 Months'],
-    audience: ['School Leavers', 'New Hospitality Entrants', 'Career Changers'],
+    title: 'Pastry, Bakery & Confectionery Mastery',
+    school: 'School of Culinary Arts',
+    defaultProgram: 'Artisan Baking & Pastry (6 Weeks)',
+    duration: '6 Weeks Practical',
+    level: 'All Skill Levels',
+    img: '/assets/images/food1.jpg',
+    icon: UtensilsCrossed,
+    modules: [
+      'Artisan bread making, lamination, and savoury pastries',
+      'Event cakes, celebration desserts, and ganache finishing',
+      'Ghanaian snacks, meat pies, and high-volume bakery production',
+      'Recipe costing, bakery equipment care, and packaging',
+    ],
   },
   {
-    icon: Briefcase,
-    title: 'Executive Masterclasses',
-    duration: ['1 Day', '2 Days'],
-    audience: ['Restaurant Owners', 'Managers', 'Caterers', 'Hospitality Executives'],
+    title: 'Restaurant Operations & Food Business Management',
+    school: 'School of Restaurant Management',
+    defaultProgram: 'Restaurant Operations & Food Business (6 Weeks)',
+    duration: '6 Weeks Intensive',
+    level: 'Entrepreneurs & Managers',
+    img: '/assets/images/outsidecater4.jpeg',
+    icon: BookOpen,
+    modules: [
+      'Outlet management, customer service, and food safety standards',
+      'Restaurant startup planning, pricing, and financial controls',
+      'Inventory management, kitchen yield, and waste reduction',
+      'Digital ordering, delivery logistics, and brand marketing',
+    ],
+  },
+  {
+    title: 'Hospitality Leadership & Front Office Excellence',
+    school: 'School of Hospitality Excellence',
+    defaultProgram: 'Hospitality Leadership & Service Excellence (4 Weeks)',
+    duration: '4 Weeks Executive',
+    level: 'Supervisors & Staff',
+    img: '/assets/images/outsidecater1.jpeg',
+    icon: Award,
+    modules: [
+      'Front office systems, guest relations, and service recovery',
+      'Customer experience design and professional etiquette',
+      'Hospitality team leadership, mentorship, and staffing',
+      'Banquet planning, corporate catering, and VIP service',
+    ],
   },
 ];
 
-const ENTRE_CARD = [
-  { icon: Lightbulb, title: 'Business Idea Development' },
-  { icon: TrendingUp, title: 'Business Planning' },
-  { icon: Wallet, title: 'Financial Management' },
-  { icon: Megaphone, title: 'Marketing Strategies' },
-  { icon: Store, title: 'Restaurant Startup Guide' },
-  { icon: Handshake, title: 'Business Mentorship' },
-];
+const PROGRAMMES_BY_SCHOOL: Record<string, string[]> = {
+  'School of Culinary Arts': [
+    'Professional Chef Training (3-Month Certificate)',
+    'Diploma in West African & Continental Cuisine (6 Months)',
+    'Artisan Baking & Pastry (6 Weeks)',
+    'Traditional Ghanaian Commercial Cookery (4 Weeks)',
+    'Executive Weekend Culinary Bootcamp (4 Weeks)',
+  ],
+  'School of Restaurant Management': [
+    'Restaurant Operations & Food Business (6 Weeks)',
+    'Food Costing, Pricing & Inventory Mastery (3 Weeks)',
+    'Event Catering Logistics & Banquet Management (4 Weeks)',
+  ],
+  'School of Hospitality Excellence': [
+    'Hospitality Leadership & Service Excellence (4 Weeks)',
+    'Front Office Operations & Guest Relations (3 Weeks)',
+    'Customer Care & Service Recovery Masterclass (2 Weeks)',
+  ],
+};
+
+const ALL_PROGRAMMES = Object.values(PROGRAMMES_BY_SCHOOL).flat();
+
+interface ConfirmationPayload {
+  id: number;
+  application_ref: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  training_school: string;
+  program: string;
+  confirmation_email_html: string;
+}
 
 export default function TrainingPage() {
-  const [params] = useSearchParams();
-  const [formOpen, setFormOpen] = useState(params.get('form') === '1');
-  const [successOpen, setSuccessOpen] = useState(params.get('success') === '1');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [form, setForm] = useState({
+    full_name: '',
+    phone: '',
+    email: '',
+    training_school: '',
+    program: '',
+    message: '',
+  });
+  const [status, setStatus] = useState<{ kind: 'green' | 'red'; msg: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [confirmation, setConfirmation] = useState<ConfirmationPayload | null>(null);
+  const [showEmailPreview, setShowEmailPreview] = useState(true);
 
-  useEffect(() => {
-    if (params.get('success') === '1') {
-      const t = setTimeout(() => setSuccessOpen(false), 8000);
-      return () => clearTimeout(t);
-    }
-  }, [params]);
+  const availableProgrammes = form.training_school
+    ? PROGRAMMES_BY_SCHOOL[form.training_school] || ALL_PROGRAMMES
+    : ALL_PROGRAMMES;
 
-  async function submit(e: FormEvent<HTMLFormElement>) {
+  const handleSchoolChange = (school: string) => {
+    const schoolProgs = PROGRAMMES_BY_SCHOOL[school] || [];
+    const nextProgram = schoolProgs.includes(form.program) ? form.program : schoolProgs[0] || '';
+    setForm({
+      ...form,
+      training_school: school,
+      program: nextProgram,
+    });
+  };
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const fd = Object.fromEntries(new FormData(e.currentTarget).entries());
-    setBusy(true);
-    setError('');
+    setSubmitting(true);
+    setStatus(null);
     try {
-      await api.post('/training-applications', fd);
-      setFormOpen(false);
-      setSuccessOpen(true);
-      e.currentTarget.reset();
+      const res = await api.post<{
+        ok: boolean;
+        id: number;
+        application_ref: string;
+        email_sent: boolean;
+        confirmation_email_html: string;
+      }>('/training-applications', form);
+      setConfirmation({
+        id: res.id,
+        application_ref: res.application_ref,
+        full_name: form.full_name,
+        email: form.email,
+        phone: form.phone,
+        training_school: form.training_school,
+        program: form.program,
+        confirmation_email_html: res.confirmation_email_html,
+      });
+      setStatus({
+        kind: 'green',
+        msg: `Application ${res.application_ref} received! A branded confirmation email has been sent to ${form.email}.`,
+      });
+      setForm({ full_name: '', phone: '', email: '', training_school: '', program: '', message: '' });
     } catch (err) {
-      setError((err as Error).message);
+      setStatus({ kind: 'red', msg: (err as Error).message });
     } finally {
-      setBusy(false);
+      setSubmitting(false);
     }
-  }
+  };
 
   return (
     <>
-      {/* HERO */}
-      <section className="relative flex min-h-[28rem] items-center justify-center overflow-hidden">
-        <img
-          src="/assets/images/trainingpic.png"
-          alt="Mayford Training Academy"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-mayford-900/80 via-mayford-900/55 to-stone-950/85" />
-        <div className="relative z-10 px-4 py-20 text-center">
-          <p className="mb-4 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.3em] text-flame-300">
-            <span className="h-px w-8 bg-flame-300" />
-            Learn The Craft
-            <span className="h-px w-8 bg-flame-300" />
-          </p>
-          <h1 className="text-4xl font-extrabold tracking-tight text-white md:text-6xl">
-            Mayford Training <span className="text-gradient">Academy</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-base text-stone-200 md:text-lg">
-            Building Future Hospitality Professionals Through Practical Training.
-          </p>
-          <div className="mt-8">
-            <Btn type="button" onClick={() => setFormOpen(true)} className="!px-8 !py-3.5 !text-base">
-              Apply Now →
-            </Btn>
-          </div>
-        </div>
-      </section>
+      <HeroSmall
+        eyebrow="Mayford Training Academy"
+        title="Culinary Arts & Hospitality Education"
+        text="Practical culinary arts, commercial kitchen operations, and hospitality leadership training taught inside active Accra kitchens."
+        image="/assets/images/trainingpic.png"
+      />
 
-      {/* TRAINING SCHOOLS */}
-      <Section>
-        <div className="mb-12 text-center">
-          <Eyebrow>Three Schools, One Career</Eyebrow>
-          <h2 className="text-3xl font-extrabold tracking-tight text-stone-900 md:text-4xl">
-            Our Training <span className="text-flame-600">Schools</span>
-          </h2>
-        </div>
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Reveal>
-            <SchoolCard icon={ChefHat} title="School of Culinary Arts">
-              <div className="space-y-3">
-                <Details title="Basic Culinary Skills" items={['Kitchen Fundamentals', 'Food Preparation', 'Knife Skills', 'Cooking Methods']} />
-                <Details
-                  title="Professional Chef Training"
-                  items={['Menu Planning', 'Food Costing', 'Production Management', 'Commercial Kitchen Operations']}
-                />
-                <Details title="Baking & Pastry" items={['Bread Making', 'Cakes', 'Desserts', 'Pastries']} />
-                <Details
-                  title="Traditional Ghanaian Cuisine"
-                  items={['Local Dishes', 'Regional Specialties', 'Recipe Standardization']}
-                />
+      {/* Academy Highlights */}
+      <div className="border-b border-neutral-200 bg-[#111111] text-white">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-4 py-10 sm:px-6 lg:grid-cols-4 lg:px-8">
+          {[
+            { value: '70% Practical', label: 'Commercial Kitchen Immersion' },
+            { value: '3 Schools', label: 'Specialized Training Tracks' },
+            { value: 'Small Cohorts', label: 'Direct Chef Mentorship' },
+            { value: 'Accra Based', label: 'Adabraka & Dzorwulu Campuses' },
+          ].map((stat) => (
+            <div key={stat.label} className="border-l-2 border-mayford-500 pl-4">
+              <div className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+                {stat.value}
               </div>
-            </SchoolCard>
-          </Reveal>
-          <Reveal delay={90}>
-            <SchoolCard icon={Building2} title="School of Restaurant Management">
-              <div className="space-y-3">
-                <Details
-                  title="Restaurant Operations"
-                  items={['Outlet Management', 'Customer Service', 'Inventory Management', 'Quality Assurance']}
-                />
-                <Details
-                  title="Food Business Management"
-                  items={['Business Planning', 'Financial Management', 'Marketing', 'Pricing Strategies']}
-                />
-                <Details title="Catering Management" items={['Event Catering', 'Corporate Catering', 'Logistics Planning']} />
-              </div>
-            </SchoolCard>
-          </Reveal>
-          <Reveal delay={180}>
-            <SchoolCard icon={Hotel} title="School of Hospitality Excellence">
-              <div className="space-y-3">
-                <Details
-                  title="Front Office Management"
-                  items={['Introduction to Front Office Operations', 'Reservation Systems', 'Guest Relations']}
-                />
-                <Details
-                  title="Customer Experience Management"
-                  items={['Customer Care', 'Service Recovery', 'Complaint Handling']}
-                />
-                <Details
-                  title="Service Excellence"
-                  items={['Professional Etiquette', 'Communication Skills', 'Personal Branding']}
-                />
-                <Details
-                  title="Hospitality Leadership"
-                  items={['Team Leadership', 'Staff Development', 'Performance Management']}
-                />
-              </div>
-            </SchoolCard>
-          </Reveal>
-        </div>
-      </Section>
-
-      {/* PRACTICAL TRAINING HIGHLIGHT */}
-      <section className="bg-gradient-to-br from-mayford-700 via-mayford-800 to-mayford-900 py-16 md:py-20">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-10 px-4 text-center md:flex-row md:text-left">
-          <div className="flex h-48 w-48 shrink-0 flex-col items-center justify-center rounded-full bg-white/10 ring-8 ring-white/15 backdrop-blur">
-            <div className="text-5xl font-extrabold text-flame-400">
-              <CountUp value={70} suffix="%" />
+              <div className="mt-1 text-xs text-neutral-400">{stat.label}</div>
             </div>
-            <p className="text-lg font-bold text-white">Practical</p>
-            <small className="text-stone-300">30% Theory</small>
-          </div>
-          <div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-white md:text-3xl">
-              Hands-On Industry Training
-            </h2>
-            <p className="mt-3 leading-relaxed text-stone-200">
-              Learn by doing. Students spend most of their time in real kitchen, restaurant and hospitality
-              environments.
-            </p>
-            <div className="mt-6 flex flex-wrap justify-center gap-4 md:justify-start">
-              {[
-                { icon: UtensilsCrossed, label: 'Culinary' },
-                { icon: Store, label: 'Restaurant' },
-                { icon: BellRing, label: 'Hospitality' },
-                { icon: Briefcase, label: 'Business' },
-              ].map((b) => (
-                <div key={b.label} className="flex flex-col items-center rounded-2xl bg-white/10 px-6 py-3 backdrop-blur">
-                  <b.icon className="h-6 w-6 text-flame-400" />
-                  <span className="mt-1.5 text-sm font-semibold text-white">{b.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* TRAINING PATHWAYS */}
-      <Section>
-        <div className="mb-12 text-center">
-          <Eyebrow>Choose Your Pace</Eyebrow>
-          <h2 className="text-3xl font-extrabold tracking-tight text-stone-900 md:text-4xl">
-            Training <span className="text-flame-600">Pathways</span>
-          </h2>
-        </div>
-        <div className="grid gap-6 md:grid-cols-3">
-          {PATHWAYS.map((p, i) => (
-            <Reveal key={p.title} delay={i * 90}>
-              <Card className="h-full p-8 text-center">
-                <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-mayford-600 text-white shadow-glow">
-                  <p.icon className="h-6 w-6" />
-                </span>
-                <h3 className="mt-4 text-lg font-extrabold tracking-tight text-stone-900">{p.title}</h3>
-                <ul className="mt-3 text-sm font-bold text-mayford-700">
-                  {p.duration.map((d) => (
-                    <li key={d}>{d}</li>
-                  ))}
-                </ul>
-                <h4 className="mt-4 text-xs font-extrabold uppercase tracking-widest text-stone-400">
-                  Suitable For
-                </h4>
-                <ul className="mt-2 text-sm text-stone-700">
-                  {p.audience.map((a) => (
-                    <li key={a}>{a}</li>
-                  ))}
-                </ul>
-              </Card>
-            </Reveal>
           ))}
         </div>
-      </Section>
+      </div>
 
-      {/* ENTREPRENEURSHIP TRACK */}
-      <section className="bg-stone-950 py-16 md:py-20">
-        <div className="mx-auto max-w-5xl px-4 text-center text-white">
-          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-flame-500 text-white shadow-glow">
-            <Rocket className="h-8 w-8" />
-          </span>
-          <h2 className="mt-3 text-3xl font-extrabold tracking-tight md:text-4xl">Entrepreneurship Track</h2>
-          <p className="mx-auto mt-4 max-w-2xl text-stone-300">
-            For students who want to start and manage their own food, catering or hospitality businesses.
-          </p>
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {ENTRE_CARD.map((c, i) => (
-              <Reveal key={c.title} delay={i * 60}>
-                <div className="h-full rounded-2xl bg-white/5 p-5 ring-1 ring-white/10 transition hover:bg-white/10">
-                  <c.icon className="h-6 w-6 text-flame-400" />
-                  <h3 className="mt-3 text-sm font-bold">{c.title}</h3>
+      {/* Training Tracks */}
+      <Section tone="white">
+        <SectionHeader
+          eyebrow="Academic Curriculum"
+          title="Practical Career Pathways"
+          text="Every student trains with commercial equipment, standardized recipes, and real kitchen service deadlines."
+        />
+
+        <div className="grid gap-6 md:grid-cols-2">
+          {TRACKS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <Card key={t.title} className="flex flex-col overflow-hidden">
+                <div className="relative h-52 overflow-hidden bg-neutral-100">
+                  <img
+                    src={t.img}
+                    alt={t.title}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/assets/images/hero.png';
+                    }}
+                  />
+                  <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                    <span className="rounded bg-[#111111] px-2.5 py-1 text-xs font-semibold text-white">
+                      {t.school}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded bg-white px-2.5 py-1 text-xs font-semibold text-[#111111]">
+                      <Clock className="h-3 w-3 text-mayford-600" /> {t.duration}
+                    </span>
+                  </div>
                 </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* CTA */}
-      <Section>
-        <div className="text-center">
-          <h2 className="text-3xl font-extrabold tracking-tight text-stone-900 md:text-4xl">
-            Start Your Hospitality <span className="text-flame-600">Career Today</span>
-          </h2>
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Btn type="button" onClick={() => setFormOpen(true)} className="!px-8 !py-3.5 !text-base">
-              Apply Now →
-            </Btn>
-            <LinkBtn variant="dark" href="/contact">
-              Contact Us
-            </LinkBtn>
-          </div>
+                <div className="flex flex-1 flex-col p-6">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <h3 className="text-lg font-bold text-[#111111]">{t.title}</h3>
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#F7F7F7] text-[#111111]">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-mayford-600">
+                    {t.level}
+                  </p>
+
+                  <ul className="mb-6 flex-1 space-y-2">
+                    {t.modules.map((m) => (
+                      <li key={m} className="flex items-start gap-2 text-xs text-[#6B6B6B]">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                        <span>{m}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <a
+                    href="#apply"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        training_school: t.school,
+                        program: t.defaultProgram,
+                      }))
+                    }
+                    className="inline-flex items-center gap-1.5 border-t border-neutral-100 pt-3 text-xs font-semibold text-[#111111] hover:text-mayford-600"
+                  >
+                    <span>Apply for this programme</span>
+                    <Sparkles className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       </Section>
 
-      {/* APPLICATION FORM POPUP */}
-      {formOpen && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-stone-950/60 p-4 backdrop-blur-sm"
-          onClick={() => setFormOpen(false)}
-        >
-          <div
-            className="relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-[2rem] bg-white p-8 shadow-lift"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              aria-label="Close"
-              onClick={() => setFormOpen(false)}
-              className="absolute right-5 top-4 text-2xl leading-none text-stone-400 transition hover:text-stone-700"
-            >
-              ×
-            </button>
-            <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-flame-600">Join The Academy</p>
-            <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-stone-900">Training Application</h2>
-            {error && <Alert tone="red">{error}</Alert>}
-            <form onSubmit={submit} className="mt-5">
-              <div className="space-y-3">
-                <Input name="full_name" placeholder="Full Name" required />
-                <Input name="phone" placeholder="Phone Number" required />
-                <Input name="email" type="email" placeholder="Email Address" required />
-                <Select name="training_school" required defaultValue="">
-                  <option value="" disabled>
-                    Select Training School
-                  </option>
-                  <option>School of Culinary Arts</option>
-                  <option>School of Restaurant Management</option>
-                  <option>School of Hospitality Excellence</option>
-                </Select>
-                <Input name="program" placeholder="Preferred Program" required />
-                <Textarea name="message" rows={3} placeholder="Additional Information" />
-              </div>
-              <Btn type="submit" disabled={busy} className="mt-4 w-full !py-3.5">
-                {busy ? 'Submitting…' : 'Submit Application →'}
-              </Btn>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* SUCCESS POPUP */}
-      {successOpen && (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/60 p-4 backdrop-blur-sm"
-          onClick={() => setSuccessOpen(false)}
-        >
-          <div
-            className="w-full max-w-md rounded-[2rem] bg-white p-10 text-center shadow-lift"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600">
-              <CheckCircle2 className="h-9 w-9" />
-            </span>
-            <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-mayford-700">Application Submitted!</h2>
-            <p className="mt-2 text-sm leading-relaxed text-stone-600">
-              Thank you for applying to Mayford Training Academy. Our team will contact you soon.
+      {/* Application Form + Branded Email Confirmation */}
+      <Section tone="default" id="apply">
+        <div className="grid items-start gap-10 lg:grid-cols-12">
+          <div className="space-y-5 lg:col-span-5">
+            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-[#111111] text-white">
+              <GraduationCap className="h-5 w-5" />
+            </div>
+            <h2 className="text-2xl font-bold tracking-tight text-[#111111] sm:text-3xl">
+              Apply for the Next Cohort
+            </h2>
+            <p className="text-sm leading-relaxed text-[#6B6B6B]">
+              Select your preferred department and training programme from the dropdown menu below. You will immediately receive a branded admission confirmation email with your official application reference code, and our Admissions Office will follow up within 48 hours.
             </p>
-            <button
-              type="button"
-              onClick={() => setSuccessOpen(false)}
-              className="mt-6 rounded-full bg-mayford-700 px-8 py-2.5 text-sm font-bold text-white transition hover:bg-mayford-800"
-            >
-              Close
-            </button>
+            <div className="space-y-3 rounded-lg border border-neutral-200 bg-white p-5 text-xs text-[#6B6B6B]">
+              <div className="font-bold text-[#111111]">What is Included in Admission:</div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                <span>Mayford Academy Chef Jacket, Apron &amp; Practical Manual</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                <span>All Fresh Ingredients &amp; Commercial Kitchen Equipment</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                <span>Branded Email Confirmation &amp; Admissions Advisor Follow-Up</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                <span>Graduating Practical Assessment &amp; Mayford Certificate</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6 lg:col-span-7">
+            <Card className="p-6 sm:p-8">
+              <h3 className="mb-1 text-xl font-bold text-[#111111]">Student Admission Form</h3>
+              <p className="mb-6 text-xs text-[#6B6B6B]">
+                All fields are required for admissions review and email confirmation dispatch.
+              </p>
+
+              {status && (
+                <div className="mb-6">
+                  <Alert tone={status.kind}>{status.msg}</Alert>
+                </div>
+              )}
+
+              <form onSubmit={submit} className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Applicant Full Name">
+                    <Input
+                      required
+                      placeholder="e.g. Akosua Boateng"
+                      value={form.full_name}
+                      onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Phone / WhatsApp Number">
+                    <Input
+                      required
+                      placeholder="024 000 0000"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Email Address (for Branded Confirmation)">
+                    <Input
+                      type="email"
+                      required
+                      placeholder="you@example.com"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Training School">
+                    <Select
+                      required
+                      value={form.training_school}
+                      onChange={(e) => handleSchoolChange(e.target.value)}
+                    >
+                      <option value="">Select Training School</option>
+                      <option value="School of Culinary Arts">School of Culinary Arts</option>
+                      <option value="School of Restaurant Management">School of Restaurant Management</option>
+                      <option value="School of Hospitality Excellence">School of Hospitality Excellence</option>
+                    </Select>
+                  </Field>
+                </div>
+
+                <Field label="Preferred Programme (Select from Accredited Tracks)">
+                  <Select
+                    required
+                    value={form.program}
+                    onChange={(e) => {
+                      const chosen = e.target.value;
+                      let matchedSchool = form.training_school;
+                      if (!matchedSchool && chosen) {
+                        for (const [sch, list] of Object.entries(PROGRAMMES_BY_SCHOOL)) {
+                          if (list.includes(chosen)) {
+                            matchedSchool = sch;
+                            break;
+                          }
+                        }
+                      }
+                      setForm({ ...form, program: chosen, training_school: matchedSchool });
+                    }}
+                  >
+                    <option value="">Select Preferred Programme</option>
+                    {availableProgrammes.map((prog) => (
+                      <option key={prog} value={prog}>
+                        {prog}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+
+                <Field label="Why Do You Want to Join? (Optional)">
+                  <Textarea
+                    placeholder="Share your culinary goals, background, or preferred schedule..."
+                    value={form.message}
+                    onChange={(e) => setForm({ ...form, message: e.target.value })}
+                  />
+                </Field>
+
+                <Btn type="submit" variant="red" disabled={submitting} className="w-full !py-3">
+                  <span>{submitting ? 'Submitting & Dispatching Confirmation...' : 'Submit Training Application'}</span>
+                </Btn>
+              </form>
+            </Card>
+
+            {confirmation && (
+              <Card className="border-emerald-300 bg-white p-6 sm:p-8">
+                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-200 pb-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-white">
+                      <Mail className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-base font-bold text-[#111111]">
+                          Branded Confirmation Email Dispatched
+                        </h4>
+                        <span className="font-mono rounded bg-[#111111] px-2 py-0.5 text-xs font-bold text-white">
+                          {confirmation.application_ref}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-[#6B6B6B]">
+                        Sent to <strong>{confirmation.email}</strong> · Logged in Mayford Admissions CRM for staff follow-up
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Btn
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowEmailPreview((v) => !v)}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>{showEmailPreview ? 'Hide Email Copy' : 'View Email Copy'}</span>
+                    </Btn>
+                    <Btn
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => window.print()}
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      <span>Print</span>
+                    </Btn>
+                  </div>
+                </div>
+
+                {showEmailPreview && (
+                  <div className="mt-4">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                      Branded Confirmation Email Preview
+                    </div>
+                    <div
+                      className="overflow-hidden rounded-md border border-neutral-200 bg-neutral-50"
+                      dangerouslySetInnerHTML={{ __html: confirmation.confirmation_email_html }}
+                    />
+                  </div>
+                )}
+              </Card>
+            )}
           </div>
         </div>
-      )}
+      </Section>
     </>
   );
 }

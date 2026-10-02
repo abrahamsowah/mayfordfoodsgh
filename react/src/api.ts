@@ -1,4 +1,4 @@
-/** Tiny typed fetch client for the Mayford Foods API (same-origin /api). */
+/** Typed fetch client for the Mayford Foods API (same-origin /api). */
 
 export class ApiError extends Error {
   status: number;
@@ -46,4 +46,5 @@ export const api = {
     request<T>(path, { method: 'PUT', body: JSON.stringify(body ?? {}) }),
   del: <T = any>(path: string) => request<T>(path, { method: 'DELETE' }),
   upload: <T = any>(path: string, formData: FormData) => request<T>(path, { method: 'POST', body: formData }),
+  uploadPut: <T = any>(path: string, formData: FormData) => request<T>(path, { method: 'PUT', body: formData }),
 };

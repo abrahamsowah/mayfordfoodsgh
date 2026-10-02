@@ -1,119 +1,150 @@
-# Mayford Foods GH — React + TypeScript + Tailwind + MySQL
+# Mayford Foods GH - Full-Stack Modern Web Platform & Operations Hub
 
-The old PHP/MySQL website has been migrated to a modern stack:
+Modernized, high-performance web platform and real-time operations engine for **Mayford Foods GH** (Adabraka & Dzorwulu branches in Accra, Ghana). Powered by **Supabase (PostgreSQL)** for data storage, **Resend** for transactional email delivery, and **Paystack** for Ghana GHS payment collection.
 
-| Layer      | Technology                                             |
-| ---------- | ------------------------------------------------------ |
-| Frontend   | React 19 + TypeScript (Vite) + Tailwind CSS 4, React Router |
-| Backend    | Node.js + Express + TypeScript, cookie-session auth    |
-| Database   | MySQL / MariaDB (schema in [`sql/mayfordfoodsgh.sql`](sql/mayfordfoodsgh.sql)) |
+---
 
-All original features are preserved:
+## Cloud Architecture: Supabase & Resend
 
-- **Public site** — home page (hero image slider, rotating advertisement cards,
-  latest advertisement videos, featured meals, outside catering, community impact,
-  outlets, training, owners), About, Outlets, digital Menu (with QR page), Cart,
-  Checkout, single-item quick order, Catering (gallery, video, booking form),
-  Community (DB-driven media), Contact, Training Academy (application form),
-  scrolling marquee banners, floating WhatsApp button with **Feedback** and
-  **Rate Mayford** popups, visitor counter.
-- **Orders** — checkout inserts the order into the `orders` table and opens
-  WhatsApp with the full encoded order message (same flow as the PHP site).
-- **Admin** — PIN gate (`mayford2026`) → username/password login → dashboard with
-  revenue / pending / completed stats, live "new order / application / message"
-  notifications with sound, orders with search + status filters + status updates,
-  menu items (add/edit/delete with image upload), categories, discounts,
-  advertisement banners, marquee banners, hero slides, ad videos, community media,
-  ratings, catering bookings, contact messages (super admin), training
-  applications, website settings, reset revenue (super admin).
-- **Roles** — `super_admin` (mainadmin), `adabraka_admin` (adabraka) and
-  `dzorwulu_admin` (dzorwulu) see only their outlet's orders, exactly like before.
+| Service | Role | Configuration / Details |
+|---|---|---|
+| **Supabase** | Cloud PostgreSQL Database & Session Store | All 16 tables, check constraints, indexes, RLS policies, and RPC visitor counter ([`sql/supabase_schema.sql`](sql/supabase_schema.sql)). Direct connection via `DATABASE_URL` or `SUPABASE_DB_URL`. |
+| **Resend** | Transactional & Branded Email Delivery | Dispatches branded HTML Academy Admission confirmations (`MFA-2026-XXXX`) and Customer Order receipts with cryptographic verification seals via `RESEND_API_KEY`. |
+| **Paystack** | Payment Gateway (GHS) | Direct Mobile Money (MTN, Telecel, AirtelTigo) and Visa/Mastercard processing with HMAC-SHA256 signature verification. |
 
-## 1. Create the database
+---
 
-Copy the SQL and import it (phpMyAdmin → Import, or CLI):
+## Production Features Overview
 
-```bash
-mysql -u root -p < sql/mayfordfoodsgh.sql
-```
+### 1. Customer Experience & Branding
+- **Elevated Brand Architecture**: Designed with inspiration from Airbnb and Uber/Uber Eats. Deep ink surfaces (`#111111`), warm neutrals (`#F7F7F7`), Mayford Crimson (`#B22222`), and crisp emerald accents.
+- **Instant Scroll-to-Top Navigation**: Zero page-lag scroll resets (`<ScrollToTop />`) on all link clicks.
+- **Anti-Distortion Skeleton Loading**: Fixed-aspect ratio skeletons (`aspect-[4/3]`) prevent layout shifts on slow mobile data connections.
+- **Digital Menu & Cart**: Live cart state with quantity steppers, dynamic price recalculation, and branch selector.
+- **Dynamic Delivery Zones**: Automated fee calculation for Accra zones (Adabraka, Dzorwulu, Achimota, Osu, East Legon, Spintex, Greater Accra).
+- **Paystack Payment Integration**: Seamless inline and modal payment collection for Mobile Money (MTN, Telecel, AirtelTigo) and Bank Cards in GHS.
+- **Real-Time Live Order Tracker (`/track-order`)**: 4-stage pipeline (*Order Received* $\rightarrow$ *Preparing* $\rightarrow$ *Ready for Dispatch/Pickup* $\rightarrow$ *Completed*) with background polling every 4 seconds and cryptographic verification seals (`MF-VRF-XXXXXXXX`).
+- **Mayford Training Academy (`/training`)**: Structured admissions application with dynamic programme selector dropdowns and instant branded confirmation email generation via Resend.
+- **Community Outreach (`/community`)**: Field documentation of meal donation drives and youth culinary mentorship.
 
-The file creates the database `mayfordfoodsgh` with **all 15 tables** and starter
-data (admins, banners, categories, menu items, slider images, settings, …).
+---
 
-## 2. Configure the server
+### 2. Admin Operations & Kitchen Dispatch Hub
+- **Security-Gated Access**: Dual-layer authentication with brute-force IP rate-limiting, timing-safe PIN check (`ADMIN_PIN`), and `scrypt` password hashing.
+- **Real-Time "Always-On" Stream (SSE)**: Dedicated Server-Sent Events (`GET /api/admin/live-stream`) broadcasting new orders, status transitions, and payments instantly across kitchen terminals.
+- **Synthesized Kitchen Audio Chime**: 3-tone Web Audio API synthesizer chime with persistent mute/unmute header toggle.
+- **Live Dispatch Controls (`/admin/orders`)**:
+  - Instant order prepending and visual highlight on new incoming orders.
+  - 1-click status pills (**`Pending`** $\rightarrow$ **`Preparing`** $\rightarrow$ **`Ready`** $\rightarrow$ **`Completed`**).
+  - 1-click **Paid / Unpaid** payment toggle.
+  - Full **Edit Order Modal** for modifying branch, delivery address, line items, and notes.
+  - Automated WhatsApp and SMS customer dispatch alert generator.
+- **Executive Analytics (`/admin/dashboard`)**:
+  - Real-time revenue and Paystack settlement totals.
+  - Live kitchen order breakdown.
+  - Outlet performance comparison (Adabraka vs. Dzorwulu).
+  - Fulfillment breakdown (Delivery vs. Pickup).
+  - Privacy-first visitor counter (removed from public footer and tracked in Admin).
+- **Admissions CRM (`/admin/training-applications`)**:
+  - Filter applicants by admission status (*New*, *Contacted*, *Interview Scheduled*, *Admitted*, *Archived*) and school.
+  - Record interview notes and candidate follow-up records.
+  - View exact dispatched branded confirmation email copies.
+- **Cloud & Resend Diagnostics (`/admin/settings`)**:
+  - Live indicator of Supabase / PostgreSQL database connection state.
+  - Live Resend email test dispatcher tool.
+  - Full Content & Menu Management (Dishes, Categories, Discounts, Adverts, Banners, Slides, Community).
 
-```bash
-cd server
-cp .env.example .env   # then edit values if your MySQL is not local root/empty
-```
+---
 
-Environment variables (see `.env.example`):
+### 3. Order Security & Anti-Bypass Architecture
+1. **Authoritative Server-Side Pricing**: Client totals are recalculated on the server against the database prices, discounts, and delivery zones (`POST /api/orders`).
+2. **HMAC-SHA256 Payment Verification Tokens**: `/api/payments/verify` signs Paystack transactions with a cryptographic token bound to `reference + verified_amount`. Tampered prices or forged `Paid` statuses are rejected (`403 Forbidden`).
+3. **Anti-Replay Protection**: Reusing an existing Paystack reference across multiple orders is blocked (`409 Conflict`).
+4. **Cryptographic Receipt Verification Seal**: Every completed order receives a unique tamper-proof signature (e.g. `MF-VRF-43138672`) verifiable on the customer receipt, tracker, and admin panel.
+5. **Branch RBAC (IDOR Protection)**: Branch-level admins are cryptographically constrained to their assigned outlet (`outletScope(req)`).
 
-```
+---
+
+## Setting Up Supabase & Resend
+
+### 1. Supabase (Database) Setup
+1. Create a project in [Supabase](https://supabase.com).
+2. Go to **SQL Editor** $\rightarrow$ **New Query**.
+3. Copy the entire contents of [`sql/supabase_schema.sql`](sql/supabase_schema.sql) and click **Run**.
+4. Go to **Project Settings** $\rightarrow$ **Database** $\rightarrow$ **Connection string** (URI).
+5. Add to your `.env`:
+   ```env
+   DATABASE_URL=postgresql://postgres.[YOUR-PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?sslmode=require
+   ```
+
+### 2. Resend (Email Delivery) Setup
+1. Create an account in [Resend](https://resend.com) and generate an API key (`re_...`).
+2. Verify your sending domain (e.g. `mayfordfoodsgh.com`) or use onboarding sender in testing.
+3. Add to your `.env`:
+   ```env
+   RESEND_API_KEY=re_your_api_key_here
+   EMAIL_FROM=Mayford Foods GH <orders@mayfordfoodsgh.com>
+   ```
+4. Test email delivery directly from **Admin Panel $\rightarrow$ Settings $\rightarrow$ Resend Email Delivery Test**.
+
+---
+
+## Environment Configuration Reference
+
+Create a `.env` in your production environment or root/`server`:
+
+```env
+# Server Port
 PORT=4000
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=
-DB_NAME=mayfordfoodsgh
+
+# Supabase PostgreSQL Database (Primary)
+DATABASE_URL=postgresql://postgres:password@db.supabase.co:5432/postgres
+DEMO_MODE=auto
+
+# Resend Transactional Emails (Primary)
+RESEND_API_KEY=re_your_resend_api_key
+EMAIL_FROM=Mayford Foods GH <orders@mayfordfoodsgh.com>
+
+# Paystack Payment Gateway (Ghana GHS)
+PAYSTACK_PUBLIC_KEY=pk_live_your_paystack_public_key
+PAYSTACK_SECRET_KEY=sk_live_your_paystack_secret_key
+
+# Security Secrets & Sessions
 ADMIN_PIN=mayford2026
-SESSION_SECRET=change-me
-DEMO_MODE=auto     # auto = fall back to SQLite demo DB if MySQL is unreachable
+SESSION_SECRET=your-production-session-secret-32-chars-minimum
+PAYMENT_SIGNING_SECRET=your-hmac-sha256-signing-secret
+
+# Optional SMS Providers (Ghana)
+ARKESEL_API_KEY=
+HUBTEL_CLIENT_ID=
+HUBTEL_CLIENT_SECRET=
+SMS_SENDER_ID=MayfordGH
 ```
 
-> **Demo mode:** if MySQL is not reachable the server automatically starts an
-> in-file SQLite database (`server/data/demo.sqlite`) pre-loaded with the same
-> schema and seed data, so you can run and preview the whole site before
-> connecting MySQL. Set `DEMO_MODE=off` to force MySQL.
+---
 
-## 3. Run
+## Production Deployment Commands
 
 ```bash
-# Terminal 1 — API server (also serves the built frontend)
-cd server && npm install && npm run build && npm start
+# 1. Build Backend
+cd server && npm install && npm run build
 
-# Terminal 2 (dev only) — hot-reload frontend on http://localhost:5173
-cd react && npm install && npm run dev
+# 2. Build Frontend
+cd ../react && npm install && npm run build
+
+# 3. Start Production Server
+cd ../server && npm start
 ```
 
-Production: `cd react && npm install && npm run build`, then the Express server
-serves `react/dist` automatically on `http://localhost:4000`.
+---
 
-## 4. Admin access
+## Default Admin Credentials
 
-1. Footer → tiny 🔒 link (or open `/admin-pin`)
-2. PIN: `mayford2026`
-3. Login (all passwords `123456`):
+| Username    | Password | Role           | Scope                 |
+| ----------- | -------- | -------------- | --------------------- |
+| `mainadmin` | `123456` | `super_admin`  | All branches & config |
+| `adabraka`  | `123456` | `adabraka_admin` | Adabraka orders     |
+| `dzorwulu`  | `123456` | `dzorwulu_admin` | Dzorwulu orders     |
 
-| Username    | Role               | Scope                 |
-| ----------- | ------------------ | --------------------- |
-| `mainadmin` | super_admin        | everything            |
-| `adabraka`  | adabraka_admin     | Adabraka orders       |
-| `dzorwulu`  | dzorwulu_admin     | Dzorwulu orders       |
-
-## Project layout
-
-```
-sql/mayfordfoodsgh.sql   # full copy-paste MySQL schema + seed data
-server/                  # Express + TS API (routes 1:1 with the old PHP endpoints)
-  src/index.ts           # all API routes + static hosting of the built frontend
-  src/db.ts              # MySQL driver with SQLite demo fallback
-react/                   # Vite + React + TS + Tailwind
-  public/assets/         # images / videos / sounds + admin uploads
-    images/  videos/  sounds/  adverts/  community/
-  src/pages/             # public + admin pages
-  src/components/        # layout, cart, shared UI
-```
-
-## Notes on the migration
-
-- The cart moved from PHP `$_SESSION` to `localStorage` (same behaviour, works
-  across refreshes; the SPA is the only client).
-- Discounts now apply to the cart/checkout total (the PHP site displayed the
-  discount but charged the full price).
-- The catering page now includes the booking form that feeds the existing
-  `catering_bookings` table (the PHP page only had a WhatsApp link, but the
-  table and admin view already existed).
-- Passwords are stored/compared exactly as in the original database
-  (plain text). Consider hashing them with `password_hash()`-style logic if you
-  rotate accounts.
+- **Security PIN**: `mayford2026` (Configurable via `ADMIN_PIN`).
+- Passwords can be changed anytime in **Settings $\rightarrow$ Update Staff Password** (hashed with `scrypt`).
