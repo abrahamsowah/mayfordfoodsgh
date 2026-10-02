@@ -51,7 +51,13 @@ Add the hosted tag to a client website, replacing the host and site ID:
 <script src="https://shield.example.com/sajama-tag.js" data-site-id="site_client_name_001" async></script>
 ```
 
-The tag posts anonymous page/performance/error telemetry to the Shield host. Set `CORS_ORIGINS` to include every client-site origin that should be allowed to send telemetry. Do not put the master key or agent token in browser code.
+For Mayford Foods GH, the deployed tag uses its registered site ID and sends directly to Sajama Shield:
+
+```html
+<script src="https://sajamashield.com/sajama-tag.js" data-site-id="site_mayford_gh_001" async></script>
+```
+
+The tag posts anonymous page/performance/error telemetry to the Shield host. Set `CORS_ORIGINS` to include every client-site origin that should be allowed to send telemetry, including `https://mayfordfoodsgh.com`. Do not put the master key or agent token in browser code.
 
 ## Build and use the Node client SDK
 
