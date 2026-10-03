@@ -1,20 +1,10 @@
 /**
- * ============================================================================
- * SAJAMA SHIELD - Autonomous Client Telemetry & Observability Tag (v2.0.0)
- * ============================================================================
- * Ultra-lightweight (~2.2 KB gzipped), zero external dependencies, non-blocking.
- * Provides real-time Core Web Vitals, performance APM, sanitized error tracking,
- * dead click detection, conversion funnels, and continuous security telemetry.
+ * Sajama Shield browser telemetry tag (v2.1.0).
+ * Sends page views, measured Web Vitals, and browser errors directly to Shield.
+ * No administrator credential or browser cookie is sent. Random per-tab session tokens are keyed-hashed by Shield before storage.
  *
- * PRIVACY & LEGAL COMPLIANCE GUARANTEE:
- * - 100% compliant with Ghana Data Protection Act 2012 (Act 843), GDPR & CCPA.
- * - ZERO Personal Identifiable Information (PII) collected or stored.
- * - ZERO form field inputs, keystrokes, passwords, or credit card data tracked.
- * - All visitor tokens are ephemeral, client-side hashed session IDs.
- * - Uses non-blocking navigator.sendBeacon with automatic fetch fallback.
- *
- * HOW TO INSTALL ON ANY CLIENT SITE (HTML / WordPress / React / Next.js / Shopify):
- * <script src="https://shield.yourdomain.com/sajama-tag.js" data-site-id="YOUR_SITE_ID" async></script>
+ * <script src="https://shield.example.com/sajama-tag.js"
+ *         data-site-id="YOUR_SITE_ID" async></script>
  */
 (function (window, document) {
   'use strict';
@@ -22,308 +12,237 @@
   if (window.__SAJAMA_SHIELD_INITIALIZED__) return;
   window.__SAJAMA_SHIELD_INITIALIZED__ = true;
 
-  // 1. Resolve configuration from current script tag
-  var currentScript =
-    document.currentScript ||
-    (function () {
-      var scripts = document.getElementsByTagName('script');
-      return scripts[scripts.length - 1];
-    })();
+  var currentScript = document.currentScript;
+  if (!currentScript) {
+    var scriptList = document.getElementsByTagName('script');
+    currentScript = scriptList[scriptList.length - 1] || null;
+  }
 
-  var siteId =
-    (currentScript && currentScript.getAttribute('data-site-id')) ||
-    window.SAJAMA_SHIELD_SITE_ID ||
-    'site_default_client';
-
-  var endpoint =
-    (currentScript && currentScript.getAttribute('data-endpoint')) ||
-    (function () {
-      if (currentScript && currentScript.src) {
-        try {
-          var u = new URL(currentScript.src);
-          return u.origin + '/api/shield/telemetry';
-        } catch (e) {}
-      }
-      return '/api/shield/telemetry';
-    })();
-
-  // 2. Generate ephemeral privacy-safe session ID (rotated per session, zero PII)
-  var sessionId = (function () {
+  var siteId = (currentScript && currentScript.getAttribute('data-site-id')) || window.SAJAMA_SHIELD_SITE_ID || '';
+  var endpoint = (currentScript && currentScript.getAttribute('data-endpoint')) || (function () {
     try {
-      var k = 'sajama_sid';
-      var s = sessionStorage.getItem(k);
-      if (!s) {
-        s = 's_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
-        sessionStorage.setItem(k, s);
-      }
-      return s;
-    } catch (e) {
-      return 's_anon_' + Math.random().toString(36).substring(2, 10);
+      var scriptUrl = new URL(currentScript && currentScript.src ? currentScript.src : window.location.href, window.location.href);
+      return scriptUrl.origin + '/api/shield/telemetry';
+    } catch (error) {
+      return '';
     }
   })();
 
-  // 3. Reliable, non-blocking telemetry dispatcher
-  function send(type, data) {
+  function createSessionId() {
     try {
-      var payload = JSON.stringify({
+      var existing = window.sessionStorage.getItem('sajama_shield_session');
+      if (existing) return existing;
+      var generated = 's_' + (window.crypto && window.crypto.randomUUID
+        ? window.crypto.randomUUID()
+        : Math.random().toString(36).slice(2) + Date.now().toString(36));
+      window.sessionStorage.setItem('sajama_shield_session', generated);
+      return generated;
+    } catch (error) {
+      return 's_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+  }
+
+  var sessionId = createSessionId();
+
+  function pagePath() {
+    return String(window.location.pathname || '/').slice(0, 300) || '/';
+  }
+
+  function send(type, data) {
+    if (!siteId || !endpoint) return;
+    try {
+      var body = JSON.stringify({
         siteId: siteId,
         sessionId: sessionId,
         type: type,
-        timestamp: new Date().toISOString(),
-        url: window.location.pathname + window.location.search,
-        referrer: document.referrer ? new URL(document.referrer, window.location.href).hostname : '',
-        screen: window.screen ? window.screen.width + 'x' + window.screen.height : '',
+        url: pagePath(),
         data: data || {},
       });
-
-      if (navigator.sendBeacon) {
-        var blob = new Blob([payload], { type: 'application/json' });
-        var ok = navigator.sendBeacon(endpoint, blob);
-        if (ok) return;
+      if (window.navigator && typeof window.navigator.sendBeacon === 'function') {
+        var blob = new Blob([body], { type: 'application/json' });
+        if (window.navigator.sendBeacon(endpoint, blob)) return;
       }
-
-      if (window.fetch) {
+      if (typeof window.fetch === 'function') {
         window.fetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: payload,
-          keepalive: true,
           mode: 'cors',
           credentials: 'omit',
+          keepalive: true,
+          headers: { 'Content-Type': 'application/json' },
+          body: body,
         }).catch(function () {});
       }
-    } catch (err) {}
+    } catch (error) {
+      // Telemetry must never interfere with the monitored page.
+    }
   }
 
-  // 4. Real User Monitoring (RUM) & Core Web Vitals (TTFB, FCP, LCP, CLS, INP)
-  function measurePerformance() {
+  var lastPagePath = '';
+  function trackPageView() {
+    var currentPath = pagePath();
+    if (currentPath === lastPagePath) return;
+    lastPagePath = currentPath;
+    send('pageview', {});
+  }
+
+  var webVitals = {};
+  var clsSupported = false;
+  var lcpSupported = false;
+  var inpSupported = false;
+  var largestContentfulPaint = null;
+  var cumulativeLayoutShift = 0;
+  var sessionLayoutShift = 0;
+  var sessionWindowStart = 0;
+  var lastLayoutShift = 0;
+  var interactions = new Map();
+  var performanceSent = false;
+
+  function setDuration(name, value) {
+    var duration = Number(value);
+    if (Number.isFinite(duration) && duration >= 0 && duration <= 60000) {
+      webVitals[name] = Math.round(duration);
+    }
+  }
+
+  function observeWebVitals() {
+    var Observer = window.PerformanceObserver;
+    if (typeof Observer !== 'function') return;
+
     try {
-      if (!window.performance || !window.performance.timing) return;
-      var t = window.performance.timing;
-      var nav = window.performance.getEntriesByType
-        ? window.performance.getEntriesByType('navigation')[0]
-        : null;
-
-      var dns = nav ? Math.round(nav.domainLookupEnd - nav.domainLookupStart) : Math.max(0, t.domainLookupEnd - t.domainLookupStart);
-      var tcp = nav ? Math.round(nav.connectEnd - nav.connectStart) : Math.max(0, t.connectEnd - t.connectStart);
-      var ttfb = nav ? Math.round(nav.responseStart - nav.requestStart) : Math.max(0, t.responseStart - t.requestStart);
-      var domReady = nav ? Math.round(nav.domContentLoadedEventEnd - nav.startTime) : Math.max(0, t.domContentLoadedEventEnd - t.navigationStart);
-      var fullLoad = nav ? Math.round(nav.loadEventEnd - nav.startTime) : Math.max(0, t.loadEventEnd - t.navigationStart);
-
-      var vitals = {
-        dns_ms: Math.min(dns, 10000),
-        tcp_ms: Math.min(tcp, 10000),
-        ttfb_ms: Math.min(ttfb, 10000),
-        dom_ready_ms: Math.min(domReady, 30000),
-        full_load_ms: Math.min(fullLoad, 60000),
-        cls: 0,
-        fcp_ms: 0,
-        lcp_ms: 0,
-        inp_ms: 0,
-        connection_type: (navigator.connection && navigator.connection.effectiveType) || '4g',
-      };
-
-      // Extract First Contentful Paint (FCP)
-      if (window.performance.getEntriesByType) {
-        var paints = window.performance.getEntriesByType('paint');
-        for (var p = 0; p < paints.length; p++) {
-          if (paints[p].name === 'first-contentful-paint') {
-            vitals.fcp_ms = Math.round(paints[p].startTime);
-            break;
+      var shiftObserver = new Observer(function (list) {
+        var entries = list.getEntries();
+        for (var i = 0; i < entries.length; i += 1) {
+          var entry = entries[i];
+          if (entry.hadRecentInput) continue;
+          if (!sessionWindowStart || entry.startTime - lastLayoutShift > 1000 || entry.startTime - sessionWindowStart > 5000) {
+            sessionWindowStart = entry.startTime;
+            sessionLayoutShift = entry.value;
+          } else {
+            sessionLayoutShift += entry.value;
           }
+          lastLayoutShift = entry.startTime;
+          cumulativeLayoutShift = Math.max(cumulativeLayoutShift, sessionLayoutShift);
         }
-      }
+      });
+      shiftObserver.observe({ type: 'layout-shift', buffered: true });
+      clsSupported = true;
+    } catch (error) {}
 
-      // PerformanceObservers for LCP, CLS, INP
-      if (typeof PerformanceObserver === 'function') {
-        try {
-          var clsValue = 0;
-          var clsObserver = new PerformanceObserver(function (entryList) {
-            var entries = entryList.getEntries();
-            for (var i = 0; i < entries.length; i++) {
-              if (!entries[i].hadRecentInput) {
-                clsValue += entries[i].value;
-              }
-            }
-            vitals.cls = Number(clsValue.toFixed(4));
-          });
-          clsObserver.observe({ type: 'layout-shift', buffered: true });
-        } catch (e) {}
+    try {
+      var lcpObserver = new Observer(function (list) {
+        var entries = list.getEntries();
+        if (entries.length) largestContentfulPaint = entries[entries.length - 1].startTime;
+      });
+      lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
+      lcpSupported = true;
+    } catch (error) {}
 
-        try {
-          var lcpObserver = new PerformanceObserver(function (entryList) {
-            var entries = entryList.getEntries();
-            if (entries.length > 0) {
-              var last = entries[entries.length - 1];
-              vitals.lcp_ms = Math.round(last.startTime);
-            }
-          });
-          lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
-        } catch (e) {}
-      }
-
-      // Send performance telemetry after initial paint stabilizes
-      setTimeout(function () {
-        send('performance', vitals);
-      }, 2500);
-    } catch (e) {}
+    try {
+      var inpObserver = new Observer(function (list) {
+        var entries = list.getEntries();
+        for (var i = 0; i < entries.length; i += 1) {
+          var entry = entries[i];
+          if (!entry.interactionId) continue;
+          var duration = Number(entry.duration);
+          if (!Number.isFinite(duration) || duration < 0) continue;
+          var previous = interactions.get(entry.interactionId) || 0;
+          interactions.set(entry.interactionId, Math.max(previous, duration));
+        }
+      });
+      inpObserver.observe({ type: 'event', buffered: true, durationThreshold: 16 });
+      inpSupported = true;
+    } catch (error) {}
   }
 
-  // 5. Automated Runtime Error Radar (Sanitized, PII-Free)
-  var errorThrottle = {};
-  function captureError(errType, message, filename, lineno, colno, stack) {
-    try {
-      var cleanMsg = String(message || 'Unknown runtime error').substring(0, 300);
-      var key = cleanMsg + (filename || '') + (lineno || '');
-      if (errorThrottle[key] && Date.now() - errorThrottle[key] < 15000) return;
-      errorThrottle[key] = Date.now();
+  function readNavigationMetrics() {
+    if (!window.performance || typeof window.performance.getEntriesByType !== 'function') return;
+    var navigation = window.performance.getEntriesByType('navigation')[0];
+    if (navigation) {
+      var requestStart = navigation.requestStart > 0 ? navigation.requestStart : navigation.fetchStart;
+      setDuration('ttfb_ms', navigation.responseStart - requestStart);
+    }
+    var paints = window.performance.getEntriesByType('paint');
+    for (var i = 0; i < paints.length; i += 1) {
+      if (paints[i].name === 'first-contentful-paint') {
+        setDuration('fcp_ms', paints[i].startTime);
+        break;
+      }
+    }
+  }
 
-      // Clean file path to prevent sensitive path leakage
-      var cleanFile = filename ? filename.split('?')[0].substring(0, 150) : 'inline';
+  function interactionToNextPaint() {
+    var durations = Array.from(interactions.values()).sort(function (a, b) { return a - b; });
+    if (!durations.length) return null;
+    var index = Math.max(0, Math.ceil(durations.length * 0.98) - 1);
+    return Math.round(durations[index]);
+  }
 
-      send('client_error', {
-        error_type: errType || 'JavaScriptError',
-        message: cleanMsg,
-        filename: cleanFile,
-        lineno: lineno || 0,
-        colno: colno || 0,
-        stack: stack ? String(stack).substring(0, 600) : '',
-        userAgent: navigator.userAgent.substring(0, 120),
-      });
-    } catch (e) {}
+  function sendPerformance() {
+    if (performanceSent) return;
+    performanceSent = true;
+    readNavigationMetrics();
+    var data = {};
+    Object.keys(webVitals).forEach(function (key) { data[key] = webVitals[key]; });
+    if (clsSupported) data.cls = Number(cumulativeLayoutShift.toFixed(4));
+    if (lcpSupported && largestContentfulPaint !== null) setDuration('lcp_ms', largestContentfulPaint);
+    if (inpSupported) {
+      var inp = interactionToNextPaint();
+      if (inp !== null) webVitals.inp_ms = inp;
+    }
+    Object.keys(webVitals).forEach(function (key) { data[key] = webVitals[key]; });
+    if (Object.keys(data).length) send('performance', data);
+  }
+
+  function reportError(errorType, message, filename, line) {
+    send('client_error', {
+      error_type: String(errorType || 'JavaScriptError').slice(0, 80),
+      message: String(message || 'Unknown browser error').slice(0, 300),
+      filename: String(filename || 'inline').split('?')[0].slice(0, 180),
+      lineno: Number(line) || 0,
+    });
   }
 
   window.addEventListener('error', function (event) {
-    captureError(
-      'UncaughtException',
-      event.message,
-      event.filename,
-      event.lineno,
-      event.colno,
-      event.error && event.error.stack
-    );
+    reportError('UncaughtException', event.message, event.filename, event.lineno);
   });
-
   window.addEventListener('unhandledrejection', function (event) {
     var reason = event.reason;
-    var msg = (reason && reason.message) || String(reason);
-    var stack = reason && reason.stack;
-    captureError('UnhandledPromiseRejection', msg, 'promise', 0, 0, stack);
+    reportError('UnhandledPromiseRejection', reason && reason.message ? reason.message : String(reason), 'promise', 0);
   });
 
-  // 6. Dead Click Detector (Detects rage/dead clicks where users click stalled elements)
-  var clickHistory = [];
-  document.addEventListener('click', function (e) {
-    try {
-      var target = e.target;
-      if (!target) return;
-      var tagName = (target.tagName || '').toLowerCase();
-      var now = Date.now();
-      clickHistory.push({ x: e.clientX, y: e.clientY, time: now, tag: tagName });
-      if (clickHistory.length > 5) clickHistory.shift();
-
-      // Check if user clicked 3 times within 1.2s in the exact same spot without navigation
-      if (clickHistory.length >= 3) {
-        var c1 = clickHistory[clickHistory.length - 3];
-        var c3 = clickHistory[clickHistory.length - 1];
-        if (c3.time - c1.time < 1200 && Math.abs(c3.x - c1.x) < 15 && Math.abs(c3.y - c1.y) < 15) {
-          if (tagName !== 'a' && tagName !== 'button' && tagName !== 'input') {
-            send('dead_click', {
-              tag: tagName,
-              className: (target.className && typeof target.className === 'string') ? target.className.substring(0, 60) : '',
-            });
-            clickHistory = [];
-          }
-        }
-      }
-    } catch (err) {}
-  }, true);
-
-  // 7. CSP Violation & Security Reporter
-  document.addEventListener('securitypolicyviolation', function (e) {
-    try {
-      send('csp_violation', {
-        blockedURI: e.blockedURI ? e.blockedURI.substring(0, 120) : '',
-        violatedDirective: e.violatedDirective || '',
-        effectiveDirective: e.effectiveDirective || '',
-        originalPolicy: (e.originalPolicy || '').substring(0, 150),
-      });
-    } catch (err) {}
+  observeWebVitals();
+  window.addEventListener('pagehide', sendPerformance, { once: true });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') sendPerformance();
   });
-
-  // 8. Pageview & SPA Navigation Watcher
-  var lastTrackedPath = '';
-  function trackPageView() {
-    var currentPath = window.location.pathname + window.location.search;
-    if (currentPath === lastTrackedPath) return;
-    lastTrackedPath = currentPath;
-    send('pageview', {
-      title: document.title ? document.title.substring(0, 100) : '',
-      path: currentPath,
-    });
-  }
-
-  // Intercept History API for SPAs (React, Next.js, Vue, Angular)
-  var origPushState = history.pushState;
-  if (origPushState) {
-    history.pushState = function () {
-      origPushState.apply(this, arguments);
-      setTimeout(trackPageView, 100);
-    };
-  }
-
-  var origReplaceState = history.replaceState;
-  if (origReplaceState) {
-    history.replaceState = function () {
-      origReplaceState.apply(this, arguments);
-      setTimeout(trackPageView, 100);
-    };
-  }
-
-  window.addEventListener('popstate', function () {
-    setTimeout(trackPageView, 100);
-  });
-
-  // 9. Periodic Non-Intrusive Heartbeat (every 60s when tab is active)
-  setInterval(function () {
-    if (document.visibilityState === 'visible') {
-      send('heartbeat', {
-        visible: true,
-      });
-    }
-  }, 60000);
-
-  // 10. Public JavaScript Client SDK API for Clients & Custom Conversions
-  window.sajamaShield = {
-    version: '2.0.0',
-    siteId: siteId,
-    sessionId: sessionId,
-    track: function (eventName, metadata) {
-      send('custom_event', {
-        event: String(eventName || 'custom').substring(0, 50),
-        metadata: metadata || {},
-      });
-    },
-    trackConversion: function (goalName, valueGhs, metadata) {
-      send('conversion', {
-        goal: String(goalName || 'conversion').substring(0, 50),
-        value_ghs: typeof valueGhs === 'number' ? valueGhs : 0,
-        metadata: metadata || {},
-      });
-    },
-  };
-
-  // Alias for backward compatibility
-  window.sajamaTrack = window.sajamaShield.track;
-
-  // Initialize immediately on window load or DOMReady
-  if (document.readyState === 'complete') {
-    measurePerformance();
+  window.addEventListener('load', function () {
     trackPageView();
-  } else {
-    window.addEventListener('load', function () {
-      measurePerformance();
-      trackPageView();
-    });
+    window.setTimeout(sendPerformance, 15000);
+  }, { once: true });
+  if (document.readyState === 'complete') {
+    trackPageView();
+    window.setTimeout(sendPerformance, 15000);
   }
+
+  if (window.history && typeof window.history.pushState === 'function') {
+    var originalPushState = window.history.pushState;
+    window.history.pushState = function () {
+      originalPushState.apply(this, arguments);
+      window.setTimeout(trackPageView, 0);
+    };
+  }
+  if (window.history && typeof window.history.replaceState === 'function') {
+    var originalReplaceState = window.history.replaceState;
+    window.history.replaceState = function () {
+      originalReplaceState.apply(this, arguments);
+      window.setTimeout(trackPageView, 0);
+    };
+  }
+  window.addEventListener('popstate', function () { window.setTimeout(trackPageView, 0); });
+
+  window.sajamaShield = {
+    version: '2.1.0',
+    siteId: siteId,
+    trackPageView: trackPageView,
+  };
 })(window, document);

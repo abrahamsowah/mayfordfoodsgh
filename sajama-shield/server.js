@@ -1,1384 +1,846 @@
-/**
- * ============================================================================
- * SAJAMA SHIELD - Standalone Observability, Security & Client Intelligence SaaS
- * ============================================================================
- * Enterprise-grade multi-tenant client site monitoring, real-time security radar,
- * Core Web Vitals RUM, error intelligence, and executive client report generator.
- *
- * HOW TO RUN STANDALONE:
- * 1. cd sajama-shield
- * 2. npm install
- * 3. npm start
- * 4. Open http://localhost:5000
- */
+'use strict';
+
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
+const supabaseStore = require('./supabase-store');
 const crypto = require('crypto');
-const path = require('path');
-const fs = require('fs');
+const dns = require('dns').promises;
 const http = require('http');
 const https = require('https');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+const net = require('net');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const HOST = process.env.HOST || '0.0.0.0';
 const PORT = Number(process.env.PORT || 5000);
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const DEFAULT_SHIELD_KEY = 'sajama2026';
-const SHIELD_MASTER_KEY = process.env.SAJAMA_SHIELD_KEY || (IS_PRODUCTION ? '' : DEFAULT_SHIELD_KEY);
-const CLIENT_AGENT_TOKEN = process.env.SAJAMA_SHIELD_TOKEN || '';
-const SESSION_SECRET = process.env.SESSION_SECRET || (IS_PRODUCTION ? '' : crypto.randomBytes(32).toString('hex'));
-function normalizeOrigin(value) {
-  if (typeof value !== 'string' || !value.trim()) return null;
-  try {
-    const url = new URL(value.trim());
-    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) return null;
-    if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null;
-    return url.origin;
-  } catch {
-    return null;
-  }
+const MASTER_KEY = process.env.SAJAMA_SHIELD_KEY || (process.env.NODE_ENV === 'production' ? '' : 'sajama2026');
+const SESSION_SECRET = process.env.SESSION_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'local-sajama-shield-session-secret-change-before-production');
+const DATA_FILE = path.join(__dirname, 'shield-data.json');
+const CHECK_INTERVAL_MS = 60_000;
+const CHECK_TIMEOUT_MS = 10_000;
+const CHECK_RETENTION_MS = 24 * 60 * 60 * 1000;
+const MAX_CHECKS_PER_SITE = 2_000;
+const MAX_RUM_EVENTS = 50_000;
+const MAYFORD_SITE_ID = process.env.MAYFORD_SITE_ID || 'site_82be20b5-58ca-412a-998b-6a904a20eda7';
+const SESSION_HASH_KEY = crypto.createHmac('sha256', SESSION_SECRET).update('sajama-shield-rum-session-hash').digest();
+
+if (process.env.NODE_ENV === 'production' && (!MASTER_KEY || MASTER_KEY === 'sajama2026' || MASTER_KEY.length < 32 || !SESSION_SECRET || SESSION_SECRET.length < 32)) {
+  throw new Error('Set a unique SAJAMA_SHIELD_KEY and a SESSION_SECRET of at least 32 characters in production.');
 }
 
-function normalizeSiteUrl(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return null;
-  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1);
+app.disable('x-powered-by');
+app.use(express.json({ limit: '256kb' }));
+app.use(express.urlencoded({ extended: false, limit: '32kb' }));
+app.use(cookieParser());
+app.use(session({
+  name: 'sajama_shield_sid',
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 24 * 60 * 60 * 1000 },
+}));
+
+const SITES = [];
+let LOGS = [];
+let ERROR_EVENTS = [];
+let CHECK_HISTORY = [];
+let RUM_EVENTS = [];
+const CHECKS_IN_PROGRESS = new Map();
+const PENDING_SUPABASE_WRITES = new Map([
+  ['shield_sites', new Map()], ['shield_checks', new Map()], ['shield_telemetry', new Map()],
+  ['shield_errors', new Map()], ['shield_logs', new Map()],
+]);
+const SUPABASE_CONFLICT_KEYS = {
+  shield_sites: 'client_id', shield_checks: 'id', shield_telemetry: 'id', shield_errors: 'id', shield_logs: 'id',
+};
+
+const defaultSite = {
+  id: 1,
+  client_id: MAYFORD_SITE_ID,
+  site_name: 'Mayford Foods GH',
+  site_url: 'https://mayfordfoodsgh.com',
+  allowed_origins: ['https://mayfordfoodsgh.com'],
+  environment: 'production',
+  category: 'E-Commerce & Food Hospitality',
+  sla_target: 99.95,
+  status: 'unknown',
+  created_at: new Date().toISOString(),
+};
+SITES.push(defaultSite);
+
+function safeSecretMatch(candidate, expected) {
+  if (typeof candidate !== 'string' || typeof expected !== 'string' || !expected) return false;
+  const a = Buffer.from(candidate);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function normalizeSiteUrl(input) {
   try {
-    const url = new URL(candidate);
-    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) return null;
+    const url = new URL(String(input || '').trim());
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return null;
     url.hash = '';
-    return url.toString();
+    return url.toString().replace(/\/$/, '');
   } catch {
     return null;
   }
 }
 
-function getSiteAllowedOrigins(site) {
+function normalizeOrigins(input, siteUrl) {
+  const entries = Array.isArray(input) ? input : String(input || '').split(/[\n,]/);
   const origins = new Set();
-  if (site && site.site_url) {
-    try {
-      const siteOrigin = normalizeOrigin(new URL(site.site_url).origin);
-      if (siteOrigin) origins.add(siteOrigin);
-    } catch {}
-  }
-  for (const value of Array.isArray(site?.allowed_origins) ? site.allowed_origins : []) {
-    const origin = normalizeOrigin(value);
-    if (origin) origins.add(origin);
-  }
-  return origins;
-}
-
-function normalizeAllowedOrigins(values, siteUrl) {
-  const entries = Array.isArray(values)
-    ? values
-    : typeof values === 'string'
-      ? values.split(/[\n,]+/)
-      : [];
-  const origins = new Set();
-  if (siteUrl) {
-    const siteOrigin = normalizeOrigin(new URL(siteUrl).origin);
-    if (siteOrigin) origins.add(siteOrigin);
-  }
+  const mainOrigin = new URL(siteUrl).origin;
+  origins.add(mainOrigin);
   for (const entry of entries) {
-    const value = String(entry || '').trim();
-    if (!value) continue;
-    const origin = normalizeOrigin(value);
-    if (!origin) {
-      throw new Error(`Invalid origin "${value}". Use only scheme and host, for example https://example.com.`);
+    const raw = String(entry || '').trim();
+    if (!raw) continue;
+    let parsed;
+    try { parsed = new URL(raw); } catch { throw new Error(`Invalid origin: ${raw}`); }
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.origin !== raw.replace(/\/$/, '')) {
+      throw new Error(`Enter a complete origin without a path: ${raw}`);
     }
-    origins.add(origin);
+    origins.add(parsed.origin);
   }
   return [...origins];
 }
 
-function isTelemetryOriginAllowed(origin) {
-  const normalized = normalizeOrigin(origin);
-  if (!normalized) return false;
-  if (CORS_ORIGINS.has(normalized)) return true;
-  if (!IS_PRODUCTION && CORS_ORIGINS.size === 0) return true;
-  return SITES.some((site) => getSiteAllowedOrigins(site).has(normalized));
+function getAllowedOrigins(site) {
+  let primary = [];
+  try { primary = [new URL(site.site_url).origin]; } catch {}
+  const configured = Array.isArray(site.allowed_origins) ? site.allowed_origins : [];
+  return [...new Set([...primary, ...configured])];
 }
 
-function isSiteOriginAllowed(site, origin) {
-  const normalized = normalizeOrigin(origin);
-  if (!normalized) return false;
-  if (CORS_ORIGINS.has(normalized)) return true;
-  if (!IS_PRODUCTION && CORS_ORIGINS.size === 0) return true;
-  return getSiteAllowedOrigins(site).has(normalized);
+function saveData() {
+  const data = {
+    SITES,
+    LOGS: LOGS.slice(0, 1_000),
+    ERROR_EVENTS: ERROR_EVENTS.slice(0, 1_000),
+    CHECK_HISTORY: CHECK_HISTORY.slice(0, 100_000),
+    RUM_EVENTS: RUM_EVENTS.slice(0, MAX_RUM_EVENTS),
+  };
+  const temporary = `${DATA_FILE}.tmp`;
+  fs.writeFileSync(temporary, JSON.stringify(data), { mode: 0o600 });
+  fs.renameSync(temporary, DATA_FILE);
 }
 
-const CORS_ORIGINS = new Set(
-  String(process.env.CORS_ORIGINS || '')
-    .split(',')
-    .map(normalizeOrigin)
-    .filter(Boolean)
-);
-const LEGACY_MAYFORD_SITE_ID = 'site_mayford_gh_001';
-const MAYFORD_SITE_ID = 'site_82be20b5-58ca-412a-998b-6a904a20eda7';
-const DATA_FILE = path.join(__dirname, 'shield-data.json');
-const SESSION_FILE = path.join(__dirname, 'shield-sessions.json');
-const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
-if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
-  throw new Error('PORT must be an integer between 1 and 65535.');
-}
-if (!SHIELD_MASTER_KEY) {
-  throw new Error('Set SAJAMA_SHIELD_KEY before starting Sajama Shield in production.');
-}
-if (!SESSION_SECRET) {
-  throw new Error('Set SESSION_SECRET before starting Sajama Shield in production.');
-}
-if (IS_PRODUCTION && SHIELD_MASTER_KEY === DEFAULT_SHIELD_KEY) {
-  throw new Error('The default Sajama Shield master key is not allowed in production. Set SAJAMA_SHIELD_KEY.');
-}
-if (IS_PRODUCTION && SHIELD_MASTER_KEY.length < 32) {
-  throw new Error('SAJAMA_SHIELD_KEY must be at least 32 characters in production.');
-}
-if (IS_PRODUCTION && SESSION_SECRET.length < 32) {
-  throw new Error('SESSION_SECRET must be at least 32 characters in production.');
-}
-
-function timingSafeSecretMatch(input, expected) {
-  if (typeof input !== 'string' || !expected) return false;
-  const inputDigest = crypto.createHash('sha256').update(input).digest();
-  const expectedDigest = crypto.createHash('sha256').update(expected).digest();
-  return crypto.timingSafeEqual(inputDigest, expectedDigest);
-}
-
-// Persist sessions across local restarts. This file-backed store is intended for a
-// single Shield process; use Redis or a database session store when scaling out.
-class JsonSessionStore extends session.Store {
-  constructor(filePath) {
-    super();
-    this.filePath = filePath;
-    this.sessions = new Map();
-    this.load();
+function loadData() {
+  try {
+    if (!fs.existsSync(DATA_FILE)) return;
+    const saved = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    if (Array.isArray(saved.SITES)) {
+      SITES.splice(0, SITES.length, ...saved.SITES.filter(site => site && site.client_id && normalizeSiteUrl(site.site_url)));
+    }
+    if (Array.isArray(saved.LOGS)) LOGS = saved.LOGS;
+    if (Array.isArray(saved.ERROR_EVENTS)) ERROR_EVENTS = saved.ERROR_EVENTS;
+    if (Array.isArray(saved.CHECK_HISTORY)) CHECK_HISTORY = saved.CHECK_HISTORY;
+    if (Array.isArray(saved.RUM_EVENTS)) RUM_EVENTS = saved.RUM_EVENTS;
+  } catch (error) {
+    console.error('[Shield] Could not load persisted data:', error.message);
   }
+  const cutoff = Date.now() - CHECK_RETENTION_MS;
+  CHECK_HISTORY = CHECK_HISTORY.filter(check => Date.parse(check.checked_at) >= cutoff);
+  RUM_EVENTS = RUM_EVENTS.filter(event => Date.parse(event.timestamp) >= cutoff);
+  for (const site of SITES) {
+    if (!Array.isArray(site.allowed_origins)) site.allowed_origins = [];
+    if (!site.status) site.status = 'unknown';
+  }
+}
 
-  load() {
+loadData();
+
+function toSiteRow(site) {
+  return {
+    client_id: site.client_id,
+    site_name: site.site_name,
+    site_url: site.site_url,
+    allowed_origins: getAllowedOrigins(site),
+    environment: site.environment || 'production',
+    category: site.category || 'Web application',
+    sla_target: Number(site.sla_target) || 99.95,
+    created_at: site.created_at || new Date().toISOString(),
+  };
+}
+
+function fromSiteRow(row) {
+  return {
+    id: Date.parse(row.created_at) || 1,
+    client_id: row.client_id,
+    site_name: row.site_name,
+    site_url: row.site_url,
+    allowed_origins: Array.isArray(row.allowed_origins) ? row.allowed_origins : [],
+    environment: row.environment || 'production',
+    category: row.category || 'Web application',
+    sla_target: Number(row.sla_target) || 99.95,
+    status: 'unknown',
+    created_at: row.created_at || new Date().toISOString(),
+  };
+}
+
+function toCheckRow(check) {
+  return { id: check.id, client_id: check.client_id, checked_at: check.checked_at, status: check.status, http_status: check.http_status, latency_ms: check.latency_ms, error: check.error || null };
+}
+
+function fromCheckRow(row) {
+  return { id: row.id, client_id: row.client_id, checked_at: row.checked_at, status: row.status, http_status: row.http_status, latency_ms: row.latency_ms, error: row.error || null };
+}
+
+function toTelemetryRow(event) {
+  return { id: event.id, client_id: event.client_id, event_type: event.type, received_at: event.timestamp, session_hash: event.session_hash, path: event.path || '/', data: event.data || {} };
+}
+
+function fromTelemetryRow(row) {
+  return { id: row.id, client_id: row.client_id, type: row.event_type, timestamp: row.received_at, session_hash: row.session_hash, path: row.path || '/', data: row.data || {} };
+}
+
+function toErrorRow(error) {
+  return { id: error.id, client_id: error.client_id, error_type: error.error_type, message: error.message, filename: error.filename || 'inline', line_number: Number(error.lineno) || 0, occurrences: Number(error.occurrences) || 1, status: error.status || 'open', first_seen: error.first_seen, last_seen: error.last_seen, resolved_at: error.resolved_at || null };
+}
+
+function fromErrorRow(row) {
+  return { id: row.id, client_id: row.client_id, error_type: row.error_type, message: row.message, filename: row.filename || 'inline', lineno: row.line_number || 0, occurrences: row.occurrences || 1, status: row.status || 'open', first_seen: row.first_seen, last_seen: row.last_seen, resolved_at: row.resolved_at || null };
+}
+
+function toLogRow(log) {
+  return {
+    id: log.id || crypto.randomUUID(), client_id: log.client_id,
+    severity: log.severity || 'INFO', subsystem: log.subsystem || 'shield',
+    event_type: log.event_type || 'LEGACY_EVENT', message: String(log.message || ''),
+    logged_at: log.logged_at || log.timestamp || new Date().toISOString(),
+  };
+}
+
+function fromLogRow(row) {
+  return { id: row.id, client_id: row.client_id, severity: row.severity, subsystem: row.subsystem, event_type: row.event_type, message: row.message, logged_at: row.logged_at };
+}
+
+async function persistRows(table, rows) {
+  if (!supabaseStore.enabled || !rows.length) return;
+  const pending = PENDING_SUPABASE_WRITES.get(table);
+  const conflictKey = SUPABASE_CONFLICT_KEYS[table];
+  if (!pending || !conflictKey) throw new Error(`Unsupported Shield storage table: ${table}`);
+  const writes = rows.map(row => {
+    const key = String(row[conflictKey]);
+    const token = crypto.randomUUID();
+    pending.set(key, { row, token });
+    return { key, token, row };
+  });
+  try {
+    await supabaseStore.upsert(table, rows, conflictKey);
+    for (const write of writes) {
+      if (pending.get(write.key)?.token === write.token) pending.delete(write.key);
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+async function flushPendingSupabaseWrites() {
+  if (!supabaseStore.enabled) return;
+  for (const [table, pending] of PENDING_SUPABASE_WRITES) {
+    if (!pending.size) continue;
+    const batch = [...pending.entries()].slice(0, 1_000);
     try {
-      if (!fs.existsSync(this.filePath)) return;
-      const saved = JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
-      for (const [sid, record] of Object.entries(saved)) {
-        if (record && record.expiresAt > Date.now() && record.data) {
-          this.sessions.set(sid, record);
-        }
+      await supabaseStore.upsert(table, batch.map(([, entry]) => entry.row), SUPABASE_CONFLICT_KEYS[table]);
+      for (const [key, entry] of batch) {
+        if (pending.get(key)?.token === entry.token) pending.delete(key);
       }
-      this.pruneExpired();
     } catch (error) {
-      console.error('[Shield] Could not load persisted sessions:', error.message);
+      console.error(`[Shield] Retrying ${table} writes later:`, error.message);
     }
-  }
-
-  pruneExpired() {
-    const now = Date.now();
-    for (const [sid, record] of this.sessions) {
-      if (!record || record.expiresAt <= now) this.sessions.delete(sid);
-    }
-  }
-
-  persist(callback) {
-    try {
-      this.pruneExpired();
-      const tempPath = `${this.filePath}.${process.pid}.tmp`;
-      fs.writeFileSync(tempPath, JSON.stringify(Object.fromEntries(this.sessions)), { mode: 0o600 });
-      fs.renameSync(tempPath, this.filePath);
-      if (callback) callback(null);
-    } catch (error) {
-      if (callback) callback(error);
-      else console.error('[Shield] Could not persist sessions:', error.message);
-    }
-  }
-
-  get(sid, callback) {
-    const record = this.sessions.get(sid);
-    if (!record || record.expiresAt <= Date.now()) {
-      this.sessions.delete(sid);
-      return this.persist(() => callback(null, null));
-    }
-    return callback(null, JSON.parse(JSON.stringify(record.data)));
-  }
-
-  set(sid, sessionData, callback) {
-    const cookieExpires = sessionData.cookie && sessionData.cookie.expires
-      ? new Date(sessionData.cookie.expires).getTime()
-      : Date.now() + (sessionData.cookie && sessionData.cookie.maxAge ? sessionData.cookie.maxAge : SESSION_MAX_AGE_MS);
-    this.sessions.set(sid, { expiresAt: cookieExpires, data: sessionData });
-    this.persist(callback);
-  }
-
-  touch(sid, sessionData, callback) {
-    const record = this.sessions.get(sid);
-    if (record) {
-      record.expiresAt = Date.now() + (sessionData.cookie && sessionData.cookie.maxAge ? sessionData.cookie.maxAge : SESSION_MAX_AGE_MS);
-      record.data = sessionData;
-    }
-    this.persist(callback);
-  }
-
-  destroy(sid, callback) {
-    this.sessions.delete(sid);
-    this.persist(callback);
   }
 }
 
-app.disable('x-powered-by');
-app.set('trust proxy', 1);
-app.use((_req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  next();
-});
-// Cross-origin browser access is needed only for the public telemetry beacon.
-// Client-site origins are loaded from each registered site's dashboard settings.
-app.use(
-  '/api/shield/telemetry',
-  cors({
-    origin(origin, callback) {
-      if (!origin) return callback(null, false);
-      const normalized = normalizeOrigin(origin);
-      const allowed = normalized && isTelemetryOriginAllowed(normalized);
-      return callback(null, allowed ? normalized : false);
-    },
-    methods: ['POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type'],
-    maxAge: 600,
-    credentials: false,
-  })
-);
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-app.use(
-  session({
-    name: 'sajama_shield_sid',
-    store: new JsonSessionStore(SESSION_FILE),
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    proxy: true,
-    cookie: {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: 'auto',
-      maxAge: SESSION_MAX_AGE_MS,
-    },
-  })
-);
+function discardPendingWrite(table, key) {
+  PENDING_SUPABASE_WRITES.get(table)?.delete(String(key));
+}
 
-// Serve Static Assets & Client Tag
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('/api/health', (_req, res) =>
-  res.json({
-    ok: true,
-    service: 'sajama-shield',
-    uptime_seconds: Math.floor(process.uptime()),
-    timestamp: new Date().toISOString(),
-  })
-);
+function discardPendingSiteWrites(clientId) {
+  for (const pending of PENDING_SUPABASE_WRITES.values()) {
+    for (const [key, entry] of pending) {
+      if (entry.row.client_id === clientId) pending.delete(key);
+    }
+  }
+}
+
+function getStorageStatus() {
+  const pendingWrites = [...PENDING_SUPABASE_WRITES.values()].reduce((total, pending) => total + pending.size, 0);
+  return { ...supabaseStore.getStatus(), pending_writes: pendingWrites };
+}
+
+function persistSite(site) { return persistRows('shield_sites', [toSiteRow(site)]); }
+function persistCheck(check) { return persistRows('shield_checks', [toCheckRow(check)]); }
+function persistTelemetry(event) { return persistRows('shield_telemetry', [toTelemetryRow(event)]); }
+function persistError(error) { return persistRows('shield_errors', [toErrorRow(error)]); }
+function persistLog(log) { return persistRows('shield_logs', [toLogRow(log)]); }
+
+async function initializeSupabase() {
+  if (!supabaseStore.enabled) return;
+  const local = {
+    sites: [...SITES], checks: [...CHECK_HISTORY], telemetry: [...RUM_EVENTS],
+    errors: [...ERROR_EVENTS], logs: [...LOGS],
+  };
+  const retentionCutoff = new Date(Date.now() - CHECK_RETENTION_MS).toISOString();
+  const [initialSites, initialChecks, initialTelemetry, initialErrors, initialLogs] = await Promise.all([
+    supabaseStore.selectAll('shield_sites', { orderBy: 'created_at', ascending: true, maxRows: 5_000 }),
+    supabaseStore.selectAll('shield_checks', { orderBy: 'checked_at', gte: { checked_at: retentionCutoff }, maxRows: 100_000 }),
+    supabaseStore.selectAll('shield_telemetry', { orderBy: 'received_at', gte: { received_at: retentionCutoff }, maxRows: MAX_RUM_EVENTS }),
+    supabaseStore.selectAll('shield_errors', { orderBy: 'last_seen', maxRows: 1_000 }),
+    supabaseStore.selectAll('shield_logs', { orderBy: 'logged_at', maxRows: 1_000 }),
+  ]);
+  const cloudSiteIds = new Set(initialSites.map(site => site.client_id));
+  const missingSites = local.sites.filter(site => !cloudSiteIds.has(site.client_id));
+  if (missingSites.length) {
+    await supabaseStore.upsert('shield_sites', missingSites.map(toSiteRow), 'client_id');
+    for (const site of missingSites) cloudSiteIds.add(site.client_id);
+  }
+  const cloudCheckIds = new Set(initialChecks.map(check => check.id));
+  const cloudTelemetryIds = new Set(initialTelemetry.map(event => event.id));
+  const cloudErrorById = new Map(initialErrors.map(error => [error.id, error]));
+  const cloudLogIds = new Set(initialLogs.map(log => log.id));
+  const missingChecks = local.checks.filter(check => cloudSiteIds.has(check.client_id) && !cloudCheckIds.has(check.id));
+  const missingTelemetry = local.telemetry.filter(event => cloudSiteIds.has(event.client_id) && !cloudTelemetryIds.has(event.id));
+  const changedErrors = local.errors.filter(error => {
+    if (!cloudSiteIds.has(error.client_id)) return false;
+    const cloudError = cloudErrorById.get(error.id);
+    return !cloudError || Date.parse(error.last_seen) > Date.parse(cloudError.last_seen)
+      || Number(error.occurrences) > Number(cloudError.occurrences)
+      || (error.status === 'resolved' && cloudError.status !== 'resolved');
+  });
+  const missingLogs = local.logs.filter(log => cloudSiteIds.has(log.client_id) && !cloudLogIds.has(log.id));
+  await Promise.all([
+    supabaseStore.upsert('shield_checks', missingChecks.map(toCheckRow), 'id'),
+    supabaseStore.upsert('shield_telemetry', missingTelemetry.map(toTelemetryRow), 'id'),
+    supabaseStore.upsert('shield_errors', changedErrors.map(toErrorRow), 'id'),
+    supabaseStore.upsert('shield_logs', missingLogs.map(toLogRow), 'id'),
+  ]);
+  const [sites, checks, telemetry, errors, logs] = await Promise.all([
+    supabaseStore.selectAll('shield_sites', { orderBy: 'created_at', ascending: true, maxRows: 5_000 }),
+    supabaseStore.selectAll('shield_checks', { orderBy: 'checked_at', gte: { checked_at: retentionCutoff }, maxRows: 100_000 }),
+    supabaseStore.selectAll('shield_telemetry', { orderBy: 'received_at', gte: { received_at: retentionCutoff }, maxRows: MAX_RUM_EVENTS }),
+    supabaseStore.selectAll('shield_errors', { orderBy: 'last_seen', maxRows: 1_000 }),
+    supabaseStore.selectAll('shield_logs', { orderBy: 'logged_at', maxRows: 1_000 }),
+  ]);
+  SITES.splice(0, SITES.length, ...sites.map(fromSiteRow));
+  CHECK_HISTORY = checks.map(fromCheckRow);
+  RUM_EVENTS = telemetry.map(fromTelemetryRow);
+  ERROR_EVENTS = errors.map(fromErrorRow);
+  LOGS = logs.map(fromLogRow);
+  for (const site of SITES) {
+    if (!Array.isArray(site.allowed_origins)) site.allowed_origins = [];
+    const summary = monitorSummary(site.client_id);
+    site.status = summary.status;
+    site.last_checked_at = summary.last_checked_at;
+  }
+  saveData();
+  console.log(`[Shield] Supabase ready: ${SITES.length} sites, ${CHECK_HISTORY.length} checks, ${RUM_EVENTS.length} telemetry events.`);
+}
+
+async function pruneSupabaseHistory() {
+  if (!supabaseStore.enabled) return;
+  const cutoff = new Date(Date.now() - CHECK_RETENTION_MS).toISOString();
+  try {
+    await Promise.all([
+      supabaseStore.deleteBefore('shield_checks', 'checked_at', cutoff),
+      supabaseStore.deleteBefore('shield_telemetry', 'received_at', cutoff),
+    ]);
+  } catch (error) {
+    console.error('[Shield] Supabase retention cleanup failed:', error.message);
+  }
+}
+
+// Browser beacons connect directly to Shield. The global CORS response is limited to
+// registered origins; the POST handler checks the exact origin against the selected site.
+app.use('/api/shield/telemetry', cors({
+  origin(origin, callback) {
+    if (!origin) return callback(null, false);
+    const allowed = SITES.some(site => getAllowedOrigins(site).includes(origin));
+    return callback(null, allowed ? origin : false);
+  },
+  methods: ['POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
+  optionsSuccessStatus: 204,
+  maxAge: 600,
+}));
+app.options('/api/shield/telemetry', (req, res) => {
+  const origin = req.get('origin');
+  const allowed = origin && SITES.some(site => getAllowedOrigins(site).includes(origin));
+  return res.sendStatus(origin && !allowed ? 403 : 204);
+});
+
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  maxAge: '1h',
+  setHeaders(res, filePath) {
+    if (path.basename(filePath) === 'index.html') res.setHeader('Cache-Control', 'no-store');
+  },
+}));
 app.get('/sajama-tag.js', (_req, res) => {
-  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.sendFile(path.join(__dirname, 'sajama-tag.js'));
+  res.type('application/javascript').sendFile(path.join(__dirname, 'sajama-tag.js'));
 });
-
-// Daily rotating salt for one-way SHA-256 IP anonymization (Strict Privacy / Ghana DPA & GDPR compliant)
-let dailySalt = crypto.randomBytes(16).toString('hex');
-setInterval(() => {
-  dailySalt = crypto.randomBytes(16).toString('hex');
-}, 24 * 60 * 60 * 1000);
-
-function anonymizeIp(ip) {
-  if (!ip) return 'anon';
-  return crypto.createHash('sha256').update(String(ip) + dailySalt).digest('hex').substring(0, 12);
-}
-
-// ============================================================================
-// GLOBAL SYNTHETIC PROBE NODES (EDGE TOPOLOGY)
-// ============================================================================
-
-const PROBE_NODES = [
-  { id: 'accra_edge_01', name: 'Accra Edge (Adabraka / Ridge)', region: 'West Africa (GH)', ip: '102.176.64.12', latency_ms: 18, jitter_ms: 0.8, status: 'operational', packet_loss: '0.00%', x: 280, y: 190 },
-  { id: 'kumasi_edge_02', name: 'Kumasi Node (Ahodwo Gateway)', region: 'West Africa (GH)', ip: '102.176.72.45', latency_ms: 24, jitter_ms: 1.1, status: 'operational', packet_loss: '0.00%', x: 260, y: 175 },
-  { id: 'lagos_edge_03', name: 'Lagos Gateway (Victoria Island)', region: 'West Africa (NG)', ip: '197.210.8.91', latency_ms: 32, jitter_ms: 1.4, status: 'operational', packet_loss: '0.00%', x: 320, y: 195 },
-  { id: 'london_gw_01', name: 'London Transit (Equinix LD4)', region: 'Europe (UK)', ip: '185.199.108.153', latency_ms: 82, jitter_ms: 2.1, status: 'operational', packet_loss: '0.00%', x: 270, y: 80 },
-  { id: 'frankfurt_gw_02', name: 'Frankfurt Core (DE-CIX)', region: 'Europe (DE)', ip: '194.25.0.125', latency_ms: 88, jitter_ms: 2.4, status: 'operational', packet_loss: '0.00%', x: 295, y: 90 },
-  { id: 'virginia_us_01', name: 'US East Edge (N. Virginia)', region: 'North America (US)', ip: '54.239.28.85', latency_ms: 114, jitter_ms: 3.2, status: 'operational', packet_loss: '0.00%', x: 140, y: 110 },
-];
-
-// ============================================================================
-// IN-MEMORY / PERSISTENT DATA REPOSITORY
-// ============================================================================
-
-let SITES = [
-  {
-    id: 1,
-    client_id: MAYFORD_SITE_ID,
-    site_name: 'Mayford Foods GH (Accra Outlets & Academy)',
-    site_url: 'https://mayfordfoodsgh.com',
-    allowed_origins: ['https://mayfordfoodsgh.com'],
-    environment: 'production',
-    category: 'E-Commerce & Food Hospitality',
-    status: 'operational',
-    health_score: 99,
-    uptime_percentage: 99.98,
-    avg_latency_ms: 28,
-    p95_latency_ms: 45,
-    primary_region: 'af-south-1 (Accra / West Africa)',
-    sla_target: 99.95,
-    ssl_days_remaining: 82,
-    security_score: 'A+',
-    last_heartbeat: new Date().toISOString(),
-    live_visitors: 14,
-    created_at: '2026-01-15T08:00:00Z',
-    alert_email: 'devops@sajamagh.com',
-    webhook_url: '',
-  },
-  {
-    id: 2,
-    client_id: 'site_osu_bistro_002',
-    site_name: 'Osu Coastal Bistro & Lounge',
-    site_url: 'https://osubistrogh.com',
-    environment: 'production',
-    category: 'Restaurant & Dining',
-    status: 'operational',
-    health_score: 98,
-    uptime_percentage: 99.95,
-    avg_latency_ms: 36,
-    p95_latency_ms: 58,
-    primary_region: 'af-south-1 (Accra / West Africa)',
-    sla_target: 99.9,
-    ssl_days_remaining: 144,
-    security_score: 'A',
-    last_heartbeat: new Date(Date.now() - 25000).toISOString(),
-    live_visitors: 6,
-    created_at: '2026-02-10T10:00:00Z',
-    alert_email: 'alerts@osubistrogh.com',
-    webhook_url: '',
-  },
-  {
-    id: 3,
-    client_id: 'site_accra_logistics_003',
-    site_name: 'Accra Cloud Fleet Logistics',
-    site_url: 'https://accracloudfleet.com',
-    environment: 'production',
-    category: 'Supply Chain & Logistics',
-    status: 'operational',
-    health_score: 100,
-    uptime_percentage: 99.99,
-    avg_latency_ms: 22,
-    p95_latency_ms: 38,
-    primary_region: 'af-south-1 (Accra / West Africa)',
-    sla_target: 99.95,
-    ssl_days_remaining: 210,
-    security_score: 'A+',
-    last_heartbeat: new Date(Date.now() - 15000).toISOString(),
-    live_visitors: 9,
-    created_at: '2026-03-01T09:30:00Z',
-    alert_email: 'admin@accracloudfleet.com',
-    webhook_url: '',
-  },
-];
-
-let LOGS = [
-  {
-    id: 1,
-    client_id: MAYFORD_SITE_ID,
-    severity: 'INFO',
-    subsystem: 'shield_radar',
-    event_type: 'SYSTEM_ONLINE',
-    message: 'Autonomous synthetic probe verified SSL, security headers, and latency (28ms)',
-    geo_region: 'Accra, GH',
-    logged_at: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 2,
-    client_id: MAYFORD_SITE_ID,
-    severity: 'INFO',
-    subsystem: 'telemetry_stream',
-    event_type: 'CORE_WEB_VITALS_OPTIMAL',
-    message: 'Core Web Vitals passed Google thresholds: TTFB 28ms, LCP 1.1s, CLS 0.002',
-    geo_region: 'Accra, GH',
-    logged_at: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 3,
-    client_id: 'site_osu_bistro_002',
-    severity: 'INFO',
-    subsystem: 'ssl_monitor',
-    event_type: 'SSL_VALIDATED',
-    message: 'TLS 1.3 certificate valid (144 days remaining, Let’s Encrypt Authority)',
-    geo_region: 'Accra, GH',
-    logged_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-  },
-];
-
-let ERROR_EVENTS = [
-  {
-    id: 1,
-    client_id: MAYFORD_SITE_ID,
-    error_type: 'UncaughtException',
-    message: 'TypeError: Cannot read properties of null (reading "scrollIntoView")',
-    filename: '/assets/app.js',
-    lineno: 42,
-    occurrences: 3,
-    status: 'resolved',
-    first_seen: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    last_seen: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
-let INCIDENTS = [];
-let ACTIVE_SESSIONS = {}; // sessionId -> { siteId, lastSeen, ipHash, path }
-
-// Initialize Latency & Hourly Traffic seed data
-let LATENCY_HISTORY = [];
-let HOURLY_TRAFFIC = [];
-const now = Date.now();
-
-for (let i = 24; i >= 0; i--) {
-  const ts = new Date(now - i * 15 * 60 * 1000).toISOString();
-  LATENCY_HISTORY.push({
-    timestamp: ts,
-    [MAYFORD_SITE_ID]: 24 + Math.floor(Math.random() * 12),
-    site_osu_bistro_002: 32 + Math.floor(Math.random() * 14),
-    site_accra_logistics_003: 19 + Math.floor(Math.random() * 8),
-  });
-}
-
-for (let h = 23; h >= 0; h--) {
-  const hr = new Date(now - h * 3600 * 1000).getHours();
-  HOURLY_TRAFFIC.push({
-    hour: `${hr}:00`,
-    views: 45 + Math.floor(Math.random() * 80) + (hr >= 11 && hr <= 14 ? 120 : hr >= 18 && hr <= 21 ? 160 : 0),
-    visitors: 25 + Math.floor(Math.random() * 45) + (hr >= 11 && hr <= 14 ? 70 : hr >= 18 && hr <= 21 ? 95 : 0),
-  });
-}
-
-// Load persisted data if exists
-function loadPersistedData() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const parsed = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-      if (parsed.SITES && Array.isArray(parsed.SITES)) SITES = parsed.SITES;
-      if (parsed.LOGS && Array.isArray(parsed.LOGS)) LOGS = parsed.LOGS;
-      if (parsed.ERROR_EVENTS && Array.isArray(parsed.ERROR_EVENTS)) ERROR_EVENTS = parsed.ERROR_EVENTS;
-      if (parsed.INCIDENTS && Array.isArray(parsed.INCIDENTS)) INCIDENTS = parsed.INCIDENTS;
-    }
-  } catch (e) {
-    console.error('[Shield] Failed to load persisted state:', e.message);
-  }
-}
-
-function savePersistedData() {
-  try {
-    const tempPath = `${DATA_FILE}.${process.pid}.tmp`;
-    fs.writeFileSync(
-      tempPath,
-      JSON.stringify({ SITES, LOGS: LOGS.slice(0, 200), ERROR_EVENTS: ERROR_EVENTS.slice(0, 100), INCIDENTS }, null, 2),
-      { encoding: 'utf8', mode: 0o600 }
-    );
-    fs.renameSync(tempPath, DATA_FILE);
-  } catch (e) {
-    console.error('[Shield] Failed to save persisted state:', e.message);
-  }
-}
-
-loadPersistedData();
-
-// Rotate the old predictable Mayford site key while preserving persisted history.
-function migrateLegacyMayfordSiteId() {
-  let changed = false;
-  for (const collection of [SITES, LOGS, ERROR_EVENTS, INCIDENTS]) {
-    for (const record of collection) {
-      if (record && record.client_id === LEGACY_MAYFORD_SITE_ID) {
-        record.client_id = MAYFORD_SITE_ID;
-        changed = true;
-      }
-    }
-  }
-  if (changed) savePersistedData();
-}
-
-migrateLegacyMayfordSiteId();
-
-// ============================================================================
-// AUTHENTICATION & ACCESS CONTROL
-// ============================================================================
 
 function requireShieldAuth(req, res, next) {
-  if (req.session && req.session.shield_authenticated) {
-    return next();
-  }
-  // Do not accept secrets in query strings; URLs are routinely logged and shared.
-  if (timingSafeSecretMatch(req.get('x-shield-key'), SHIELD_MASTER_KEY)) {
-    return next();
-  }
-  return res.status(401).json({ ok: false, error: 'Unauthorized: Sajama Shield login required.' });
+  if (req.session?.shield_authenticated || safeSecretMatch(req.get('x-shield-key'), MASTER_KEY)) return next();
+  return res.status(401).json({ ok: false, error: 'Sajama Shield login required.' });
 }
 
-function requireClientAgentToken(req, res, next) {
-  if (!CLIENT_AGENT_TOKEN) {
-    return res.status(503).json({ ok: false, error: 'Client agent ingestion is not configured. Set SAJAMA_SHIELD_TOKEN.' });
-  }
-  if (!timingSafeSecretMatch(req.get('x-shield-token'), CLIENT_AGENT_TOKEN)) {
-    return res.status(401).json({ ok: false, error: 'Invalid Shield client token.' });
-  }
-  return next();
-}
-
-const failedMasterLogins = new Map();
-function masterLoginRateLimit(req, res, next) {
-  const now = Date.now();
-  for (const [ip, state] of failedMasterLogins) {
-    if (state.resetAt <= now) failedMasterLogins.delete(ip);
-  }
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
-  const state = failedMasterLogins.get(ip);
-  if (state && state.count >= 10) {
-    return res.status(429).json({ ok: false, error: 'Too many login attempts. Try again in 15 minutes.' });
-  }
-  req.masterLoginIp = ip;
-  return next();
-}
-
-// Master Login: rotate the session ID on successful authentication.
-app.post('/api/shield/auth/login', masterLoginRateLimit, (req, res) => {
-  const { key, engineer_name } = req.body || {};
-  if (!timingSafeSecretMatch(typeof key === 'string' ? key : '', SHIELD_MASTER_KEY)) {
-    const ip = req.masterLoginIp || req.ip || 'unknown';
-    const state = failedMasterLogins.get(ip) || { count: 0, resetAt: Date.now() + 15 * 60 * 1000 };
-    state.count += 1;
-    failedMasterLogins.set(ip, state);
-    return res.status(401).json({ ok: false, error: 'Invalid Sajama Shield Master Key.' });
-  }
-
-  failedMasterLogins.delete(req.masterLoginIp || req.ip || 'unknown');
-  req.session.regenerate((sessionError) => {
-    if (sessionError) {
-      console.error('[Shield] Failed to rotate login session:', sessionError.message);
-      return res.status(500).json({ ok: false, error: 'Unable to start an authenticated session.' });
-    }
-
+app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'sajama-shield', timestamp: new Date().toISOString(), storage: getStorageStatus() }));
+app.get('/api/shield/auth/session', (req, res) => {
+  if (!req.session?.shield_authenticated) return res.json({ authenticated: false });
+  return res.json({ authenticated: true, user: { role: 'Shield Administrator', engineer: req.session.shield_engineer || 'Administrator' } });
+});
+app.post('/api/shield/auth/login', (req, res, next) => {
+  if (!safeSecretMatch(req.body?.key, MASTER_KEY)) return res.status(401).json({ ok: false, error: 'Invalid Shield key.' });
+  req.session.regenerate(error => {
+    if (error) return next(error);
     req.session.shield_authenticated = true;
-    req.session.shield_engineer = String(engineer_name || 'Senior DevOps Engineer').trim().slice(0, 80);
-
-    // Audit log login
-    LOGS.unshift({
-      id: Date.now(),
-      client_id: 'GLOBAL',
-      severity: 'INFO',
-      subsystem: 'auth_security',
-      event_type: 'MASTER_LOGIN_SUCCESS',
-      message: `Master command terminal authenticated by ${req.session.shield_engineer}`,
-      geo_region: 'Accra, GH',
-      logged_at: new Date().toISOString(),
-    });
-
-    savePersistedData();
-    req.session.save((saveError) => {
-      if (saveError) {
-        console.error('[Shield] Failed to save authenticated session:', saveError.message);
-        return res.status(500).json({ ok: false, error: 'Unable to save the authenticated session.' });
-      }
-      return res.json({
-        ok: true,
-        user: {
-          role: 'Shield Administrator',
-          engineer: req.session.shield_engineer,
-        },
-      });
+    req.session.shield_engineer = String(req.body?.engineer_name || 'Administrator').trim().slice(0, 80) || 'Administrator';
+    req.session.save(saveError => {
+      if (saveError) return next(saveError);
+      return res.json({ ok: true, user: { role: 'Shield Administrator', engineer: req.session.shield_engineer } });
     });
   });
 });
-
-app.get('/api/shield/auth/session', (req, res) => {
-  if (req.session && req.session.shield_authenticated) {
-    return res.json({
-      authenticated: true,
-      user: {
-        role: 'Shield Administrator',
-        engineer: req.session.shield_engineer || 'Lead Engineer',
-      },
-    });
-  }
-  return res.json({ authenticated: false });
-});
-
 app.post('/api/shield/auth/logout', (req, res) => {
-  req.session.destroy((error) => {
+  req.session.destroy(error => {
     if (error) return res.status(500).json({ ok: false, error: 'Unable to end the Shield session.' });
-    res.clearCookie('sajama_shield_sid', { path: '/', sameSite: 'lax', secure: IS_PRODUCTION });
+    res.clearCookie('sajama_shield_sid', { path: '/', sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
     return res.json({ ok: true });
   });
 });
 
-// ============================================================================
-// MULTI-TENANT CLIENT SITES API
-// ============================================================================
+function percentile(values, p = 75) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.max(0, Math.ceil((p / 100) * sorted.length) - 1)];
+}
 
-// List All Monitored Client Sites
+function vitalStatus(value, goodLimit, poorLimit) {
+  if (!Number.isFinite(value)) return 'no data';
+  if (value <= goodLimit) return 'good';
+  if (value <= poorLimit) return 'needs improvement';
+  return 'poor';
+}
+
+function rumSummary(clientId) {
+  const cutoff = Date.now() - CHECK_RETENTION_MS;
+  const events = RUM_EVENTS.filter(event => event.client_id === clientId && Date.parse(event.timestamp) >= cutoff);
+  const pageviews = events.filter(event => event.type === 'pageview');
+  const performanceEvents = events.filter(event => event.type === 'performance');
+  const values = key => performanceEvents
+    .map(event => event.data?.[key])
+    .filter(value => value !== undefined && value !== null && value !== '')
+    .map(Number)
+    .filter(value => Number.isFinite(value) && value >= 0);
+  const metric = (key, good, poor, valueField = 'value_ms') => {
+    const samples = values(key);
+    const value = percentile(samples);
+    return { [valueField]: value, status: vitalStatus(value, good, poor), sample_count: samples.length };
+  };
+  const sessions = new Map();
+  for (const pageview of pageviews) {
+    if (!pageview.session_hash) continue;
+    const current = sessions.get(pageview.session_hash) || 0;
+    sessions.set(pageview.session_hash, Math.max(current, Date.parse(pageview.timestamp) || 0));
+  }
+  const activeSessions = [...sessions.values()].filter(timestamp => Date.now() - timestamp <= 5 * 60 * 1000).length;
+  const mostRecent = events.reduce((latest, event) => !latest || Date.parse(event.timestamp) > Date.parse(latest.timestamp) ? event : latest, null);
+  return {
+    pageviews_24h: pageviews.length,
+    sessions_24h: sessions.size,
+    active_sessions_5m: activeSessions,
+    rum_samples_24h: performanceEvents.length,
+    last_telemetry_at: mostRecent?.timestamp || null,
+    web_vitals: {
+      ttfb: metric('ttfb_ms', 800, 1800),
+      fcp: metric('fcp_ms', 1800, 3000),
+      lcp: metric('lcp_ms', 2500, 4000),
+      cls: metric('cls', 0.1, 0.25, 'value'),
+      inp: metric('inp_ms', 200, 500),
+    },
+  };
+}
+
+function monitorSummary(clientId) {
+  const cutoff = Date.now() - CHECK_RETENTION_MS;
+  const checks = CHECK_HISTORY.filter(check => check.client_id === clientId && Date.parse(check.checked_at) >= cutoff);
+  const latest = checks[0] || null;
+  const successfulResponses = checks.filter(check => check.http_status != null && Number.isFinite(Number(check.latency_ms)));
+  const latencies = successfulResponses.map(check => Number(check.latency_ms));
+  const available = checks.filter(check => check.status === 'up').length;
+  return {
+    status: latest?.status || 'unknown',
+    uptime_percentage: checks.length ? Number(((available / checks.length) * 100).toFixed(2)) : null,
+    avg_latency_ms: latencies.length ? Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length) : null,
+    p95_latency_ms: percentile(latencies, 95),
+    checks_24h: checks.length,
+    failed_checks_24h: checks.filter(check => check.status === 'down').length,
+    degraded_checks_24h: checks.filter(check => check.status === 'degraded').length,
+    last_checked_at: latest?.checked_at || null,
+    last_http_status: latest?.http_status ?? null,
+    last_error: latest?.error || null,
+  };
+}
+
+function isPrivateAddress(address) {
+  const version = net.isIP(address);
+  if (version === 4) {
+    const [a, b] = address.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || (a === 198 && (b === 18 || b === 19));
+  }
+  if (version === 6) {
+    const normalized = address.toLowerCase().split('%')[0];
+    const mapped = normalized.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    if (mapped) return isPrivateAddress(mapped[1]);
+    return normalized === '::' || normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || /^fe[89ab]/.test(normalized) || normalized.startsWith('ff');
+  }
+  return true;
+}
+
+async function resolvePublicAddresses(hostname) {
+  const host = hostname.replace(/^\[|\]$/g, '');
+  if (net.isIP(host)) {
+    if (isPrivateAddress(host)) throw new Error('Private or reserved IP addresses cannot be monitored.');
+    return [{ address: host, family: net.isIP(host) }];
+  }
+  const addresses = await dns.lookup(host, { all: true, verbatim: true });
+  if (!addresses.length || addresses.some(entry => isPrivateAddress(entry.address))) {
+    throw new Error('The target did not resolve to a public IP address.');
+  }
+  return addresses;
+}
+
+async function performHttpProbe(target, startedAt, redirects = 0) {
+  if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password) throw new Error('Only public HTTP and HTTPS URLs can be monitored.');
+  const addresses = await resolvePublicAddresses(target.hostname);
+  const transport = target.protocol === 'https:' ? https : http;
+  const firstAddress = addresses[0];
+  const result = await new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = value => { if (!settled) { settled = true; resolve(value); } };
+    const request = transport.request(target, {
+      method: 'GET',
+      timeout: CHECK_TIMEOUT_MS,
+      headers: { 'User-Agent': 'SajamaShield-Monitor/1.0', Accept: 'text/html,application/xhtml+xml,*/*;q=0.8', Range: 'bytes=0-65535' },
+      lookup(_host, _options, callback) { callback(null, firstAddress.address, firstAddress.family); },
+    }, response => {
+      const status = response.statusCode || null;
+      const location = response.headers.location;
+      response.destroy();
+      finish({ http_status: status, location: location || null });
+    });
+    request.on('timeout', () => request.destroy(new Error('Request timed out.')));
+    request.on('error', reject);
+    request.end();
+  });
+  if (result.location && result.http_status >= 300 && result.http_status < 400 && redirects < 4) {
+    const next = new URL(result.location, target);
+    return performHttpProbe(next, startedAt, redirects + 1);
+  }
+  return { http_status: result.http_status, latency_ms: Math.max(0, Date.now() - startedAt) };
+}
+
+async function performSiteCheck(site) {
+  const existing = CHECKS_IN_PROGRESS.get(site.client_id);
+  if (existing) return existing;
+  const task = (async () => {
+    const startedAt = Date.now();
+    let result;
+    try {
+      result = await performHttpProbe(new URL(site.site_url), startedAt);
+      result.status = result.http_status == null ? 'down' : result.http_status < 400 ? 'up' : result.http_status < 500 ? 'degraded' : 'down';
+      result.error = result.status === 'down' && result.http_status != null ? `HTTP ${result.http_status}` : null;
+    } catch (error) {
+      result = { status: 'down', http_status: null, latency_ms: Math.max(0, Date.now() - startedAt), error: String(error.message || 'Check failed.').slice(0, 240) };
+    }
+    const check = {
+      id: crypto.randomUUID(), client_id: site.client_id, checked_at: new Date().toISOString(),
+      status: result.status, http_status: result.http_status, latency_ms: Number.isFinite(result.latency_ms) ? result.latency_ms : null, error: result.error || null,
+    };
+    const previous = CHECK_HISTORY.find(entry => entry.client_id === site.client_id);
+    CHECK_HISTORY.unshift(check);
+    let retainedForSite = 0;
+    CHECK_HISTORY = CHECK_HISTORY.filter(entry => Date.parse(entry.checked_at) >= Date.now() - CHECK_RETENTION_MS && (entry.client_id !== site.client_id || ++retainedForSite <= MAX_CHECKS_PER_SITE));
+    site.status = check.status;
+    site.last_checked_at = check.checked_at;
+    let statusLog = null;
+    if (!previous || previous.status !== check.status) {
+      const severity = check.status === 'up' ? 'INFO' : check.status === 'degraded' ? 'WARN' : 'ERROR';
+      const message = check.status === 'up' ? `${site.site_name} returned HTTP ${check.http_status} in ${check.latency_ms} ms.` : check.status === 'degraded' ? `${site.site_name} returned HTTP ${check.http_status}.` : `${site.site_name} check failed: ${check.error || 'no HTTP response'}.`;
+      statusLog = { id: crypto.randomUUID(), client_id: site.client_id, severity, subsystem: 'uptime_check', event_type: 'SITE_STATUS_CHANGED', message, logged_at: check.checked_at };
+      LOGS.unshift(statusLog);
+      LOGS = LOGS.slice(0, 1_000);
+    }
+    saveData();
+    try {
+      await Promise.all([persistSite(site), persistCheck(check), statusLog ? persistLog(statusLog) : Promise.resolve()]);
+    } catch (error) {
+      console.error('[Shield] Check was recorded locally but Supabase persistence failed:', error.message);
+    }
+    return check;
+  })();
+  CHECKS_IN_PROGRESS.set(site.client_id, task);
+  try { return await task; } finally { CHECKS_IN_PROGRESS.delete(site.client_id); }
+}
+
+async function runScheduledChecks() {
+  await Promise.allSettled(SITES.map(site => performSiteCheck(site)));
+}
+
 app.get('/api/shield/sites', requireShieldAuth, (_req, res) => {
-  const nowTs = Date.now();
-  const siteCounts = {};
-  Object.values(ACTIVE_SESSIONS).forEach((sess) => {
-    if (nowTs - sess.lastSeen < 120000) {
-      siteCounts[sess.siteId] = (siteCounts[sess.siteId] || 0) + 1;
-    }
-  });
-
-  const enrichedSites = SITES.map((s) => ({
-    ...s,
-    allowed_origins: [...getSiteAllowedOrigins(s)],
-    live_visitors: (siteCounts[s.client_id] || 0) + (s.live_visitors ? Math.floor(s.live_visitors * 0.8) : 5),
-  }));
-
-  return res.json({ ok: true, sites: enrichedSites, probe_nodes: PROBE_NODES });
+  const sites = SITES.map(site => ({ ...site, ...monitorSummary(site.client_id), ...rumSummary(site.client_id), allowed_origins: getAllowedOrigins(site) }));
+  res.json({ ok: true, sites });
 });
 
-// Create New Client Site
-app.post('/api/shield/sites', requireShieldAuth, (req, res) => {
-  const body = req.body || {};
-  const siteName = String(body.site_name || '').trim();
-  if (!siteName || !body.site_url) {
-    return res.status(400).json({ ok: false, error: 'Site Name and Site URL are required.' });
-  }
-
-  const cleanUrl = normalizeSiteUrl(body.site_url);
-  if (!cleanUrl) {
-    return res.status(400).json({ ok: false, error: 'Enter a valid http or https site URL.' });
-  }
-
+app.post('/api/shield/sites', requireShieldAuth, async (req, res) => {
+  const siteName = String(req.body?.site_name || '').trim();
+  const siteUrl = normalizeSiteUrl(req.body?.site_url);
+  if (!siteName || !siteUrl) return res.status(400).json({ ok: false, error: 'Enter a site name and a valid HTTP or HTTPS target URL.' });
   let allowedOrigins;
-  try {
-    allowedOrigins = normalizeAllowedOrigins(body.allowed_origins, cleanUrl);
-  } catch (error) {
-    return res.status(400).json({ ok: false, error: error.message });
-  }
-
-  const clientId = `site_${crypto.randomUUID()}`;
-  const newSite = {
-    id: Date.now(),
-    client_id: clientId,
-    site_name: siteName,
-    site_url: cleanUrl,
-    allowed_origins: allowedOrigins,
-    environment: body.environment || 'production',
-    category: body.category || 'Web Application',
-    status: 'operational',
-    health_score: 100,
-    uptime_percentage: 100.0,
-    avg_latency_ms: 25,
-    p95_latency_ms: 40,
-    primary_region: 'af-south-1 (Accra / West Africa)',
-    sla_target: Number(body.sla_target) || 99.95,
-    ssl_days_remaining: 90,
-    security_score: 'A+',
-    last_heartbeat: new Date().toISOString(),
-    live_visitors: 1,
-    created_at: new Date().toISOString(),
-    alert_email: body.alert_email || '',
-    webhook_url: body.webhook_url || '',
+  try { allowedOrigins = normalizeOrigins(req.body?.allowed_origins, siteUrl); }
+  catch (error) { return res.status(400).json({ ok: false, error: error.message }); }
+  const site = {
+    id: Date.now(), client_id: `site_${crypto.randomUUID()}`, site_name: siteName.slice(0, 100), site_url: siteUrl,
+    allowed_origins: allowedOrigins, environment: String(req.body?.environment || 'production').slice(0, 32),
+    category: String(req.body?.category || 'Web application').slice(0, 80), sla_target: Number(req.body?.sla_target) || 99.95,
+    status: 'unknown', created_at: new Date().toISOString(),
   };
-
-  SITES.push(newSite);
-
-  LOGS.unshift({
-    id: Date.now(),
-    client_id: clientId,
-    severity: 'INFO',
-    subsystem: 'site_provisioning',
-    event_type: 'SITE_REGISTERED',
-    message: `Client site "${newSite.site_name}" enrolled into 24/7 autonomous shield telemetry`,
-    geo_region: 'Accra, GH',
-    logged_at: new Date().toISOString(),
-  });
-
-  savePersistedData();
-  return res.json({ ok: true, site: newSite });
+  SITES.push(site);
+  saveData();
+  try { await persistSite(site); }
+  catch (error) {
+    discardPendingWrite('shield_sites', site.client_id);
+    SITES.splice(SITES.indexOf(site), 1);
+    saveData();
+    return res.status(503).json({ ok: false, error: 'The site could not be saved to Supabase. Check Shield storage configuration.' });
+  }
+  performSiteCheck(site).catch(error => console.error('[Shield] Initial site check failed:', error.message));
+  return res.status(201).json({ ok: true, site });
 });
 
-// Update Site Settings
-app.put('/api/shield/sites/:clientId', requireShieldAuth, (req, res) => {
-  const { clientId } = req.params;
-  const siteIndex = SITES.findIndex((s) => s.client_id === clientId);
-  if (siteIndex === -1) {
-    return res.status(404).json({ ok: false, error: 'Site not found.' });
-  }
-
-  const body = req.body || {};
-  const site = SITES[siteIndex];
-  const nextUrl = body.site_url !== undefined ? normalizeSiteUrl(body.site_url) : site.site_url;
-  if (!nextUrl) return res.status(400).json({ ok: false, error: 'Enter a valid http or https site URL.' });
-
-  let allowedOrigins;
-  try {
-    const requestedOrigins = body.allowed_origins !== undefined
-      ? body.allowed_origins
-      : [...getSiteAllowedOrigins(site)];
-    allowedOrigins = normalizeAllowedOrigins(requestedOrigins, nextUrl);
-  } catch (error) {
-    return res.status(400).json({ ok: false, error: error.message });
-  }
-
-  if (body.site_name !== undefined) {
-    const siteName = String(body.site_name).trim();
-    if (!siteName) return res.status(400).json({ ok: false, error: 'Site Name cannot be empty.' });
-    site.site_name = siteName;
-  }
-  site.site_url = nextUrl;
-  site.allowed_origins = allowedOrigins;
-  if (body.environment) site.environment = body.environment;
-  if (body.category) site.category = body.category;
-  if (body.sla_target !== undefined) site.sla_target = Number(body.sla_target) || site.sla_target;
-  if (body.alert_email !== undefined) site.alert_email = body.alert_email;
-  if (body.webhook_url !== undefined) site.webhook_url = body.webhook_url;
-
-  savePersistedData();
-  return res.json({ ok: true, site: { ...site, allowed_origins: [...getSiteAllowedOrigins(site)] } });
-});
-
-// Delete Monitored Site
-app.delete('/api/shield/sites/:clientId', requireShieldAuth, (req, res) => {
-  const { clientId } = req.params;
-  const site = SITES.find((s) => s.client_id === clientId);
-  if (!site) return res.status(404).json({ ok: false, error: 'Site not found.' });
-
-  SITES = SITES.filter((s) => s.client_id !== clientId);
-  savePersistedData();
-  return res.json({ ok: true, message: `Site ${clientId} removed from monitoring.` });
-});
-
-// Detailed Site Analytics & Health Profile
 app.get('/api/shield/sites/:clientId', requireShieldAuth, (req, res) => {
-  const { clientId } = req.params;
-  const site = SITES.find((s) => s.client_id === clientId) || SITES[0];
+  const site = SITES.find(entry => entry.client_id === req.params.clientId);
   if (!site) return res.status(404).json({ ok: false, error: 'Site not found.' });
-
-  // Web Vitals Benchmarks
-  const webVitals = {
-    ttfb: { value_ms: site.avg_latency_ms || 28, status: 'good', threshold: '< 200ms' },
-    fcp: { value_ms: 680, status: 'good', threshold: '< 1.8s' },
-    lcp: { value_ms: 1120, status: 'good', threshold: '< 2.5s' },
-    cls: { value: 0.004, status: 'good', threshold: '< 0.1' },
-    inp: { value_ms: 38, status: 'good', threshold: '< 200ms' },
-    dom_interactive_ms: 480,
-    full_load_ms: 1350,
-  };
-
-  // Route Performance Matrix
-  const routes = [
-    { path: '/', label: 'Landing & Hero', latency_ms: 24, status: 'optimal', hits_month: '42,100', uptime: '99.98%' },
-    { path: '/menu', label: 'Menu & Food Catalog', latency_ms: 28, status: 'optimal', hits_month: '58,400', uptime: '99.99%' },
-    { path: '/cart', label: 'Order Basket', latency_ms: 19, status: 'optimal', hits_month: '21,600', uptime: '100.00%' },
-    { path: '/checkout', label: 'Paystack Checkout Terminal', latency_ms: 31, status: 'optimal', hits_month: '14,200', uptime: '100.00%' },
-    { path: '/catering', label: 'Outside Catering Gateway', latency_ms: 22, status: 'optimal', hits_month: '6,800', uptime: '99.97%' },
-    { path: '/api/orders', label: 'Transactional API Service', latency_ms: 15, status: 'optimal', hits_month: '12,800', uptime: '100.00%' },
-  ];
-
-  // Device & Browser Distribution (Compliant Aggregates)
-  const deviceBreakdown = {
-    mobile: 68,
-    desktop: 28,
-    tablet: 4,
-  };
-
-  const browserBreakdown = {
-    chrome: 58,
-    safari: 29,
-    edge: 7,
-    firefox: 4,
-    other: 2,
-  };
-
-  const geoBreakdown = [
-    { region: 'Greater Accra (Accra, Tema, Madina)', share: 72, latency_ms: 18 },
-    { region: 'Ashanti (Kumasi, Obuasi)', share: 14, latency_ms: 24 },
-    { region: 'Western (Takoradi)', share: 6, latency_ms: 29 },
-    { region: 'International & Diaspora (UK, US, Canada)', share: 8, latency_ms: 84 },
-  ];
-
-  // Conversion Funnel Data
-  const conversionFunnel = [
-    { step: '1. Landing Pageview', visitors: 1240, dropoff: '0.0%' },
-    { step: '2. Catalog / Menu Browse', visitors: 980, dropoff: '21.0%' },
-    { step: '3. Add To Cart / Item Selection', visitors: 420, dropoff: '57.1%' },
-    { step: '4. Initiate Checkout', visitors: 310, dropoff: '26.2%' },
-    { step: '5. Order Placed / Payment Verified', visitors: 265, dropoff: '14.5%' },
-  ];
-
-  // Security Posture Audit Breakdown
-  const securityAudit = {
-    grade: site.security_score || 'A+',
-    ssl_status: {
-      valid: true,
-      protocol: 'TLS 1.3',
-      cipher: 'TLS_AES_256_GCM_SHA384',
-      issuer: "Let's Encrypt / Google Trust Services",
-      serial_number: '04:7A:B2:91:3C:FE:10:88',
-      fingerprint_sha256: '9A:4B:12:F0:88:C1:23:44:90:EE:11:AB:5C:32:89:12',
-      days_remaining: site.ssl_days_remaining || 82,
-      ocsp_stapling: 'Enabled & Verified',
-      auto_renewal: true,
-    },
-    headers: {
-      hsts: { present: true, value: 'max-age=31536000; includeSubDomains; preload', pass: true },
-      csp: { present: true, value: "default-src 'self' https:; script-src 'self' 'unsafe-inline' https:;", pass: true },
-      x_frame_options: { present: true, value: 'SAMEORIGIN', pass: true },
-      x_content_type_options: { present: true, value: 'nosniff', pass: true },
-      referrer_policy: { present: true, value: 'strict-origin-when-cross-origin', pass: true },
-      permissions_policy: { present: true, value: 'camera=(), microphone=(), geolocation=()', pass: true },
-    },
-    vulnerability_checks: {
-      exposed_env_files: { clean: true, tested_paths: ['/.env', '/.git/HEAD', '/wp-config.php.bak', '/debug.log', '/phpinfo.php', '/docker-compose.yml'] },
-      brute_force_protection: { enabled: true, rate_limit: '100 req/min/ip', status: 'ACTIVE' },
-      mixed_content: { clean: true, insecure_resources: 0 },
-      dom_tamper_shield: { clean: true, integrity_verified: true },
-      bot_traffic_breakdown: { human_pct: 84, search_bot_pct: 14, blocked_anomalies_pct: 2 },
-    },
-    privacy_compliance: {
-      ghana_dpa_act_843: '100% Compliant (Zero PII collected)',
-      gdpr_compliant: '100% Compliant (Daily Salt IP Anonymization)',
-      iso_27001_principles: 'Enforced',
-      cookie_banner_needed: false,
-    },
-  };
-
-  const siteLogs = LOGS.filter((l) => l.client_id === site.client_id || l.client_id === 'GLOBAL').slice(0, 50);
-  const siteErrors = ERROR_EVENTS.filter((e) => e.client_id === site.client_id);
-
-  return res.json({
-    ok: true,
-    site: { ...site, allowed_origins: [...getSiteAllowedOrigins(site)] },
-    routes,
-    probe_nodes: PROBE_NODES,
-    latency_history: LATENCY_HISTORY,
-    hourly_traffic: HOURLY_TRAFFIC,
-    web_vitals: webVitals,
-    device_breakdown: deviceBreakdown,
-    browser_breakdown: browserBreakdown,
-    geo_breakdown: geoBreakdown,
-    conversion_funnel: conversionFunnel,
-    security_audit: securityAudit,
-    recent_logs: siteLogs,
-    recent_errors: siteErrors,
-  });
+  const monitor = monitorSummary(site.client_id);
+  const rum = rumSummary(site.client_id);
+  const checkHistory = CHECK_HISTORY.filter(check => check.client_id === site.client_id && Date.parse(check.checked_at) >= Date.now() - CHECK_RETENTION_MS).slice(0, MAX_CHECKS_PER_SITE);
+  return res.json({ ok: true, site: { ...site, ...monitor, ...rum, allowed_origins: getAllowedOrigins(site) }, ...monitor, ...rum, check_history: checkHistory });
 });
 
-// ============================================================================
-// REAL-TIME SECURITY SCANNER & LIVE PROBE
-// ============================================================================
-
-app.post('/api/shield/diagnose/:clientId', requireShieldAuth, async (req, res) => {
-  const { clientId } = req.params;
-  const site = SITES.find((s) => s.client_id === clientId);
+app.put('/api/shield/sites/:clientId', requireShieldAuth, async (req, res) => {
+  const site = SITES.find(entry => entry.client_id === req.params.clientId);
   if (!site) return res.status(404).json({ ok: false, error: 'Site not found.' });
-
-  const startTime = Date.now();
-  let latencyMs = 28;
-  let statusCode = 200;
-  const headerAudit = [];
-
-  try {
-    const targetUrl = new URL(site.site_url);
-    const clientReq = (targetUrl.protocol === 'https:' ? https : http);
-
-    await new Promise((resolve) => {
-      const probeReq = clientReq.request(
-        targetUrl,
-        { method: 'GET', timeout: 5000, headers: { 'User-Agent': 'SajamaShield-DiagnosticProbe/2.0' } },
-        (response) => {
-          latencyMs = Date.now() - startTime;
-          statusCode = response.statusCode || 200;
-
-          const h = response.headers;
-          headerAudit.push({ name: 'Strict-Transport-Security', passed: Boolean(h['strict-transport-security']), detail: h['strict-transport-security'] || 'max-age=31536000; includeSubDomains' });
-          headerAudit.push({ name: 'Content-Security-Policy', passed: Boolean(h['content-security-policy']), detail: h['content-security-policy'] || "default-src 'self' https:" });
-          headerAudit.push({ name: 'X-Frame-Options', passed: Boolean(h['x-frame-options']), detail: h['x-frame-options'] || 'SAMEORIGIN' });
-          headerAudit.push({ name: 'X-Content-Type-Options', passed: Boolean(h['x-content-type-options']), detail: h['x-content-type-options'] || 'nosniff' });
-          headerAudit.push({ name: 'Referrer-Policy', passed: Boolean(h['referrer-policy']), detail: h['referrer-policy'] || 'strict-origin-when-cross-origin' });
-          headerAudit.push({ name: 'Permissions-Policy', passed: Boolean(h['permissions-policy']), detail: h['permissions-policy'] || 'camera=(), microphone=()' });
-
-          resolve(true);
-        }
-      );
-
-      probeReq.on('error', () => {
-        latencyMs = Date.now() - startTime;
-        resolve(true);
-      });
-      probeReq.on('timeout', () => {
-        probeReq.destroy();
-        latencyMs = 5000;
-        resolve(true);
-      });
-      probeReq.end();
-    });
-  } catch (err) {
-    latencyMs = 28 + Math.floor(Math.random() * 8);
+  const previousOrigins = site.allowed_origins;
+  try { site.allowed_origins = normalizeOrigins(req.body?.allowed_origins, site.site_url); }
+  catch (error) { return res.status(400).json({ ok: false, error: error.message }); }
+  saveData();
+  try { await persistSite(site); }
+  catch (error) {
+    discardPendingWrite('shield_sites', site.client_id);
+    site.allowed_origins = previousOrigins;
+    saveData();
+    return res.status(503).json({ ok: false, error: 'Origins could not be saved to Supabase. Check Shield storage configuration.' });
   }
-
-  site.avg_latency_ms = Math.min(latencyMs, 400);
-  site.last_heartbeat = new Date().toISOString();
-  site.status = statusCode < 400 ? 'operational' : 'degraded';
-  site.health_score = statusCode < 400 ? (site.avg_latency_ms < 100 ? 100 : 95) : 75;
-
-  const diagSummary = {
-    client_id: site.client_id,
-    site_name: site.site_name,
-    timestamp: new Date().toISOString(),
-    status_code: statusCode,
-    latency_ms: site.avg_latency_ms,
-    ssl_status: {
-      valid: true,
-      protocol: 'TLS 1.3',
-      cipher: 'TLS_AES_256_GCM_SHA384',
-      days_remaining: site.ssl_days_remaining,
-      grade: 'A+',
-    },
-    security_headers: headerAudit.length > 0 ? headerAudit : [
-      { name: 'Strict-Transport-Security', passed: true, detail: 'max-age=31536000' },
-      { name: 'Content-Security-Policy', passed: true, detail: "default-src 'self'" },
-      { name: 'X-Frame-Options', passed: true, detail: 'SAMEORIGIN' },
-      { name: 'X-Content-Type-Options', passed: true, detail: 'nosniff' },
-      { name: 'Referrer-Policy', passed: true, detail: 'strict-origin-when-cross-origin' },
-      { name: 'Permissions-Policy', passed: true, detail: 'geolocation=()' },
-    ],
-    vulnerabilities: {
-      exposed_env: 'CLEAN: No sensitive environmental variables exposed',
-      git_leak: 'CLEAN: .git repository secured',
-      sql_injection_defense: 'ACTIVE: Parameterized query enforcement verified',
-      cors_misconfig: 'SECURE: Strict origin verification',
-    },
-    recommendations: [
-      'Maintain automated daily SSL certificate health audits',
-      'Ensure client cache-control headers on static assets leverage 30-day immutable tags',
-      'Enable Brotli compression on edge proxies for additional 12% TTFB boost',
-    ],
-  };
-
-  LOGS.unshift({
-    id: Date.now(),
-    client_id: site.client_id,
-    severity: 'INFO',
-    subsystem: 'diagnostic_engine',
-    event_type: 'MANUAL_AUDIT_COMPLETED',
-    message: `Comprehensive security & latency audit finished for "${site.site_name}": ${site.avg_latency_ms}ms latency, Status ${statusCode}`,
-    geo_region: 'Accra, GH',
-    logged_at: new Date().toISOString(),
-  });
-
-  savePersistedData();
-  return res.json({ ok: true, result: diagSummary });
+  return res.json({ ok: true, site: { ...site, allowed_origins: getAllowedOrigins(site) } });
 });
 
-// ============================================================================
-// EXECUTIVE CLIENT REPORT GENERATOR (THE AGENCY BUSINESS ASSET)
-// ============================================================================
-
-app.get('/api/shield/reports/:clientId', requireShieldAuth, (req, res) => {
-  const { clientId } = req.params;
-  const site = SITES.find((s) => s.client_id === clientId) || SITES[0];
-  if (!site) return res.status(404).json({ ok: false, error: 'Site not found.' });
-
-  const reportDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const period = 'Last 30 Days';
-
-  const executiveReport = {
-    meta: {
-      report_id: `SHIELD-REP-${site.client_id.toUpperCase().replace('SITE_', '')}-${Date.now().toString(36).toUpperCase()}`,
-      client_name: site.site_name,
-      site_url: site.site_url,
-      generated_by: 'Sajama Technology Solutions (Shield Observability Division)',
-      report_date: reportDate,
-      monitoring_period: period,
-      classification: 'Executive Confidential / Client Business Intelligence',
-    },
-    executive_summary: {
-      overall_grade: 'A+',
-      overall_verdict: 'Excellent Health & Performance: Site operates at 99.98% uptime, surpassing the 99.95% Enterprise SLA target.',
-      business_impact: 'Fast page loads (average 28ms TTFB) and zero critical downtime have ensured maximum conversion rates and uninterrupted order fulfillment.',
-      uptime_percentage: `${site.uptime_percentage}%`,
-      sla_compliance: '100% SLA Compliant',
-      total_incidents: 0,
-      total_requests_analyzed: '148,920',
-      avg_latency_ms: `${site.avg_latency_ms}ms`,
-    },
-    scorecards: [
-      { category: 'Uptime & Availability', grade: 'A+', score: '99.98%', status: 'Surpasses Target (99.95% SLA)' },
-      { category: 'Core Web Vitals & Speed', grade: 'A', score: '96/100', status: 'Optimal (TTFB: 28ms, LCP: 1.1s)' },
-      { category: 'Security & TLS Posture', grade: 'A+', score: '100/100', status: 'TLS 1.3 Active, All 6 Security Headers Verified' },
-      { category: 'Mobile User Experience', grade: 'A', score: '98/100', status: 'Fast interactive rendering on 3G/4G networks' },
-      { category: 'Error & Exception Free', grade: 'A+', score: '99.94%', status: 'Zero critical runtime crashes' },
-    ],
-    performance_breakdown: {
-      ttfb: { value: '28ms', google_benchmark: '< 200ms', assessment: 'Optimal (Top 5% fastest in West Africa)' },
-      fcp: { value: '0.68s', google_benchmark: '< 1.8s', assessment: 'Fast visual response' },
-      lcp: { value: '1.12s', google_benchmark: '< 2.5s', assessment: 'Instant hero asset display' },
-      cls: { value: '0.004', google_benchmark: '< 0.1', assessment: 'Rock-solid layout stability' },
-      inp: { value: '38ms', google_benchmark: '< 200ms', assessment: 'Near instantaneous tap/click response' },
-    },
-    conversion_insights: {
-      total_visitors_30d: '34,820',
-      estimated_conversions: '2,940',
-      conversion_rate: '8.44%',
-      primary_dropoff_step: 'Menu Browse to Add-to-Cart (18% drop-off; recommended to add 1-click popular combos)',
-      mobile_traffic_share: '71.2%',
-    },
-    security_audit_summary: {
-      ssl_validity: `Valid (${site.ssl_days_remaining} days remaining)`,
-      tls_version: 'TLS 1.3 with AES-256-GCM encryption',
-      http_headers: 'HSTS, CSP, X-Frame-Options, X-Content-Type-Options active',
-      vulnerability_scans: 'Zero exposed secrets, zero file leaks, zero unauthorized injection attempts',
-      privacy_law_status: '100% compliant with Ghana Data Protection Act 2012 (Act 843) and GDPR',
-    },
-    actionable_recommendations: [
-      {
-        priority: 'High',
-        title: 'Optimize Menu Imagery for High-DPI Mobile Displays',
-        impact: 'Delivers an estimated 150ms faster render time on cellular 4G connections, boosting mobile checkout rate by ~4.2%.',
-      },
-      {
-        priority: 'Medium',
-        title: 'Implement Smart Abandoned Order Reminders',
-        impact: 'Recovers an estimated 12-15% of users who initiate checkout but pause before mobile money completion.',
-      },
-      {
-        priority: 'Low',
-        title: 'Automated 60-Day SSL Pre-Renewal Verification',
-        impact: 'Shield will automatically verify certificate rotation 60 days prior to expiry to guarantee zero downtime risk.',
-      },
-    ],
-  };
-
-  return res.json({ ok: true, report: executiveReport });
-});
-
-// ============================================================================
-// TELEMETRY INGESTION (CLIENT BEACONS & AUTONOMOUS AGENTS)
-// ============================================================================
-
-app.post('/api/shield/telemetry', (req, res) => {
-  try {
-    const payload = req.body || {};
-    const requestedSiteId = String(payload.siteId || '').trim();
-    const siteId = requestedSiteId === LEGACY_MAYFORD_SITE_ID ? MAYFORD_SITE_ID : requestedSiteId;
-    const site = SITES.find((entry) => entry.client_id === siteId);
-    if (!site) return res.status(404).end();
-
-    const origin = req.get('origin');
-    if ((IS_PRODUCTION && !origin) || (origin && !isSiteOriginAllowed(site, origin))) {
-      return res.status(403).end();
-    }
-
-    const { sessionId, type, data, url: pageUrl } = payload;
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
-    const ipHash = anonymizeIp(ip);
-
-    if (sessionId) {
-      ACTIVE_SESSIONS[sessionId] = {
-        siteId,
-        lastSeen: Date.now(),
-        ipHash,
-        path: pageUrl || '/',
-      };
-    }
-
-    if (type === 'client_error' && data) {
-      const existing = ERROR_EVENTS.find(
-        (e) => e.client_id === siteId && e.message === data.message && e.filename === data.filename
-      );
-      if (existing) {
-        existing.occurrences += 1;
-        existing.last_seen = new Date().toISOString();
-      } else {
-        ERROR_EVENTS.unshift({
-          id: Date.now(),
-          client_id: siteId || 'site_unknown',
-          error_type: data.error_type || 'ClientException',
-          message: data.message || 'Unknown error',
-          filename: data.filename || 'app.js',
-          lineno: data.lineno || 0,
-          occurrences: 1,
-          status: 'unresolved',
-          first_seen: new Date().toISOString(),
-          last_seen: new Date().toISOString(),
-        });
-      }
-
-      if (ERROR_EVENTS.length % 5 === 1) {
-        LOGS.unshift({
-          id: Date.now(),
-          client_id: siteId || 'site_unknown',
-          severity: 'WARN',
-          subsystem: 'client_error_radar',
-          event_type: 'RUNTIME_JS_EXCEPTION',
-          message: `Browser exception: "${(data.message || '').substring(0, 100)}" at ${data.filename}:${data.lineno}`,
-          geo_region: 'Client Browser',
-          logged_at: new Date().toISOString(),
-        });
-      }
-    } else if (type === 'csp_violation' && data) {
-      LOGS.unshift({
-        id: Date.now(),
-        client_id: siteId || 'site_unknown',
-        severity: 'CRITICAL',
-        subsystem: 'csp_security_radar',
-        event_type: 'CSP_SECURITY_VIOLATION',
-        message: `Blocked unauthorized resource: "${data.blockedURI}" (Directive: ${data.violatedDirective})`,
-        geo_region: 'Client Browser',
-        logged_at: new Date().toISOString(),
-      });
-    }
-
-    if (LOGS.length > 300) LOGS = LOGS.slice(0, 300);
-    if (ERROR_EVENTS.length > 100) ERROR_EVENTS = ERROR_EVENTS.slice(0, 100);
-
-    return res.status(204).end();
-  } catch (err) {
-    return res.status(204).end();
-  }
-});
-
-// Authenticated server-side agent heartbeat ingestion. The client agent uses
-// X-Shield-Token, separate from the dashboard's cookie-backed master session.
-app.post('/api/shield/ingest', requireClientAgentToken, (req, res) => {
-  const requestedClientId = String(req.body?.client_id || '').trim();
-  const clientId = requestedClientId === LEGACY_MAYFORD_SITE_ID ? MAYFORD_SITE_ID : requestedClientId;
-  const site = SITES.find((entry) => entry.client_id === clientId);
-  if (!site) return res.status(404).json({ ok: false, error: 'Unknown monitored client_id.' });
-  if (req.body?.type !== 'heartbeat' || !req.body?.diagnostic || typeof req.body.diagnostic !== 'object') {
-    return res.status(400).json({ ok: false, error: 'A heartbeat diagnostic payload is required.' });
-  }
-
-  const diagnostic = req.body.diagnostic;
-  const subsystemValues = Object.values(diagnostic.subsystems || {});
-  const hasUnavailableSubsystem = subsystemValues.some((item) => item && item.status && item.status !== 'healthy');
-  const dbLatency = Number(diagnostic.subsystems?.database_pool?.latencyMs);
-  site.last_heartbeat = new Date().toISOString();
-  site.status = hasUnavailableSubsystem ? 'degraded' : 'operational';
-  site.health_score = hasUnavailableSubsystem ? 85 : 100;
-  if (Number.isFinite(dbLatency) && dbLatency >= 0) site.avg_latency_ms = Math.min(Math.round(dbLatency), 60000);
-  if (diagnostic.environment) site.environment = String(diagnostic.environment).slice(0, 32);
-
-  if (Number(diagnostic.recentErrorsCount) > 0) {
-    LOGS.unshift({
-      id: Date.now(),
-      client_id: clientId,
-      severity: 'WARN',
-      subsystem: 'client_agent',
-      event_type: 'HEARTBEAT_REPORTED_ERRORS',
-      message: `Client agent reports ${Math.min(Number(diagnostic.recentErrorsCount), 1000)} recent runtime error(s).`,
-      geo_region: 'Client Agent',
-      logged_at: new Date().toISOString(),
-    });
-    if (LOGS.length > 300) LOGS = LOGS.slice(0, 300);
-  }
-
-  savePersistedData();
-  return res.json({ ok: true, received_at: site.last_heartbeat, site_status: site.status });
-});
-
-// Authenticated server-side agent logs. Keep payload sizes bounded before storing.
-app.post('/api/shield/logs', requireClientAgentToken, (req, res) => {
-  const body = req.body || {};
-  const requestedClientId = String(body.client_id || '').trim();
-  const clientId = requestedClientId === LEGACY_MAYFORD_SITE_ID ? MAYFORD_SITE_ID : requestedClientId;
-  if (!clientId || !SITES.some((entry) => entry.client_id === clientId)) {
-    return res.status(404).json({ ok: false, error: 'Unknown monitored client_id.' });
-  }
-
-  const allowedSeverities = new Set(['INFO', 'WARN', 'ERROR', 'CRITICAL']);
-  const severity = allowedSeverities.has(String(body.severity).toUpperCase())
-    ? String(body.severity).toUpperCase()
-    : 'ERROR';
-  LOGS.unshift({
-    id: Date.now(),
-    client_id: clientId,
-    severity,
-    subsystem: 'client_agent',
-    event_type: String(body.event_type || 'AGENT_LOG').slice(0, 80),
-    message: String(body.message || 'Agent reported an event.').slice(0, 1000),
-    error_trace: body.error_trace ? String(body.error_trace).slice(0, 4000) : undefined,
-    geo_region: 'Client Agent',
-    logged_at: new Date().toISOString(),
-  });
-  if (LOGS.length > 300) LOGS = LOGS.slice(0, 300);
-  savePersistedData();
-  return res.status(201).json({ ok: true });
-});
-
-// Logs API
-app.get('/api/shield/logs', requireShieldAuth, (req, res) => {
-  const { site_id, severity, limit } = req.query;
-  let filtered = [...LOGS];
-
-  if (site_id && site_id !== 'ALL') {
-    filtered = filtered.filter((l) => l.client_id === site_id || l.client_id === 'GLOBAL');
-  }
-  if (severity && severity !== 'ALL') {
-    filtered = filtered.filter((l) => l.severity === severity);
-  }
-
-  const max = Number(limit) || 100;
-  return res.json({ ok: true, logs: filtered.slice(0, max) });
-});
-
-// Error Events API
-app.get('/api/shield/errors', requireShieldAuth, (req, res) => {
-  const { site_id } = req.query;
-  let filtered = [...ERROR_EVENTS];
-  if (site_id && site_id !== 'ALL') {
-    filtered = filtered.filter((e) => e.client_id === site_id);
-  }
-  return res.json({ ok: true, errors: filtered });
-});
-
-app.post('/api/shield/errors/:id/resolve', requireShieldAuth, (req, res) => {
-  const id = Number(req.params.id);
-  const err = ERROR_EVENTS.find((e) => e.id === id);
-  if (err) {
-    err.status = 'resolved';
-    savePersistedData();
-  }
+app.delete('/api/shield/sites/:clientId', requireShieldAuth, async (req, res) => {
+  const index = SITES.findIndex(site => site.client_id === req.params.clientId);
+  if (index < 0) return res.status(404).json({ ok: false, error: 'Site not found.' });
+  try { await supabaseStore.deleteBy('shield_sites', 'client_id', req.params.clientId); }
+  catch (error) { return res.status(503).json({ ok: false, error: 'The site could not be deleted from Supabase. Check Shield storage configuration.' }); }
+  discardPendingSiteWrites(req.params.clientId);
+  SITES.splice(index, 1);
+  CHECK_HISTORY = CHECK_HISTORY.filter(check => check.client_id !== req.params.clientId);
+  RUM_EVENTS = RUM_EVENTS.filter(event => event.client_id !== req.params.clientId);
+  LOGS = LOGS.filter(log => log.client_id !== req.params.clientId);
+  ERROR_EVENTS = ERROR_EVENTS.filter(error => error.client_id !== req.params.clientId);
+  saveData();
   return res.json({ ok: true });
 });
 
-// Public Status Page
-app.get('/status/:clientId', (req, res) => {
-  const { clientId } = req.params;
-  const site = SITES.find((s) => s.client_id === clientId) || SITES[0];
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${site.site_name} | System Operational Status</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: 'Plus Jakarta Sans', sans-serif; }
-    .font-mono { font-family: 'JetBrains Mono', monospace; }
-  </style>
-</head>
-<body class="bg-[#090B10] text-slate-100 min-h-screen py-12 px-4 sm:px-6">
-  <div class="max-w-3xl mx-auto space-y-6">
-    <div class="flex items-center justify-between border-b border-[#232B3E] pb-6">
-      <div>
-        <h1 class="text-xl font-bold tracking-tight text-white">${site.site_name}</h1>
-        <p class="text-xs text-slate-400 mt-1">Live infrastructure & service health status</p>
-      </div>
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded bg-[#10B981]/10 border border-[#10B981]/30 text-[#10B981] text-xs font-semibold">
-        <span class="w-2 h-2 rounded-full bg-[#10B981]"></span>
-        All Systems Operational
-      </div>
-    </div>
-
-    <!-- 90 Day Uptime Card -->
-    <div class="bg-[#11141C] border border-[#232B3E] rounded-lg p-5">
-      <div class="flex items-center justify-between mb-3">
-        <span class="text-xs font-semibold text-slate-200 uppercase tracking-wider">90-Day Uptime SLA</span>
-        <span class="text-[#10B981] font-mono font-bold text-sm">${site.uptime_percentage}%</span>
-      </div>
-      <div class="grid grid-cols-45 sm:grid-cols-90 gap-1 h-6">
-        ${Array.from({ length: 90 })
-          .map(
-            () =>
-              '<div class="bg-[#10B981] rounded-xs h-full" title="100% Operational"></div>'
-          )
-          .join('')}
-      </div>
-      <div class="flex justify-between text-[11px] text-slate-500 font-mono mt-2">
-        <span>90 days ago</span>
-        <span>Today</span>
-      </div>
-    </div>
-
-    <!-- System Components -->
-    <div class="bg-[#11141C] border border-[#232B3E] rounded-lg divide-y divide-[#232B3E]">
-      <div class="p-4 flex items-center justify-between">
-        <div>
-          <span class="text-xs font-semibold text-slate-200">Web Application & CDN Frontend</span>
-          <p class="text-[11px] text-slate-400">Response time: ${site.avg_latency_ms}ms (Accra Edge Node)</p>
-        </div>
-        <span class="text-[11px] font-semibold font-mono px-2 py-0.5 bg-[#10B981]/10 text-[#10B981] rounded border border-[#10B981]/20">OPERATIONAL</span>
-      </div>
-      <div class="p-4 flex items-center justify-between">
-        <div>
-          <span class="text-xs font-semibold text-slate-200">API Gateway & Transaction Processor</span>
-          <p class="text-[11px] text-slate-400">Zero error rate across all transactional endpoints</p>
-        </div>
-        <span class="text-[11px] font-semibold font-mono px-2 py-0.5 bg-[#10B981]/10 text-[#10B981] rounded border border-[#10B981]/20">OPERATIONAL</span>
-      </div>
-      <div class="p-4 flex items-center justify-between">
-        <div>
-          <span class="text-xs font-semibold text-slate-200">SSL / TLS Encryption Security</span>
-          <p class="text-[11px] text-slate-400">TLS 1.3 Active (${site.ssl_days_remaining} days remaining)</p>
-        </div>
-        <span class="text-[11px] font-semibold font-mono px-2 py-0.5 bg-[#10B981]/10 text-[#10B981] rounded border border-[#10B981]/20">SECURED</span>
-      </div>
-    </div>
-
-    <div class="text-center text-xs text-slate-500 pt-4 font-mono">
-      Powered by <span class="text-amber-500 font-semibold">Sajama Shield</span> &bull; Autonomous Infrastructure Observability
-    </div>
-  </div>
-</body>
-</html>`;
-
-  res.send(html);
+app.post('/api/shield/diagnose/:clientId', requireShieldAuth, async (req, res) => {
+  const site = SITES.find(entry => entry.client_id === req.params.clientId);
+  if (!site) return res.status(404).json({ ok: false, error: 'Site not found.' });
+  try {
+    const result = await performSiteCheck(site);
+    return res.json({ ok: true, result: { ...result, site_name: site.site_name } });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'Site check failed.' });
+  }
 });
 
-// Fallback index
+app.get('/api/shield/errors', requireShieldAuth, (req, res) => {
+  const clientId = String(req.query.site_id || '');
+  return res.json({ ok: true, errors: ERROR_EVENTS.filter(error => error.client_id === clientId).sort((a, b) => Date.parse(b.last_seen) - Date.parse(a.last_seen)) });
+});
+app.post('/api/shield/errors/:id/resolve', requireShieldAuth, async (req, res) => {
+  const error = ERROR_EVENTS.find(entry => String(entry.id) === String(req.params.id));
+  if (!error) return res.status(404).json({ ok: false, error: 'Error group not found.' });
+  const previousStatus = error.status;
+  const previousResolvedAt = error.resolved_at;
+  error.status = 'resolved';
+  error.resolved_at = new Date().toISOString();
+  saveData();
+  try { await persistError(error); }
+  catch (storageError) {
+    discardPendingWrite('shield_errors', error.id);
+    error.status = previousStatus;
+    error.resolved_at = previousResolvedAt;
+    saveData();
+    return res.status(503).json({ ok: false, error: 'The error state could not be saved to Supabase.' });
+  }
+  return res.json({ ok: true });
+});
+app.get('/api/shield/logs', requireShieldAuth, (req, res) => {
+  const clientId = String(req.query.site_id || '');
+  const logs = LOGS.filter(log => log.client_id === clientId).slice(0, 200);
+  return res.json({ ok: true, logs });
+});
+
+function hashSession(sessionId) {
+  if (typeof sessionId !== 'string' || !sessionId || sessionId.length > 200) return null;
+  return crypto.createHmac('sha256', SESSION_HASH_KEY).update(sessionId).digest('hex').slice(0, 24);
+}
+
+function safePagePath(input) {
+  try { return new URL(String(input || '/'), 'https://shield.invalid').pathname.slice(0, 300) || '/'; }
+  catch { return '/'; }
+}
+
+const telemetryRate = new Map();
+function telemetryRateAllowed(ip) {
+  const now = Date.now();
+  const current = telemetryRate.get(ip);
+  if (!current || now - current.startedAt > 60_000) {
+    telemetryRate.set(ip, { startedAt: now, count: 1 });
+    return true;
+  }
+  current.count += 1;
+  return current.count <= 300;
+}
+
+app.post('/api/shield/telemetry', async (req, res) => {
+  const body = req.body || {};
+  const site = SITES.find(entry => entry.client_id === String(body.siteId || '').slice(0, 100));
+  if (!site) return res.status(404).json({ ok: false, error: 'Unknown monitoring site.' });
+  const origin = req.get('origin');
+  if (origin && !getAllowedOrigins(site).includes(origin)) return res.status(403).json({ ok: false, error: 'This origin is not allowed for the selected site.' });
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  if (!telemetryRateAllowed(ip)) return res.status(429).json({ ok: false, error: 'Telemetry rate limit exceeded.' });
+  const type = String(body.type || '').slice(0, 32);
+  if (!['pageview', 'performance', 'client_error'].includes(type)) return res.status(400).json({ ok: false, error: 'Unsupported telemetry type.' });
+  const incomingData = body.data && typeof body.data === 'object' && !Array.isArray(body.data) ? body.data : {};
+  const timestamp = new Date().toISOString();
+  const event = {
+    id: crypto.randomUUID(), client_id: site.client_id, type, timestamp,
+    session_hash: hashSession(body.sessionId), path: safePagePath(body.url), data: {},
+  };
+  if (type === 'performance') {
+    for (const key of ['ttfb_ms', 'fcp_ms', 'lcp_ms', 'inp_ms', 'cls']) {
+      const raw = incomingData[key];
+      if (raw === undefined || raw === null || raw === '') continue;
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value < 0 || value > 60_000) continue;
+      event.data[key] = key === 'cls' ? Math.min(value, 10) : Math.round(value);
+    }
+  }
+  let changedError = null;
+  let errorLog = null;
+  if (type === 'client_error') {
+    const errorType = String(incomingData.error_type || 'JavaScriptError').slice(0, 80);
+    const message = String(incomingData.message || 'Unknown browser error').split(' ').map(part => {
+      const lowerPart = part.toLowerCase();
+      if (!lowerPart.startsWith('http://') && !lowerPart.startsWith('https://')) return part;
+      try { const url = new URL(part); return `${url.origin}${url.pathname}`; }
+      catch { return '[URL]'; }
+    }).join(' ').slice(0, 300);
+    const filename = String(incomingData.filename || 'inline').split('?')[0].slice(0, 180);
+    const line = Math.max(0, Math.min(1_000_000, Number(incomingData.lineno) || 0));
+    event.data = { error_type: errorType, message, filename, lineno: line };
+    const group = ERROR_EVENTS.find(entry => entry.client_id === site.client_id && entry.status !== 'resolved' && entry.error_type === errorType && entry.message === message && entry.filename === filename && entry.lineno === line);
+    if (group) {
+      group.occurrences += 1;
+      group.last_seen = timestamp;
+      changedError = group;
+    } else {
+      changedError = { id: crypto.randomUUID(), client_id: site.client_id, error_type: errorType, message, filename, lineno: line, occurrences: 1, status: 'open', first_seen: timestamp, last_seen: timestamp };
+      ERROR_EVENTS.unshift(changedError);
+    }
+    errorLog = { id: crypto.randomUUID(), client_id: site.client_id, severity: 'ERROR', subsystem: 'browser_tag', event_type: 'BROWSER_ERROR', message: `${errorType}: ${message}`.slice(0, 500), logged_at: timestamp };
+    LOGS.unshift(errorLog);
+  }
+  RUM_EVENTS.unshift(event);
+  RUM_EVENTS = RUM_EVENTS.slice(0, MAX_RUM_EVENTS);
+  const cutoff = Date.now() - CHECK_RETENTION_MS;
+  RUM_EVENTS = RUM_EVENTS.filter(entry => Date.parse(entry.timestamp) >= cutoff);
+  ERROR_EVENTS = ERROR_EVENTS.slice(0, 1_000);
+  LOGS = LOGS.slice(0, 1_000);
+  saveData();
+  try {
+    await Promise.all([
+      persistTelemetry(event),
+      changedError ? persistError(changedError) : Promise.resolve(),
+      errorLog ? persistLog(errorLog) : Promise.resolve(),
+    ]);
+  } catch (storageError) {
+    console.error('[Shield] Browser event is local but Supabase persistence failed:', storageError.message);
+    return res.status(503).json({ ok: false, error: 'Supabase could not persist this browser event.' });
+  }
+  return res.status(202).json({ ok: true });
+});
+
+app.get('/status/:clientId', (req, res) => {
+  const site = SITES.find(entry => entry.client_id === req.params.clientId);
+  if (!site) return res.status(404).send('Status page not found.');
+  const monitor = monitorSummary(site.client_id);
+  const label = monitor.status === 'up' ? 'Operational' : monitor.status === 'degraded' ? 'Degraded' : monitor.status === 'down' ? 'Down' : 'Awaiting first check';
+  res.type('html').send(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(site.site_name)} status</title><style>body{font:16px system-ui;background:#f5f7f5;color:#203027;margin:0;padding:48px}main{max-width:680px;margin:auto;background:#fff;border:1px solid #dfe7e2;border-radius:14px;padding:30px}h1{font-size:25px;margin:0 0 6px}p{color:#617169;line-height:1.6}.status{display:inline-block;margin:16px 0;padding:7px 11px;border-radius:7px;background:#edf5ef;color:#287049;font-weight:650}.down{background:#fbefed;color:#a8423f}</style><main><h1>${escapeHtml(site.site_name)}</h1><p>Public service status</p><div class="status ${monitor.status === 'down' ? 'down' : ''}">${escapeHtml(label)}</div><p>${monitor.last_checked_at ? `Last checked ${escapeHtml(new Date(monitor.last_checked_at).toLocaleString('en-GB'))}` : 'No HTTP check has completed yet.'}</p><p>Checks completed in the last 24 hours: ${monitor.checks_24h} · Availability: ${monitor.uptime_percentage == null ? '—' : `${monitor.uptime_percentage}%`}</p></main></html>`);
+});
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+}
+
 app.get('*', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
-// Background 30-Second Synthetic Probe Worker
-setInterval(() => {
-  const ts = new Date().toISOString();
-  SITES.forEach((site) => {
-    const jitter = Math.floor(Math.random() * 6) - 3;
-    site.avg_latency_ms = Math.max(16, (site.avg_latency_ms || 28) + jitter);
-    site.last_heartbeat = ts;
-  });
-
-  PROBE_NODES.forEach((node) => {
-    const jitter = Math.floor(Math.random() * 4) - 2;
-    node.latency_ms = Math.max(10, node.latency_ms + jitter);
-  });
-
-  if (LATENCY_HISTORY.length > 50) LATENCY_HISTORY.shift();
-  LATENCY_HISTORY.push({
-    timestamp: ts,
-    [MAYFORD_SITE_ID]: (SITES[0] && SITES[0].avg_latency_ms) || 28,
-    site_osu_bistro_002: (SITES[1] && SITES[1].avg_latency_ms) || 36,
-    site_accra_logistics_003: (SITES[2] && SITES[2].avg_latency_ms) || 22,
-  });
-}, 30000);
-
-const server = app.listen(PORT, HOST, () => {
-  console.log('================================================================');
-  console.log('SAJAMA SHIELD: Standalone command center is running');
-  console.log(`URL: http://${HOST}:${PORT}`);
-  console.log(`Data file: ${DATA_FILE}`);
-  console.log('Master key: configured (value intentionally not logged)');
-  console.log('================================================================');
+app.use((error, _req, res, _next) => {
+  console.error('[Shield] Request error:', error.message);
+  if (res.headersSent) return;
+  return res.status(500).json({ ok: false, error: 'Shield could not complete the request.' });
 });
 
-server.on('error', (error) => {
-  console.error('[Shield] HTTP server failed:', error.message);
+async function boot() {
+  if (supabaseStore.enabled) {
+    await initializeSupabase();
+    await pruneSupabaseHistory();
+  }
+  setInterval(() => {
+    const cutoff = Date.now() - CHECK_RETENTION_MS;
+    CHECK_HISTORY = CHECK_HISTORY.filter(check => Date.parse(check.checked_at) >= cutoff);
+    RUM_EVENTS = RUM_EVENTS.filter(event => Date.parse(event.timestamp) >= cutoff);
+    void runScheduledChecks().catch(error => console.error('[Shield] Scheduled check failure:', error.message));
+    void flushPendingSupabaseWrites();
+    void pruneSupabaseHistory();
+  }, CHECK_INTERVAL_MS).unref();
+  setTimeout(() => void runScheduledChecks(), 1000).unref();
+
+  const server = app.listen(PORT, HOST, () => console.log(`[Shield] Listening on http://${HOST}:${PORT} (${supabaseStore.backend} storage)`));
+  server.requestTimeout = CHECK_TIMEOUT_MS + 5_000;
+  server.headersTimeout = CHECK_TIMEOUT_MS + 10_000;
+  process.on('SIGTERM', () => server.close(() => process.exit(0)));
+  process.on('SIGINT', () => server.close(() => process.exit(0)));
+}
+
+boot().catch(error => {
+  console.error('[Shield] Startup failed:', error.message);
   process.exitCode = 1;
 });
-
-function shutdown() {
-  server.close(() => process.exit(0));
-}
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);

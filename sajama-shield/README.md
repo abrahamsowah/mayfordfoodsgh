@@ -1,85 +1,52 @@
-# Sajama Shield — standalone observability console
+# Sajama Shield
 
-Sajama Shield is a self-contained Express application. It does not import Mayford's React app, server, database, or session store. It serves its own dashboard, Shield API, client telemetry tag, and public status pages from this directory.
+Sajama Shield is a standalone website monitor. It performs real HTTP checks from the Shield server and accepts browser performance/error telemetry directly from the installed tag. It does not use Mayford as a telemetry proxy, and it does not generate sample monitoring measurements.
 
 ## Run locally
 
-```bash
+Requires Node.js 22 or newer.
+
+```sh
 cd sajama-shield
 npm ci
 cp .env.example .env
-# Edit .env and set a master key and session secret.
+# Set SAJAMA_SHIELD_KEY and SESSION_SECRET in the environment or deployment config.
 npm start
 ```
 
-Open <http://localhost:5000>. For local development only, the default master key is `sajama2026`; you can also set `SAJAMA_SHIELD_KEY` in `.env`. Do not use the default key outside local development.
+The service listens on `0.0.0.0:5000` by default. The development-only default key is `sajama2026`; production requires a unique Shield key and a stable session secret, each at least 32 characters. Local JSON mode persists a snapshot in `shield-data.json` (ignored by Git).
 
-You can change `HOST` and `PORT`. The server binds to `0.0.0.0` by default so it works behind a reverse proxy or in a hosted preview. The API is served by this app under `/api/shield`; the dashboard calls that same-origin API. The telemetry tag is served at `/sajama-tag.js` and the public status page is `/status/:clientId`.
+## Configure
 
-## Production configuration
+- `SAJAMA_SHIELD_KEY`: administrator sign-in key. Production requires a unique value of at least 32 characters and rejects the development default.
+- `SESSION_SECRET`: stable, random session signing secret of at least 32 characters in production.
+- `HOST`: bind address (default `0.0.0.0`).
+- `PORT`: listener port (default `5000`).
+- `MAYFORD_SITE_ID`: optional public site identifier for the initial Mayford monitor.
+- `SHIELD_STORAGE_BACKEND`: `json` for local development or `supabase` for cloud persistence.
+- `SUPABASE_URL`: the Supabase project URL, used by the Shield server only.
+- `SUPABASE_SERVICE_ROLE_KEY`: server-only Supabase key. Never expose it in browser code, the tag, or a client-side environment variable.
 
-Set these in `.env` or the hosting environment before starting with `NODE_ENV=production`:
+### Supabase persistence
 
-- `SAJAMA_SHIELD_KEY`: a unique, long master key. Production startup rejects the development default.
-- `SESSION_SECRET`: a stable random secret of at least 32 characters.
-- `CORS_ORIGINS`: optional comma-separated global fallback that applies to every site. Prefer managing each client origin in the dashboard so the allowlist stays site-specific and updates without a restart.
-- `SAJAMA_SHIELD_TOKEN`: optional shared token for the Node client agent's server-to-server heartbeat/log endpoints.
-- `HOST` and `PORT`: default to `0.0.0.0` and `5000`.
+Shield connects directly from its own Node.js server to Supabase; Mayford is not a proxy. To enable cloud storage:
 
-The dashboard uses an HttpOnly, SameSite=Lax session cookie. Sessions are stored in the ignored `shield-sessions.json` file so they survive a single-process restart. This file store is for one Shield instance; use Redis or a database-backed session store if you run multiple instances. In production, terminate TLS at a trusted proxy and keep the session secret stable.
+1. Create or select a Supabase project and run [`supabase/schema.sql`](supabase/schema.sql) in that project's SQL editor.
+2. Set `SHIELD_STORAGE_BACKEND=supabase`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY` in the Shield server's environment. Keep the service-role key in server secrets only.
+3. Restart Shield. Startup reads the Shield tables and verifies access before opening the HTTP listener. `/api/health` reports the selected storage backend and whether the most recent Supabase operation succeeded.
 
-Application data (sites, logs, and error events) is stored in the ignored `shield-data.json` file. `schema.sql` documents a PostgreSQL schema for deployments that later move away from the built-in JSON repository; the current server does not require PostgreSQL.
+The dashboard reports **Supabase connected** only after a successful server-side operation; absent credentials select local JSON in development and do not indicate cloud connectivity. Configure Shield separately from Mayford, and do not add a Mayford API proxy. Supabase mode also maintains a local recovery snapshot and retries transient failed writes. Run `npm ci` after dependency changes.
 
-## Dashboard API
+The first site is Mayford Foods GH. The monitor starts with no measurements; real checks are added only after the first HTTP request completes. Checks run every 60 seconds from this Shield instance. They are not multi-region checks.
 
-The standalone UI and API are shipped together. Main routes include:
+## Browser telemetry
 
-- `POST /api/shield/auth/login`, `GET /api/shield/auth/session`, and `POST /api/shield/auth/logout`
-- `GET/POST /api/shield/sites`, `GET/PUT/DELETE /api/shield/sites/:clientId`
-- `POST /api/shield/diagnose/:clientId` and `GET /api/shield/reports/:clientId`
-- `GET /api/shield/logs` and `GET /api/shield/errors`
-- Public tag ingestion: `POST /api/shield/telemetry`
-- Optional Node agent ingestion: `POST /api/shield/ingest` and `POST /api/shield/logs`
+Select **Install tag** in the dashboard and add the script to the monitored site. The browser sends telemetry directly to the Shield host. Add additional exact origins using **Origins**; the target origin is included automatically. The site ID is public, not a secret. Never put the Shield administrator key in browser code.
 
-`GET /api/health` provides a process health check. Dashboard management routes require the Shield login session (or an `X-Shield-Key` header for server-to-server administration). Secrets are not accepted in query strings. The Node agent routes use `X-Shield-Token` and require `SAJAMA_SHIELD_TOKEN` to be configured.
+Shield stores real page-view, Web Vitals, and browser-error events received from the tag. Measurements with no samples are shown as unavailable rather than filled with defaults. Browser paths are stored without query strings; random per-tab session tokens are stored only as keyed hashes, and session counts are not person-level visitor counts.
 
-## Install the telemetry tag
+## Monitoring scope
 
-In the dashboard, select **Add Site** and enter the site name and Target URL. Shield generates a unique `site_<UUID>` identifier and includes it in the **Client Tag** snippet. Paste that snippet into the client website, replacing the host only if your Shield deployment uses a different domain:
+The current monitor performs a scheduled HTTP GET from one Shield instance, retains the last 24 hours of checks and browser telemetry, and provides a public status page at `/status/:clientId`. Failed request duration means elapsed time to failure, not an HTTP response time. This is a focused monitor, not feature-equivalent to a multi-region commercial observability platform.
 
-```html
-<script src="https://shield.example.com/sajama-tag.js" data-site-id="site_550e8400-e29b-41d4-a716-446655440000" async></script>
-```
-
-For Mayford Foods GH, the deployed tag uses its registered site ID and sends directly to Sajama Shield:
-
-```html
-<script src="https://sajamashield.com/sajama-tag.js" data-site-id="site_82be20b5-58ca-412a-998b-6a904a20eda7" async></script>
-```
-
-The tag posts page/performance/error telemetry directly to the Shield host. The registered Target URL origin is allowed automatically. Open **Origins** in the Shield dashboard to add or remove other exact origins; updates are persisted and apply immediately without editing environment variables or restarting. The site ID is public, not a secret credential. Do not put the master key or agent token in browser code. CORS restricts browsers but does not authenticate non-browser requests.
-
-## Build and use the Node client SDK
-
-The SDK is an optional package in `client-sdk/`:
-
-```bash
-cd sajama-shield/client-sdk
-npm ci
-npm run build
-```
-
-Install that local package in a monitored Node service and configure its collector URL and token:
-
-```ts
-import { initSajamaShield } from '@sajama/shield-agent';
-
-initSajamaShield({
-  clientId: 'site_82be20b5-58ca-412a-998b-6a904a20eda7',
-  clientToken: process.env.SAJAMA_SHIELD_TOKEN!,
-  shieldCollectorUrl: 'https://shield.example.com/api/shield',
-  environment: 'production',
-});
-```
-
-`clientToken` must match `SAJAMA_SHIELD_TOKEN` configured on the Shield server. Set the URL to the public base API path; the agent appends `/ingest` and `/logs` itself.
+For production, use HTTPS behind a trusted reverse proxy, a persistent session store if running multiple instances, a stable secret, and a durable database when the JSON store no longer suits the workload.
