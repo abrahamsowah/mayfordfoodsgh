@@ -15,7 +15,6 @@ import fs from 'fs';
 import multer from 'multer';
 import { initDb, query, execute, nowSql, dbMode } from './db';
 import { getSupabaseDetails } from './supabase';
-import { shieldRouter } from './shield';
 
 // Real-time admin event bus for live kitchen order streaming & dashboard sync
 export const adminEventBus = new EventEmitter();
@@ -662,9 +661,6 @@ app.use(
 
 // Static assets (images, videos, sounds + admin uploads)
 app.use('/assets', express.static(ASSETS_DIR, { maxAge: '1h' }));
-
-// Sajama Shield In-House Telemetry & Observability Engine
-app.use('/api/shield', shieldRouter);
 
 app.get('/api/health', (_req, res) =>
   res.json({

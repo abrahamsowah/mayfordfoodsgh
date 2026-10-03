@@ -6,6 +6,9 @@ dist/
 server/data/
 server/dist/
 sajama-shield/shield-data.json
+sajama-shield/shield-data.json.*.tmp
+sajama-shield/shield-sessions.json
+sajama-shield/shield-sessions.json.*.tmp
 
 
 # Environment files

@@ -138,6 +138,22 @@ cd ../server && npm start
 
 ---
 
+## Standalone Sajama Shield
+
+Sajama Shield runs independently under [`sajama-shield/`](sajama-shield/). Mayford loads the tag directly from `https://sajamashield.com/sajama-tag.js`; it sends telemetry straight to `https://sajamashield.com/api/shield/telemetry`. The registered Mayford site ID is `site_82be20b5-58ca-412a-998b-6a904a20eda7` (a public identifier, not a secret).
+
+```bash
+cd sajama-shield
+npm ci
+cp .env.example .env
+# Set SAJAMA_SHIELD_KEY and SESSION_SECRET in .env before production use.
+npm start
+```
+
+By default it serves its own dashboard and `/api/shield` API on port `5000`. In the Shield dashboard, **Add Site** generates a UUID site ID and automatically allows the origin from its Target URL. Use **Origins** on the selected site to add other exact origins such as `https://www.mayfordfoodsgh.com`; changes take effect immediately without editing `CORS_ORIGINS` or restarting Shield. That environment variable remains an optional global fallback that applies to every registered site; leave it blank for per-site management. See [`sajama-shield/README.md`](sajama-shield/README.md) for deployment and secret configuration. The optional Node telemetry client can be built from `sajama-shield/client-sdk`.
+
+---
+
 ## Default Admin Credentials
 
 | Username    | Password | Role           | Scope                 |
