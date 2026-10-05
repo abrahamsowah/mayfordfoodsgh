@@ -1,7 +1,7 @@
 import { useLayoutEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { SiteLayout } from './components/SiteLayout';
-import { AdminLayout, RequireAdmin } from './components/AdminLayout';
+import { AdminDeviceGate, AdminLayout, RequireAdmin, RequireSuperAdmin } from './components/AdminLayout';
 import HomePage from './pages/HomePage';
 import OutletsPage from './pages/OutletsPage';
 import AboutPage from './pages/AboutPage';
@@ -19,6 +19,7 @@ import LegalPage from './pages/LegalPage';
 import { AdminPinPage, AdminLoginPage } from './pages/admin/LoginPages';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminOrders from './pages/admin/Orders';
+import AdminMenuAvailability from './pages/admin/MenuAvailability';
 import { AdminMenuItems, AdminCategories, AdminDiscounts } from './pages/admin/MenuManagement';
 import { AdminAdverts, AdminBanners, AdminSlides, AdminVideos, AdminCommunity } from './pages/admin/ContentManagement';
 import { AdminRatings, AdminCateringBookings, AdminContactMessages, AdminTrainingApplications } from './pages/admin/Inquiries';
@@ -80,26 +81,29 @@ export default function App() {
         path="/admin"
         element={
           <RequireAdmin>
-            <AdminLayout />
+            <AdminDeviceGate>
+              <AdminLayout />
+            </AdminDeviceGate>
           </RequireAdmin>
         }
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
         <Route path="orders" element={<AdminOrders />} />
-        <Route path="menu" element={<AdminMenuItems />} />
-        <Route path="categories" element={<AdminCategories />} />
-        <Route path="discounts" element={<AdminDiscounts />} />
-        <Route path="adverts" element={<AdminAdverts />} />
-        <Route path="banners" element={<AdminBanners />} />
-        <Route path="slides" element={<AdminSlides />} />
-        <Route path="videos" element={<AdminVideos />} />
-        <Route path="community" element={<AdminCommunity />} />
-        <Route path="ratings" element={<AdminRatings />} />
-        <Route path="catering-bookings" element={<AdminCateringBookings />} />
-        <Route path="contact-messages" element={<AdminContactMessages />} />
-        <Route path="training-applications" element={<AdminTrainingApplications />} />
-        <Route path="settings" element={<AdminSettings />} />
+        <Route path="menu-availability" element={<AdminMenuAvailability />} />
+        <Route path="menu" element={<RequireSuperAdmin><AdminMenuItems /></RequireSuperAdmin>} />
+        <Route path="categories" element={<RequireSuperAdmin><AdminCategories /></RequireSuperAdmin>} />
+        <Route path="discounts" element={<RequireSuperAdmin><AdminDiscounts /></RequireSuperAdmin>} />
+        <Route path="adverts" element={<RequireSuperAdmin><AdminAdverts /></RequireSuperAdmin>} />
+        <Route path="banners" element={<RequireSuperAdmin><AdminBanners /></RequireSuperAdmin>} />
+        <Route path="slides" element={<RequireSuperAdmin><AdminSlides /></RequireSuperAdmin>} />
+        <Route path="videos" element={<RequireSuperAdmin><AdminVideos /></RequireSuperAdmin>} />
+        <Route path="community" element={<RequireSuperAdmin><AdminCommunity /></RequireSuperAdmin>} />
+        <Route path="ratings" element={<RequireSuperAdmin><AdminRatings /></RequireSuperAdmin>} />
+        <Route path="catering-bookings" element={<RequireSuperAdmin><AdminCateringBookings /></RequireSuperAdmin>} />
+        <Route path="contact-messages" element={<RequireSuperAdmin><AdminContactMessages /></RequireSuperAdmin>} />
+        <Route path="training-applications" element={<RequireSuperAdmin><AdminTrainingApplications /></RequireSuperAdmin>} />
+        <Route path="settings" element={<RequireSuperAdmin><AdminSettings /></RequireSuperAdmin>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

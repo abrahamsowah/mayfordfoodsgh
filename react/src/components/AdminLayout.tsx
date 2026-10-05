@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   ArrowUpRight,
   BarChart3,
@@ -12,13 +12,16 @@ import {
   Heart,
   Images,
   LogOut,
+  Laptop,
   Mail,
   Megaphone,
   Menu as MenuIcon,
+  PackageCheck,
   ScrollText,
   Settings,
   Star,
   Tags,
+  Tablet,
   User,
   UtensilsCrossed,
   Volume2,
@@ -33,20 +36,41 @@ import { ghs } from '../utils';
 import { SmartImage } from './SmartImage';
 
 /* ============================= SYNTHESIZED KITCHEN AUDIO BELL ============================= */
+let kitchenAudioContext: AudioContext | null = null;
+const activeKitchenOscillators = new Set<OscillatorNode>();
+
+function getKitchenAudioContext(): AudioContext | null {
+  try {
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return null;
+    if (!kitchenAudioContext || kitchenAudioContext.state === 'closed') {
+      kitchenAudioContext = new AudioContextClass();
+    }
+    return kitchenAudioContext;
+  } catch {
+    return null;
+  }
+}
+
+// Call from a real user gesture so browsers unlock audio for later SSE order alerts.
+export function unlockKitchenOrderAudio() {
+  const ctx = getKitchenAudioContext();
+  if (ctx?.state === 'suspended') void ctx.resume().catch(() => undefined);
+}
+
 export function playKitchenOrderChime() {
   try {
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const ctx = new AudioContextClass();
-    if (ctx.state === 'suspended') {
-      void ctx.resume();
-    }
+    const ctx = getKitchenAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') void ctx.resume().catch(() => undefined);
     const now = ctx.currentTime;
 
     const playTone = (freq: number, start: number, duration: number) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
+      osc.onended = () => activeKitchenOscillators.delete(osc);
+      activeKitchenOscillators.add(osc);
       osc.frequency.setValueAtTime(freq, start);
       gain.gain.setValueAtTime(0.0001, start);
       gain.gain.exponentialRampToValueAtTime(0.2, start + 0.03);
@@ -62,8 +86,19 @@ export function playKitchenOrderChime() {
     playTone(830.61, now + 0.13, 0.20);
     playTone(987.77, now + 0.28, 0.42);
   } catch {
-    /* audio blocked until user gesture */
+    /* audio may be unavailable or blocked by browser policy */
   }
+}
+
+function stopKitchenOrderChime() {
+  for (const oscillator of activeKitchenOscillators) {
+    try {
+      oscillator.stop();
+    } catch {
+      /* an oscillator may have finished between the Set snapshot and this call */
+    }
+  }
+  activeKitchenOscillators.clear();
 }
 
 /* ============================= REAL-TIME STREAM CONTEXT ============================= */
@@ -78,6 +113,7 @@ export interface LiveToastAlert {
   title: string;
   subtitle: string;
   linkTo?: string;
+  orderId?: number;
   type: 'order' | 'application' | 'message' | 'general';
 }
 
@@ -159,6 +195,50 @@ function NavigateToLogin() {
   );
 }
 
+export function RequireSuperAdmin({ children }: { children: ReactNode }) {
+  const { admin } = useAdminSession();
+  if (admin?.role !== 'super_admin') return <Navigate to="/admin/dashboard" replace />;
+  return <>{children}</>;
+}
+
+export function AdminDeviceGate({ children }: { children: ReactNode }) {
+  const [phoneViewport, setPhoneViewport] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 639px)');
+    const updateViewport = (event: MediaQueryListEvent) => setPhoneViewport(event.matches);
+    setPhoneViewport(media.matches);
+    media.addEventListener('change', updateViewport);
+    return () => media.removeEventListener('change', updateViewport);
+  }, []);
+
+  if (!phoneViewport) return <>{children}</>;
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#F7F7F7] p-5 sm:hidden">
+      <section role="alert" className="w-full max-w-md rounded-xl border border-neutral-200 bg-white p-7 text-center shadow-sm">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center gap-1 rounded-full bg-neutral-100 text-[#111111]">
+          <Tablet className="h-6 w-6" />
+          <Laptop className="h-6 w-6" />
+        </div>
+        <p className="mt-5 text-xs font-semibold uppercase tracking-wider text-mayford-600">Mayford Admin</p>
+        <h1 className="mt-2 text-xl font-bold tracking-tight text-[#111111]">Use a tablet or computer</h1>
+        <p className="mt-3 text-sm leading-6 text-[#6B6B6B]">
+          Order management and live branch updates are available on tablets, laptops, and desktops. Please open the admin workspace on one of those screens. The customer website remains available on your phone.
+        </p>
+        <Link
+          to="/"
+          className="mt-6 inline-flex items-center justify-center rounded-md bg-[#111111] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#262626]"
+        >
+          Return to the website
+        </Link>
+      </section>
+    </main>
+  );
+}
+
 export function prettyRole(role: string): string {
   return role
     .split('_')
@@ -178,18 +258,19 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: '/admin/dashboard', label: 'Analytics & Overview', icon: BarChart3, section: 'Overview' },
   { to: '/admin/orders', label: 'Customer Orders', icon: ClipboardList, section: 'Overview', badgeKey: 'orders' },
-  { to: '/admin/menu', label: 'Food Menu Items', icon: UtensilsCrossed, section: 'Menu & Pricing' },
-  { to: '/admin/categories', label: 'Menu Categories', icon: FolderOpen, section: 'Menu & Pricing' },
-  { to: '/admin/discounts', label: 'Promotional Discounts', icon: Tags, section: 'Menu & Pricing' },
-  { to: '/admin/catering-bookings', label: 'Catering Bookings', icon: ChefHat, section: 'Inquiries' },
-  { to: '/admin/training-applications', label: 'Academy Applications', icon: GraduationCap, section: 'Inquiries', badgeKey: 'applications' },
-  { to: '/admin/ratings', label: 'Guest Ratings', icon: Star, section: 'Inquiries' },
+  { to: '/admin/menu-availability', label: 'Menu Availability', icon: PackageCheck, section: 'Overview' },
+  { to: '/admin/menu', label: 'Food Menu Items', icon: UtensilsCrossed, section: 'Menu & Pricing', superOnly: true },
+  { to: '/admin/categories', label: 'Menu Categories', icon: FolderOpen, section: 'Menu & Pricing', superOnly: true },
+  { to: '/admin/discounts', label: 'Promotional Discounts', icon: Tags, section: 'Menu & Pricing', superOnly: true },
+  { to: '/admin/catering-bookings', label: 'Catering Bookings', icon: ChefHat, section: 'Inquiries', superOnly: true },
+  { to: '/admin/training-applications', label: 'Academy Applications', icon: GraduationCap, section: 'Inquiries', superOnly: true, badgeKey: 'applications' },
+  { to: '/admin/ratings', label: 'Guest Ratings', icon: Star, section: 'Inquiries', superOnly: true },
   { to: '/admin/contact-messages', label: 'Contact Messages', icon: Mail, section: 'Inquiries', superOnly: true, badgeKey: 'messages' },
-  { to: '/admin/adverts', label: 'Promotional Banners', icon: Megaphone, section: 'Site Content' },
-  { to: '/admin/banners', label: 'Announcement Ticker', icon: ScrollText, section: 'Site Content' },
-  { to: '/admin/slides', label: 'Hero Gallery Slides', icon: Images, section: 'Site Content' },
-  { to: '/admin/videos', label: 'Kitchen Videos', icon: Clapperboard, section: 'Site Content' },
-  { to: '/admin/community', label: 'Community Media', icon: Heart, section: 'Site Content' },
+  { to: '/admin/adverts', label: 'Promotional Banners', icon: Megaphone, section: 'Site Content', superOnly: true },
+  { to: '/admin/banners', label: 'Announcement Ticker', icon: ScrollText, section: 'Site Content', superOnly: true },
+  { to: '/admin/slides', label: 'Hero Gallery Slides', icon: Images, section: 'Site Content', superOnly: true },
+  { to: '/admin/videos', label: 'Kitchen Videos', icon: Clapperboard, section: 'Site Content', superOnly: true },
+  { to: '/admin/community', label: 'Community Media', icon: Heart, section: 'Site Content', superOnly: true },
   { to: '/admin/settings', label: 'Settings & Paystack', icon: Settings, section: 'Configuration', superOnly: true },
 ];
 
@@ -201,16 +282,182 @@ export function AdminLayout() {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     return localStorage.getItem('mayford_admin_sound') !== '0';
   });
+  const soundEnabledRef = useRef(soundEnabled);
   const [lastEvent, setLastEvent] = useState<LiveEventPayload | null>(null);
   const [toasts, setToasts] = useState<LiveToastAlert[]>([]);
   const [notifications, setNotifications] = useState({ orders: 0, applications: 0, messages: 0 });
+  const [unacknowledgedOrderIds, setUnacknowledgedOrderIds] = useState<number[]>([]);
+  const [busyOrderId, setBusyOrderId] = useState<number | null>(null);
+  const pendingOrderIdsRef = useRef(new Set<number>());
+  const orderEventVersionRef = useRef(0);
+  const orderStatusByIdRef = useRef(new Map<number, { status: string; acknowledged: boolean; version: number }>());
   const eventSourceRef = useRef<EventSource | null>(null);
+  const alarmActive = soundEnabled && unacknowledgedOrderIds.length > 0;
+
+  useEffect(() => {
+    if (!admin || !soundEnabled) return;
+    const unlockFromGesture = () => {
+      unlockKitchenOrderAudio();
+      window.removeEventListener('pointerdown', unlockFromGesture);
+      window.removeEventListener('keydown', unlockFromGesture);
+    };
+    window.addEventListener('pointerdown', unlockFromGesture);
+    window.addEventListener('keydown', unlockFromGesture);
+    return () => {
+      window.removeEventListener('pointerdown', unlockFromGesture);
+      window.removeEventListener('keydown', unlockFromGesture);
+    };
+  }, [admin, soundEnabled]);
+
+  useEffect(() => {
+    if (!alarmActive) return;
+    playKitchenOrderChime();
+
+    let repeat: number | undefined;
+    const firstReminder = window.setTimeout(() => {
+      if (!soundEnabledRef.current || pendingOrderIdsRef.current.size === 0) return;
+      playKitchenOrderChime();
+      repeat = window.setInterval(() => {
+        if (soundEnabledRef.current && pendingOrderIdsRef.current.size > 0) playKitchenOrderChime();
+      }, 60_000);
+    }, 30_000);
+
+    return () => {
+      window.clearTimeout(firstReminder);
+      if (repeat !== undefined) window.clearInterval(repeat);
+    };
+  }, [alarmActive]);
 
   function toggleSound() {
-    const next = !soundEnabled;
+    if (soundEnabledRef.current && pendingOrderIdsRef.current.size > 0) return;
+    const next = !soundEnabledRef.current;
+    soundEnabledRef.current = next;
     setSoundEnabled(next);
     localStorage.setItem('mayford_admin_sound', next ? '1' : '0');
-    if (next) playKitchenOrderChime();
+    if (next) unlockKitchenOrderAudio();
+  }
+
+  function syncPendingOrderIds(nextIds: Set<number>) {
+    const next = Array.from(nextIds).sort((a, b) => a - b);
+    const current = Array.from(pendingOrderIdsRef.current).sort((a, b) => a - b);
+    if (next.length === current.length && next.every((id, index) => id === current[index])) return;
+    pendingOrderIdsRef.current = new Set(next);
+    setUnacknowledgedOrderIds(next);
+    if (next.length === 0) stopKitchenOrderChime();
+  }
+
+  function recordOrderStatus(orderIdInput: unknown, statusInput: unknown, notificationStatusInput?: unknown) {
+    const orderId = Number(orderIdInput);
+    const status = String(statusInput || '').trim();
+    if (!Number.isSafeInteger(orderId) || orderId <= 0 || !status) return;
+
+    const wasAlreadyPending = pendingOrderIdsRef.current.has(orderId);
+    const alarmWasAlreadyActive = soundEnabledRef.current && pendingOrderIdsRef.current.size > 0;
+    const isPending = status.toLowerCase() === 'pending';
+    const acknowledged = !isPending || String(notificationStatusInput || '').toLowerCase() === 'seen';
+    const version = ++orderEventVersionRef.current;
+    orderStatusByIdRef.current.set(orderId, { status, acknowledged, version });
+    const pending = new Set(pendingOrderIdsRef.current);
+    if (isPending && !acknowledged) pending.add(orderId);
+    else {
+      pending.delete(orderId);
+      setToasts((current) => current.filter((toast) => toast.orderId !== orderId));
+    }
+    syncPendingOrderIds(pending);
+    if (isPending && !acknowledged && !wasAlreadyPending && alarmWasAlreadyActive) playKitchenOrderChime();
+  }
+
+  function recordOrderAcknowledgement(orderIdInput: unknown) {
+    const orderId = Number(orderIdInput);
+    if (!Number.isSafeInteger(orderId) || orderId <= 0) return;
+
+    const version = ++orderEventVersionRef.current;
+    orderStatusByIdRef.current.set(orderId, { status: 'Pending', acknowledged: true, version });
+    const pending = new Set(pendingOrderIdsRef.current);
+    pending.delete(orderId);
+    setToasts((current) => current.filter((toast) => toast.orderId !== orderId));
+    syncPendingOrderIds(pending);
+  }
+
+  const refreshPendingOrders = async () => {
+    const requestVersion = orderEventVersionRef.current;
+    try {
+      const response = await api.get<{ orders: Array<Record<string, any>> }>('/admin/orders/unacknowledged');
+      const serverPending = new Set(
+        (response.orders || [])
+          .map((order) => Number(order.id))
+          .filter((id) => Number.isSafeInteger(id) && id > 0)
+      );
+      const candidates = new Set([...serverPending, ...pendingOrderIdsRef.current]);
+      const next = new Set<number>();
+      for (const id of candidates) {
+        const latestEvent = orderStatusByIdRef.current.get(id);
+        if (latestEvent && latestEvent.version > requestVersion) {
+          if (latestEvent.status.toLowerCase() === 'pending' && !latestEvent.acknowledged) next.add(id);
+        } else if (serverPending.has(id)) {
+          next.add(id);
+        }
+      }
+      syncPendingOrderIds(next);
+
+      // Once a snapshot includes an event's database update, its temporary race-protection entry is no longer needed.
+      for (const [id, event] of orderStatusByIdRef.current) {
+        if (event.version <= requestVersion) orderStatusByIdRef.current.delete(id);
+      }
+
+      for (const order of response.orders || []) {
+        const id = Number(order.id);
+        if (!next.has(id)) continue;
+        pushToast({
+          id: `ord-${id}-pending`,
+          orderId: id,
+          title: `New Order #${id} (${order.outlet})`,
+          subtitle: `${order.customer_name || 'Guest'} · ${ghs(order.total)} · ${order.order_type || 'Order'}`,
+          linkTo: `/admin/orders?search=${id}`,
+          type: 'order',
+        });
+      }
+    } catch {
+      /* live order events still work if the initial pending-order snapshot is unavailable */
+    }
+  };
+
+  async function acknowledgeOrder(orderId: number) {
+    setBusyOrderId(orderId);
+    try {
+      await api.post(`/admin/orders/${orderId}/acknowledge`);
+      recordOrderAcknowledgement(orderId);
+      refreshNotifications();
+    } catch (err) {
+      pushToast({
+        id: `acknowledge-error-${orderId}-${Date.now()}`,
+        title: `Could not acknowledge Order #${orderId}`,
+        subtitle: (err as Error).message || 'Please open Customer Orders and try again.',
+        linkTo: `/admin/orders?search=${orderId}`,
+        type: 'general',
+      });
+    } finally {
+      setBusyOrderId(null);
+    }
+  }
+
+  async function acceptOrder(orderId: number) {
+    setBusyOrderId(orderId);
+    try {
+      await api.put(`/admin/orders/${orderId}/status`, { status: 'Preparing' });
+      recordOrderStatus(orderId, 'Preparing');
+      refreshNotifications();
+    } catch (err) {
+      pushToast({
+        id: `accept-error-${orderId}-${Date.now()}`,
+        title: `Could not accept Order #${orderId}`,
+        subtitle: (err as Error).message || 'Please open Customer Orders and try again.',
+        linkTo: `/admin/orders?search=${orderId}`,
+        type: 'general',
+      });
+    } finally {
+      setBusyOrderId(null);
+    }
   }
 
   const refreshNotifications = () => {
@@ -221,10 +468,15 @@ export function AdminLayout() {
   };
 
   function pushToast(toast: LiveToastAlert) {
-    setToasts((prev) => [toast, ...prev.slice(0, 4)]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== toast.id));
-    }, 8000);
+    setToasts((prev) => [
+      toast,
+      ...prev.filter((current) => current.id !== toast.id && (!toast.orderId || current.orderId !== toast.orderId)).slice(0, 4),
+    ]);
+    if (toast.type !== 'order') {
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+      }, 8000);
+    }
   }
 
   // Real-time Server-Sent Events (SSE) connection with automatic reconnect
@@ -241,6 +493,7 @@ export function AdminLayout() {
         es.onopen = () => {
           setConnected(true);
           refreshNotifications();
+          void refreshPendingOrders();
         };
 
         es.onmessage = (e) => {
@@ -250,18 +503,21 @@ export function AdminLayout() {
 
             if (parsed.type === 'order_created') {
               const ord = parsed.data;
-              if (soundEnabled) playKitchenOrderChime();
-              pushToast({
-                id: `ord-${ord.id}-${Date.now()}`,
-                title: `New Order #${ord.id} (${ord.outlet})`,
-                subtitle: `${ord.customer_name} · ${ghs(ord.total)} · ${ord.order_type}`,
-                linkTo: `/admin/orders?search=${ord.id}`,
-                type: 'order',
-              });
+              const orderId = Number(ord.id);
+              recordOrderStatus(orderId, ord.status || 'Pending', ord.notification_status || 'new');
+              if (String(ord.status || 'Pending').toLowerCase() === 'pending' && String(ord.notification_status || 'new').toLowerCase() !== 'seen') {
+                pushToast({
+                  id: `ord-${orderId}-pending`,
+                  orderId,
+                  title: `New Order #${orderId} (${ord.outlet})`,
+                  subtitle: `${ord.customer_name || 'Guest'} · ${ghs(ord.total)} · ${ord.order_type}`,
+                  linkTo: `/admin/orders?search=${orderId}`,
+                  type: 'order',
+                });
+              }
               refreshNotifications();
             } else if (parsed.type === 'application_created') {
               const app = parsed.data;
-              if (soundEnabled) playKitchenOrderChime();
               pushToast({
                 id: `app-${app.id}-${Date.now()}`,
                 title: `New Academy Applicant`,
@@ -279,7 +535,27 @@ export function AdminLayout() {
                 type: 'message',
               });
               refreshNotifications();
-            } else if (parsed.type === 'order_status_updated' || parsed.type === 'order_payment_updated') {
+            } else if (parsed.type === 'order_acknowledged') {
+              recordOrderAcknowledgement(parsed.data?.id);
+              refreshNotifications();
+            } else if (parsed.type === 'order_status_updated' || parsed.type === 'order_updated') {
+              const orderId = Number(parsed.data?.id);
+              const orderStatus = String(parsed.data?.status || '').trim();
+              if (orderStatus) {
+                recordOrderStatus(orderId, orderStatus, parsed.data?.notification_status);
+                if (orderStatus.toLowerCase() === 'pending' && String(parsed.data?.notification_status || 'new').toLowerCase() !== 'seen') {
+                  pushToast({
+                    id: `ord-${orderId}-pending`,
+                    orderId,
+                    title: `Order #${orderId} needs acceptance`,
+                    subtitle: `${parsed.data?.customer_name || 'Guest'} · ${parsed.data?.order_type || 'Order'}`,
+                    linkTo: `/admin/orders?search=${orderId}`,
+                    type: 'order',
+                  });
+                }
+              }
+              refreshNotifications();
+            } else if (parsed.type === 'order_payment_updated') {
               refreshNotifications();
             }
           } catch {
@@ -312,7 +588,7 @@ export function AdminLayout() {
         eventSourceRef.current.close();
       }
     };
-  }, [admin, soundEnabled]);
+  }, [admin]);
 
   async function logout() {
     try {
@@ -382,7 +658,7 @@ export function AdminLayout() {
                     >
                       <div className="flex items-center gap-3">
                         <i.icon className="h-4 w-4 shrink-0" />
-                        <span>{i.label}</span>
+                        <span>{i.to === '/admin/orders' && admin?.role !== 'super_admin' ? 'Branch Orders' : i.label}</span>
                       </div>
                       {badgeCount > 0 && (
                         <span className="rounded-full bg-mayford-600 px-1.5 py-0.5 text-[10px] font-bold text-white animate-pulse">
@@ -433,7 +709,7 @@ export function AdminLayout() {
     >
       <div className="min-h-screen bg-[#F7F7F7] text-[#111111]">
         {/* Global Live Toast Notifications Container */}
-        <div className="fixed right-4 top-16 z-[100] flex w-full max-w-sm flex-col gap-2.5 pointer-events-none">
+        <div className="fixed left-4 right-4 top-16 z-[100] mx-auto flex w-auto max-w-sm flex-col gap-2.5 pointer-events-none sm:left-auto sm:mx-0 sm:w-full">
           {toasts.map((t) => (
             <div
               key={t.id}
@@ -449,12 +725,31 @@ export function AdminLayout() {
                   {t.linkTo && (
                     <Link
                       to={t.linkTo}
-                      onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
                       className="mt-2 inline-flex items-center gap-1 rounded bg-white px-2 py-1 text-[10px] font-bold text-[#111111] hover:bg-neutral-200"
                     >
                       <span>View Record</span>
                       <ArrowUpRight className="h-3 w-3" />
                     </Link>
+                  )}
+                  {t.type === 'order' && t.orderId && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        disabled={busyOrderId !== null}
+                        onClick={() => void acknowledgeOrder(t.orderId!)}
+                        className="inline-flex items-center gap-1 rounded bg-neutral-200 px-2 py-1 text-[10px] font-bold text-[#111111] hover:bg-white disabled:cursor-wait disabled:opacity-70"
+                      >
+                        {busyOrderId === t.orderId ? 'Saving…' : 'Acknowledge'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyOrderId !== null}
+                        onClick={() => void acceptOrder(t.orderId!)}
+                        className="inline-flex items-center gap-1 rounded bg-white px-2 py-1 text-[10px] font-bold text-[#111111] hover:bg-neutral-200 disabled:cursor-wait disabled:opacity-70"
+                      >
+                        {busyOrderId === t.orderId ? 'Saving…' : 'Accept · Start Preparing'}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -484,10 +779,10 @@ export function AdminLayout() {
         <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 lg:block">{sidebar}</aside>
 
         {/* Main Content Area */}
-        <div className="lg:pl-64">
+        <div className="min-w-0 lg:pl-64">
           {/* Top Real-Time Status Header */}
           <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-neutral-200 bg-white px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <button
                 type="button"
                 aria-label="Open menu"
@@ -497,50 +792,55 @@ export function AdminLayout() {
                 <MenuIcon className="h-4 w-4" />
               </button>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
+                <span className="hidden text-xs font-semibold uppercase tracking-wider text-[#6B6B6B] sm:inline">
                   {prettyRole(admin?.role || '')} Workspace
                 </span>
                 <span
-                  title={connected ? 'Connected to live order stream' : 'Reconnecting to stream...'}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                    connected
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'bg-amber-50 text-amber-700 border border-amber-200'
-                  }`}
-                >
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      connected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
-                    }`}
-                  />
-                  <span>{connected ? 'LIVE STREAM' : 'SYNCING'}</span>
-                </span>
+                  role="img"
+                  aria-label={connected ? 'Live updates connected' : 'Reconnecting to live updates'}
+                  className={`h-2 w-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                />
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               {/* Sound Alert Toggle */}
               <button
                 type="button"
                 onClick={toggleSound}
-                title={soundEnabled ? 'Order Bell Sound: ON (Click to mute)' : 'Order Bell Sound: OFF (Click to unmute)'}
-                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                disabled={alarmActive}
+                aria-pressed={soundEnabled}
+                aria-label={
+                  alarmActive
+                    ? `${unacknowledgedOrderIds.length} pending order alerts. Accept or acknowledge the orders to stop the chime.`
+                    : soundEnabled ? 'Mute order chime' : 'Enable order chime'
+                }
+                title={
+                  alarmActive
+                    ? 'Accept or acknowledge every pending order to stop the chime.'
+                    : soundEnabled ? 'Order Bell Sound: ON (Click to mute)' : 'Order Bell Sound: OFF (Click to unmute)'
+                }
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
                   soundEnabled
-                    ? 'border-neutral-300 bg-white text-[#111111] hover:border-[#111111]'
+                    ? 'border-neutral-300 bg-white text-[#111111] hover:border-[#111111] disabled:hover:border-neutral-300'
                     : 'border-neutral-200 bg-neutral-100 text-neutral-400'
                 }`}
               >
                 {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-emerald-600" /> : <VolumeX className="h-3.5 w-3.5 text-neutral-400" />}
-                <span className="hidden sm:inline">{soundEnabled ? 'Chime ON' : 'Muted'}</span>
+                <span className="hidden sm:inline">
+                  {alarmActive ? `Alerting ${unacknowledgedOrderIds.length}` : soundEnabled ? 'Chime ON' : 'Muted'}
+                </span>
               </button>
 
-              <Link
-                to="/admin/menu"
-                className="hidden items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-[#111111] hover:border-[#111111] sm:inline-flex"
-              >
-                <UtensilsCrossed className="h-3.5 w-3.5" />
-                <span>Manage Foods</span>
-              </Link>
+              {admin?.role === 'super_admin' && (
+                <Link
+                  to="/admin/menu"
+                  className="hidden items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-[#111111] hover:border-[#111111] sm:inline-flex"
+                >
+                  <UtensilsCrossed className="h-3.5 w-3.5" />
+                  <span>Manage Foods</span>
+                </Link>
+              )}
 
               <Link
                 to="/"
@@ -554,7 +854,7 @@ export function AdminLayout() {
             </div>
           </header>
 
-          <main className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
+          <main className="mx-auto w-full min-w-0 max-w-7xl p-4 sm:p-6 lg:p-8">
             <Outlet />
           </main>
         </div>

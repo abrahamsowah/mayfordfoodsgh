@@ -64,6 +64,9 @@ Modernized, high-performance web platform and real-time operations engine for **
 3. **Anti-Replay Protection**: Reusing an existing Paystack reference across multiple orders is blocked (`409 Conflict`).
 4. **Cryptographic Receipt Verification Seal**: Every completed order receives a unique tamper-proof signature (e.g. `MF-VRF-43138672`) verifiable on the customer receipt, tracker, and admin panel.
 5. **Branch RBAC (IDOR Protection)**: Branch-level admins are cryptographically constrained to their assigned outlet (`outletScope(req)`).
+6. **Branch Stock & Fulfillment Routing**: Per-item availability is stored per outlet; delivery orders may move to the other branch only when it can fulfill the complete basket. Paystack checkout preflights stock and order creation rechecks it; pickup and in-store orders stay at their selected branch.
+7. **Admin Page Permissions**: Global menu, inquiry, and site-content management is limited to super admins in the UI and API; branch users only manage their own stock flags.
+8. **Acknowledgement-Gated Kitchen Chime**: New unacknowledged orders chime immediately, get a reminder after 30 seconds and then at most once per minute. Acknowledge silences the alert without changing the order; Accept starts Preparing. Sound preference persists between sessions, and an active alert cannot be muted.
 
 ---
 
@@ -72,13 +75,14 @@ Modernized, high-performance web platform and real-time operations engine for **
 ### 1. Supabase (Database) Setup
 1. Create a project in [Supabase](https://supabase.com).
 2. Go to **SQL Editor** $\rightarrow$ **New Query**.
-3. For a **new/empty project only**, copy [`sql/supabase_schema.sql`](sql/supabase_schema.sql) into the SQL Editor and click **Run**. It drops/recreates tables, so do not rerun it on a database with data.
+3. For a **new/empty project only**, copy [`sql/supabase_schema.sql`](sql/supabase_schema.sql) into the SQL Editor and click **Run**. It drops/recreates tables, so do not rerun it on a database with data. It does not preload sample orders, reviews, applicants, or menu records; dashboard metrics come only from records in the database, and the visitor counter starts at zero.
 4. If your Supabase project already has the Mayford schema/data, **run the security hardening migration**:
    [`sql/migrations/20261005_harden_supabase_payment_security.sql`](sql/migrations/20261005_harden_supabase_payment_security.sql)
    This immediately locks down RLS policies, isolates financial/payment tables from the public Anon key, secures Paystack references with unique indexes, removes sensitive customer PII from public WebSockets, and provisions the tamper-proof `payment_audit_logs` ledger.
 5. If in-store cashier orders are also needed, run [`sql/migrations/20261005_add_in_store_orders.sql`](sql/migrations/20261005_add_in_store_orders.sql).
-6. Run [`sql/migrations/20261005_durable_media_and_video_posters.sql`](sql/migrations/20261005_durable_media_and_video_posters.sql). It adds poster/variant metadata and creates the public-read `mayford-media` bucket with a 100 MiB limit. Writes are still restricted to signed URLs issued by the server.
-7. Go to **Project Settings → Database → Connection string** (URI) and add the Supabase Postgres URI to your server environment.
+6. Run [`sql/migrations/20261005_add_branch_menu_availability.sql`](sql/migrations/20261005_add_branch_menu_availability.sql). It seeds existing dishes as available at both outlets; admins can then maintain branch stock, and the order API routes delivery baskets only to an outlet that can fulfill every item.
+7. Run [`sql/migrations/20261005_durable_media_and_video_posters.sql`](sql/migrations/20261005_durable_media_and_video_posters.sql). It adds poster/variant metadata and creates the public-read `mayford-media` bucket with a 100 MiB limit. Writes are still restricted to signed URLs issued by the server.
+8. Go to **Project Settings → Database → Connection string** (URI) and add the Supabase Postgres URI to your server environment.
    ```env
    SUPABASE_DB_URL=postgresql://postgres.[YOUR-PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?sslmode=require
    SUPABASE_ONLY=true

@@ -378,18 +378,20 @@ export default function AdminSettings() {
         )}
 
         <form onSubmit={sendResendTest} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <Field label="Recipient Email Address">
-              <Input
-                type="email"
-                placeholder="your.email@example.com"
-                value={testEmail}
-                onChange={(e) => setTestEmail(e.target.value)}
-                required
-              />
-            </Field>
+          <div className="min-w-0 flex-1">
+            <label htmlFor="resend-test-email" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-neutral-700">
+              Recipient Email Address
+            </label>
+            <Input
+              id="resend-test-email"
+              type="email"
+              placeholder="your.email@example.com"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              required
+            />
           </div>
-          <div>
+          <div className="w-full sm:w-auto">
             <Btn type="submit" variant="red" disabled={resendBusy} className="w-full sm:w-auto">
               <Send className="h-4 w-4" />
               <span>{resendBusy ? 'Sending...' : 'Send Test Email via Resend'}</span>

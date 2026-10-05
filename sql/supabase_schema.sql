@@ -57,13 +57,6 @@ CREATE TABLE public.banners (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO public.banners (id, banner_text, created_at) VALUES
-  (1, 'Available on Bolt Food & Direct Online Ordering', '2026-06-19 16:56:31+00'),
-  (2, 'Outside Catering Available for Weddings & Corporate Events', '2026-06-19 16:56:31+00'),
-  (3, 'Open Monday - Sunday 9:00 AM - 9:30 PM', '2026-06-19 16:56:31+00'),
-  (4, 'Community Outreach Programs & Food Donations', '2026-06-19 16:56:31+00'),
-  (5, 'Culinary & Hospitality Training Academy Admissions Open', '2026-06-19 16:56:31+00');
-SELECT setval(pg_get_serial_sequence('public.banners', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.banners));
 
 -- ---------------------------------------------------------------------
 --  4. Catering Bookings (event inquiries & bookings)
@@ -86,13 +79,6 @@ CREATE TABLE public.catering_bookings (
 );
 CREATE INDEX idx_catering_bookings_outlet_status ON public.catering_bookings (outlet, status, event_date);
 
-INSERT INTO public.catering_bookings (
-  id, customer_name, phone, event_type, event_date, guest_count,
-  location, menu_preferences, budget, outlet, status, notification_status, created_at
-) VALUES
-  (1, 'Dr. Emmanuel Quaye', '0244987654', 'Corporate Luncheon', '2026-07-15', 75, 'Airport Residential, Accra', 'Jollof buffet with grilled chicken and fresh salads', 4500.00, 'Dzorwulu', 'Confirmed', 'seen', '2026-06-20 10:00:00+00'),
-  (2, 'Sarah Adjei', '0555123456', 'Wedding Reception', '2026-08-01', 150, 'Asylum Down, Accra', 'Full Ghanaian & continental banquet buffet', 9000.00, 'Adabraka', 'Pending', 'new', '2026-06-21 14:30:00+00');
-SELECT setval(pg_get_serial_sequence('public.catering_bookings', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.catering_bookings));
 
 -- ---------------------------------------------------------------------
 --  5. Community Media (outreach photos and videos)
@@ -109,10 +95,6 @@ CREATE TABLE public.community_media (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO public.community_media (id, title, description, media_type, file_name, event_date, created_at) VALUES
-  (1, 'Adabraka Youth Food Distribution', 'Supporting local families with warm meals and nutritious food packs during the holidays.', 'image', 'hero.png', '2026-05-12', '2026-06-19 17:00:00+00'),
-  (2, 'Dzorwulu School Outreach', 'Providing lunch packs to over 200 school children as part of our weekly community mission.', 'image', 'riceball.jpg', '2026-05-26', '2026-06-19 17:05:00+00');
-SELECT setval(pg_get_serial_sequence('public.community_media', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.community_media));
 
 -- ---------------------------------------------------------------------
 --  6. Contact Messages (feedback & inquiries)
@@ -129,10 +111,6 @@ CREATE TABLE public.contact_messages (
 );
 CREATE INDEX idx_contact_messages_created ON public.contact_messages (created_at DESC);
 
-INSERT INTO public.contact_messages (id, full_name, email, subject, message, notification_status, created_at) VALUES
-  (1, 'Kofi Boateng', 'kofi.b@example.com', 'Corporate Event Inquiry', 'Hello, do you cater for weekend outdoor corporate retreats in East Legon?', 'seen', '2026-06-20 09:15:00+00'),
-  (2, 'Naa Densua', '0244001122', 'Food Feedback', 'The smoky party jollof ordered to Dzorwulu yesterday was delicious!', 'new', '2026-06-22 11:45:00+00');
-SELECT setval(pg_get_serial_sequence('public.contact_messages', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.contact_messages));
 
 -- ---------------------------------------------------------------------
 --  7. Menu Categories (food taxonomy)
@@ -144,13 +122,6 @@ CREATE TABLE public.menu_categories (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO public.menu_categories (id, category_name, created_at) VALUES
-  (1, 'Rice Dishes', '2026-06-19 16:45:00+00'),
-  (2, 'Local Dishes', '2026-06-19 16:45:00+00'),
-  (3, 'Soups & Stews', '2026-06-19 16:45:00+00'),
-  (4, 'Drinks & Beverages', '2026-06-19 16:45:00+00'),
-  (5, 'Sides & Extras', '2026-06-19 16:45:00+00');
-SELECT setval(pg_get_serial_sequence('public.menu_categories', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.menu_categories));
 
 -- ---------------------------------------------------------------------
 --  8. Menu Items (food catalog & discounts)
@@ -169,11 +140,24 @@ CREATE TABLE public.menu_items (
 );
 CREATE INDEX idx_menu_items_category_status ON public.menu_items (category, status);
 
-INSERT INTO public.menu_items (id, food_name, category, description, price, image, status, discount_percent, created_at) VALUES
-  (1, 'Jollof', 'Rice Dishes', 'Smoky Ghanaian Jollof served with grilled chicken, salad and spicy shito sauce', 80.00, 'Jollof.png', 'available', 0, '2026-06-19 16:47:00+00'),
-  (2, 'Banku', 'Local Dishes', 'Freshly prepared corn and cassava dough served with rich okro soup and tilapia', 45.00, 'bankuokro.jpeg', 'available', 0, '2026-06-19 16:48:00+00'),
-  (3, 'Fried Rice Special', 'Rice Dishes', 'Seasoned wok-fried rice with fresh garden vegetables and grilled chicken', 85.00, 'hero.png', 'available', 0, '2026-06-19 16:49:00+00');
-SELECT setval(pg_get_serial_sequence('public.menu_items', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.menu_items));
+
+-- ---------------------------------------------------------------------
+--  8a. Branch-specific menu availability (private admin-only inventory)
+-- ---------------------------------------------------------------------
+CREATE TABLE public.menu_item_outlet_availability (
+  menu_item_id BIGINT NOT NULL REFERENCES public.menu_items(id) ON DELETE CASCADE,
+  outlet VARCHAR(100) NOT NULL CHECK (outlet IN ('Adabraka', 'Dzorwulu')),
+  status VARCHAR(20) NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'unavailable')),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_by BIGINT REFERENCES public.admins(id) ON DELETE SET NULL,
+  PRIMARY KEY (menu_item_id, outlet)
+);
+CREATE INDEX idx_menu_item_outlet_availability_outlet_status
+  ON public.menu_item_outlet_availability (outlet, status);
+INSERT INTO public.menu_item_outlet_availability (menu_item_id, outlet, status)
+SELECT item.id, outlet.outlet, 'available'
+FROM public.menu_items AS item
+CROSS JOIN (VALUES ('Adabraka'), ('Dzorwulu')) AS outlet(outlet);
 
 -- ---------------------------------------------------------------------
 --  9. Orders (online and in-store food orders & settlements)
@@ -204,24 +188,6 @@ CREATE TABLE public.orders (
 CREATE INDEX idx_orders_outlet_status ON public.orders (outlet, status, payment_status, order_date DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_payment_reference_uniq ON public.orders (payment_reference) WHERE payment_reference IS NOT NULL;
 
-INSERT INTO public.orders (
-  id, customer_name, customer_email, phone, food_item, quantity, outlet, order_type,
-  delivery_zone, delivery_fee, address, order_details, total,
-  payment_method, payment_status, payment_reference, status, notification_status, order_date
-) VALUES
-  (
-    1, 'Kwame Mensah', 'kwame@example.com', '0557605261', 'Jollof', 3, 'Dzorwulu', 'Delivery',
-    'Dzorwulu / Abelemkpe / Airport Residential', 15.00, 'Dzorwulu Junction, Accra',
-    'Jollof x 3 = GH₵ 240.00', 240.00,
-    'Paystack', 'Paid', 'PSK_MF_902814', 'Completed', 'seen', '2026-10-02 10:23:51+00'
-  ),
-  (
-    2, 'Ama Osei', 'ama@example.com', '0244192837', 'Multiple Foods', 2, 'Adabraka', 'Delivery',
-    'Adabraka / Asylum Down / Ridge', 15.00, 'Adabraka Official Town, Accra',
-    E'Jollof x 1 = GH₵ 80.00\nBanku x 1 = GH₵ 45.00', 125.00,
-    'Paystack', 'Paid', 'PSK_MF_902889', 'Preparing', 'new', '2026-10-02 10:25:00+00'
-  );
-SELECT setval(pg_get_serial_sequence('public.orders', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.orders));
 
 -- ---------------------------------------------------------------------
 --  10. Ratings (verified guest reviews)
@@ -239,10 +205,6 @@ CREATE TABLE public.ratings (
 );
 CREATE INDEX idx_ratings_outlet ON public.ratings (outlet, rating, created_at DESC);
 
-INSERT INTO public.ratings (id, customer_name, phone, service_type, rating, review, outlet, created_at) VALUES
-  (1, 'Abena Darko', '0244112233', 'Food Quality', 5, 'Best smoky jollof in Accra! Flavour is consistent every time.', 'Adabraka', '2026-06-20 18:00:00+00'),
-  (2, 'Kweku Appiah', '0200889900', 'Customer Service', 5, 'Quick pickup at Dzorwulu branch. Warm food and polite staff.', 'Dzorwulu', '2026-06-21 12:30:00+00');
-SELECT setval(pg_get_serial_sequence('public.ratings', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.ratings));
 
 -- ---------------------------------------------------------------------
 --  11. Slider Images (hero carousel photography)
@@ -254,12 +216,6 @@ CREATE TABLE public.slider_images (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO public.slider_images (id, image_name, created_at) VALUES
-  (1, 'hero.png', '2026-06-19 17:15:00+00'),
-  (2, 'bankuokro.jpeg', '2026-06-19 17:15:00+00'),
-  (3, 'Jollof.png', '2026-06-19 17:15:00+00'),
-  (4, 'riceball.jpg', '2026-06-19 17:15:00+00');
-SELECT setval(pg_get_serial_sequence('public.slider_images', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.slider_images));
 
 -- ---------------------------------------------------------------------
 --  12. Training Applications (culinary & hospitality admissions)
@@ -283,17 +239,6 @@ CREATE TABLE public.training_applications (
 );
 CREATE INDEX idx_training_applications_status ON public.training_applications (status, created_at DESC);
 
-INSERT INTO public.training_applications (
-  id, application_ref, full_name, phone, email, training_school, program, message, status, admin_notes, email_sent, notification_status, created_at
-) VALUES
-  (
-    1, 'MFA-2026-9041', 'Akosua Mensah', '0244192837', 'akosua@example.com',
-    'Culinary Arts', 'Professional Cookery Certificate (3 Months)',
-    'Passionate about authentic Ghanaian dishes and modern restaurant kitchen management.',
-    'Interview Scheduled', 'Invited for kitchen practical assessment on Monday.',
-    TRUE, 'seen', '2026-10-02 11:00:00+00'
-  );
-SELECT setval(pg_get_serial_sequence('public.training_applications', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.training_applications));
 
 -- ---------------------------------------------------------------------
 --  13. Advertisement Banners (promotional campaign cards)
@@ -310,10 +255,6 @@ CREATE TABLE public.advertisement_banners (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO public.advertisement_banners (id, banner_image, title, description, button_text, button_link, status, created_at) VALUES
-  (1, 'Jollof.png', 'Fresh Jollof Special', 'Enjoy our signature smoky party jollof served with grilled chicken. Order today!', 'Order Now', '/menu', 'Active', '2026-06-19 18:00:00+00'),
-  (2, 'riceball.jpg', 'Riceball Deal', 'Quick, tasty and affordable riceballs prepared fresh every day.', 'View Menu', '/menu', 'Active', '2026-06-19 18:05:00+00');
-SELECT setval(pg_get_serial_sequence('public.advertisement_banners', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.advertisement_banners));
 
 -- ---------------------------------------------------------------------
 --  14. Advertisement Videos (kitchen video showcase)
@@ -326,9 +267,6 @@ CREATE TABLE public.advertisement_videos (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO public.advertisement_videos (id, video_name, poster_url, created_at) VALUES
-  (1, 'video.mp4', 'hero.png', '2026-06-19 18:10:00+00');
-SELECT setval(pg_get_serial_sequence('public.advertisement_videos', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.advertisement_videos));
 
 -- Storage-backed image metadata for runtime WebP variants.
 CREATE TABLE public.image_asset_metadata (
@@ -350,7 +288,7 @@ CREATE TABLE public.visitor_counter (
   total_visitors BIGINT NOT NULL DEFAULT 0
 );
 
-INSERT INTO public.visitor_counter (id, total_visitors) VALUES (1, 1250);
+INSERT INTO public.visitor_counter (id, total_visitors) VALUES (1, 0);
 SELECT setval(pg_get_serial_sequence('public.visitor_counter', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.visitor_counter));
 
 -- Atomic visitor counter increment function for Supabase RPC
@@ -423,7 +361,7 @@ CREATE TABLE public.website_settings (
   facebook_link TEXT NOT NULL,
   tiktok_link TEXT NOT NULL,
   opening_hours VARCHAR(255) NOT NULL,
-  paystack_public_key VARCHAR(255) NOT NULL DEFAULT 'pk_test_mayfordfoodsgh_public_key'
+  paystack_public_key VARCHAR(255) NOT NULL DEFAULT ''
 );
 
 INSERT INTO public.website_settings (
@@ -436,7 +374,7 @@ INSERT INTO public.website_settings (
   'https://www.facebook.com/share/1PDFLKArpt/',
   'https://www.tiktok.com/@maryafuahboakye?_r=1&_t=ZS-97IIPfQ9uRo',
   'Monday - Sunday 9:00 AM - 9:30 PM',
-  'pk_test_mayfordfoodsgh_public_key'
+  ''
 );
 SELECT setval(pg_get_serial_sequence('public.website_settings', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.website_settings));
 
@@ -474,6 +412,7 @@ ALTER TABLE public.community_media ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.menu_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.menu_item_outlet_availability ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ratings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.slider_images ENABLE ROW LEVEL SECURITY;
@@ -549,6 +488,7 @@ CREATE POLICY "Service role full access community_media" ON public.community_med
 CREATE POLICY "Service role full access contact_messages" ON public.contact_messages FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access menu_categories" ON public.menu_categories FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access menu_items" ON public.menu_items FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access menu_item_outlet_availability" ON public.menu_item_outlet_availability FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access orders" ON public.orders FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access ratings" ON public.ratings FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access slider_images" ON public.slider_images FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -560,7 +500,8 @@ CREATE POLICY "Service role full access website_settings" ON public.website_sett
 CREATE POLICY "Service role full access payment_audit_logs" ON public.payment_audit_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- 4. HARDEN PERMISSIONS (Defense-in-depth: Revoke mutation and privacy leaks from public roles)
-REVOKE ALL ON public.admins, public.admin_sessions, public.payment_audit_logs FROM anon, authenticated;
+REVOKE ALL ON public.admins, public.admin_sessions, public.payment_audit_logs, public.menu_item_outlet_availability FROM anon, authenticated;
+GRANT ALL ON public.menu_item_outlet_availability TO service_role;
 REVOKE INSERT, UPDATE, DELETE ON public.orders FROM anon, authenticated;
 REVOKE INSERT, UPDATE, DELETE ON public.website_settings FROM anon, authenticated;
 REVOKE SELECT ON public.orders, public.catering_bookings, public.training_applications, public.contact_messages FROM anon;

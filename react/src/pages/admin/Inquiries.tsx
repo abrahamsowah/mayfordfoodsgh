@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../../api';
-import { Alert, Btn, DeleteBtn, EmptyRow, Field, Select, Stars, Textarea } from '../../components/ui';
+import { Alert, Btn, DeleteBtn, EmptyRow, Field, Select, Stars, Textarea, selectArrowStyle } from '../../components/ui';
 import type { CateringBooking, ContactMessage, Rating, TrainingApplication } from '../../types';
 import { waLink } from '../../utils';
 
@@ -527,7 +527,8 @@ export function AdminTrainingApplications() {
                         <select
                           value={currentStatus}
                           onChange={(e) => updateStatus(a.id, e.target.value, a.admin_notes || '')}
-                          className={`rounded px-2.5 py-1 text-xs font-semibold outline-none ${
+                          style={selectArrowStyle}
+                          className={`appearance-none rounded px-2.5 !pr-10 py-1 text-xs font-semibold outline-none ${
                             currentStatus === 'Admitted'
                               ? 'bg-emerald-100 text-emerald-800'
                               : currentStatus === 'Contacted'
