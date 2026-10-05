@@ -13,10 +13,12 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
  * Server-side admin client using the Service Role Key.
  * Bypasses Row Level Security (RLS) for authoritative server-side order verification,
  * price recalculation, status dispatches, and session management.
+ * NOTE: The service role key is strictly required for admin operations to prevent
+ * downgrading to public anon permissions against hardened RLS tables.
  */
 export const supabaseAdmin: SupabaseClient | null =
-  SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY)
-    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, {
+  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
         auth: {
           persistSession: false,
           autoRefreshToken: false,
@@ -49,10 +51,6 @@ export const supabasePublic: SupabaseClient | null =
     : null;
 
 export const REALTIME_TABLES = [
-  'orders',
-  'catering_bookings',
-  'training_applications',
-  'contact_messages',
   'visitor_counter',
   'menu_items',
   'menu_categories',
@@ -76,7 +74,7 @@ export function getSupabaseDetails() {
     masked_service_key: SUPABASE_SERVICE_ROLE_KEY ? `${SUPABASE_SERVICE_ROLE_KEY.slice(0, 10)}••••••••` : 'Not Set',
     realtime_enabled: true,
     realtime_tables: REALTIME_TABLES,
-    rls_enabled_tables_count: 16,
+    rls_enabled_tables_count: 17,
     rls_policies_count: 22,
   };
 }

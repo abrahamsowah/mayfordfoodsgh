@@ -264,18 +264,14 @@ export default function AdminSettings() {
             <div className="flex items-center gap-2">
               <Radio className="h-4 w-4 text-emerald-600" />
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#111111]">
-                Supabase Realtime Tables (11 Active)
+                Supabase Realtime Tables (Public Catalog)
               </h3>
             </div>
             <p className="mt-1 text-xs text-[#6B6B6B]">
-              Registered in <code className="font-mono text-neutral-800">supabase_realtime</code> publication with <code className="font-mono text-neutral-800">REPLICA IDENTITY FULL</code>:
+              Registered in <code className="font-mono text-neutral-800">supabase_realtime</code> publication with <code className="font-mono text-neutral-800">REPLICA IDENTITY FULL</code> (Customer orders &amp; PII isolated from public stream):
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              {[
-                'orders',
-                'catering_bookings',
-                'training_applications',
-                'contact_messages',
+              {(systemStatus?.supabase?.realtime_tables || [
                 'visitor_counter',
                 'menu_items',
                 'menu_categories',
@@ -283,7 +279,7 @@ export default function AdminSettings() {
                 'advertisement_banners',
                 'ratings',
                 'website_settings',
-              ].map((table) => (
+              ]).map((table) => (
                 <span
                   key={table}
                   className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-[11px] font-mono font-medium text-neutral-800 border border-neutral-200"
@@ -300,7 +296,7 @@ export default function AdminSettings() {
             <div className="flex items-center gap-2">
               <Lock className="h-4 w-4 text-emerald-600" />
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#111111]">
-                Row Level Security (16 Tables)
+                Row Level Security (17 Tables Protected)
               </h3>
             </div>
             <p className="mt-1 text-xs text-[#6B6B6B]">
@@ -309,11 +305,11 @@ export default function AdminSettings() {
             <ul className="mt-2.5 space-y-1.5 text-xs text-neutral-700">
               <li className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                <span><strong>Public Anon Key:</strong> Restricted catalog SELECT + validated guest INSERT only</span>
+                <span><strong>Public Anon Key:</strong> Restricted catalog SELECT + validated guest form INSERT only</span>
               </li>
               <li className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                <span><strong>Customer Privacy Shield:</strong> Arbitrary SELECT on orders &amp; applicants blocked</span>
+                <span><strong>Customer Privacy Shield:</strong> Direct SELECT/INSERT/UPDATE on orders &amp; staff tables completely blocked</span>
               </li>
               <li className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
@@ -321,7 +317,7 @@ export default function AdminSettings() {
               </li>
               <li className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                <span><strong>Service Role Key:</strong> Authoritative backend pricing, status, and sessions</span>
+                <span><strong>Service Role Key:</strong> Authoritative backend pricing, payment verification, and audit logging</span>
               </li>
             </ul>
           </div>
@@ -335,7 +331,7 @@ export default function AdminSettings() {
               Payment Anti-Tampering &amp; Transaction Safeguards
             </h3>
           </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3 text-xs">
+          <div className="mt-3 grid gap-3 sm:grid-cols-4 text-xs">
             <div className="rounded bg-white p-2.5 border border-neutral-200">
               <p className="font-bold text-[#111111]">HMAC-SHA256 Token</p>
               <p className="mt-0.5 text-[#6B6B6B]">Signs verified references with amount and status to prevent client tampering.</p>
@@ -347,6 +343,10 @@ export default function AdminSettings() {
             <div className="rounded bg-white p-2.5 border border-neutral-200">
               <p className="font-bold text-[#111111]">Currency (GHS) Enforcement</p>
               <p className="mt-0.5 text-[#6B6B6B]">Server verifies Paystack currency is strictly Ghana Cedis (GHS) before acceptance.</p>
+            </div>
+            <div className="rounded bg-white p-2.5 border border-neutral-200">
+              <p className="font-bold text-[#111111]">Payment Audit Ledger</p>
+              <p className="mt-0.5 text-[#6B6B6B]">Immutable append-only ledger logs every gateway verification and webhook event.</p>
             </div>
           </div>
         </div>

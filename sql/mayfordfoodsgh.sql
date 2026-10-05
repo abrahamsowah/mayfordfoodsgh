@@ -38,9 +38,9 @@ CREATE TABLE `admins` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT INTO `admins` (`id`, `admin_name`, `username`, `password`, `role`, `created_at`) VALUES
-(1, 'Mayford Main Admin', 'mainadmin', '123456', 'super_admin', '2026-06-19 16:40:05'),
-(2, 'Adabraka Admin', 'adabraka', '123456', 'adabraka_admin', '2026-06-19 16:40:05'),
-(3, 'Dzorwulu Admin', 'dzorwulu', '123456', 'dzorwulu_admin', '2026-06-19 16:40:05');
+(1, 'Mayford Main Admin', 'mainadmin', 'scrypt$a1b2c3d4e5f60718293a4b5c6d7e8f90$bf6bdd1693dc31289e14d0eca9d8dd21d9e5d6945a99a798b2bbd904873d4578962b2471595c04a15459dab8ff124511d0288e7e5d3c60b4a850d8211c4903db', 'super_admin', '2026-06-19 16:40:05'),
+(2, 'Adabraka Admin', 'adabraka', 'scrypt$a1b2c3d4e5f60718293a4b5c6d7e8f90$bf6bdd1693dc31289e14d0eca9d8dd21d9e5d6945a99a798b2bbd904873d4578962b2471595c04a15459dab8ff124511d0288e7e5d3c60b4a850d8211c4903db', 'adabraka_admin', '2026-06-19 16:40:05'),
+(3, 'Dzorwulu Admin', 'dzorwulu', 'scrypt$a1b2c3d4e5f60718293a4b5c6d7e8f90$bf6bdd1693dc31289e14d0eca9d8dd21d9e5d6945a99a798b2bbd904873d4578962b2471595c04a15459dab8ff124511d0288e7e5d3c60b4a850d8211c4903db', 'dzorwulu_admin', '2026-06-19 16:40:05');
 
 -- --------------------------------------------------------
 --  Banners (orange marquee messages at the top of every page)
