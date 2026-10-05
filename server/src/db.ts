@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS community_media (
   file_name TEXT NOT NULL,
   title TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
+  poster_url TEXT,
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS contact_messages (
@@ -152,7 +153,17 @@ CREATE TABLE IF NOT EXISTS advertisement_banners (
 CREATE TABLE IF NOT EXISTS advertisement_videos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   video_name TEXT NOT NULL,
+  poster_url TEXT,
   created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS image_asset_metadata (
+  object_key VARCHAR(191) PRIMARY KEY,
+  public_url TEXT NOT NULL,
+  width INTEGER NOT NULL,
+  height INTEGER NOT NULL,
+  color TEXT NOT NULL,
+  variants_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS training_applications (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -268,8 +279,8 @@ export function starterSeeds(ts: string): SeedEntry[] {
       ],
     },
     {
-      sql: 'INSERT INTO advertisement_videos (video_name, created_at) VALUES (?,?)',
-      rows: [['video.mp4', ts]],
+      sql: 'INSERT INTO advertisement_videos (video_name, poster_url, created_at) VALUES (?,?,?)',
+      rows: [['video.mp4', 'hero.png', ts]],
     },
     {
       sql: 'INSERT INTO community_media (media_type, file_name, title, description, created_at) VALUES (?,?,?,?,?)',
@@ -439,6 +450,8 @@ function initSqlite(): void {
     "ALTER TABLE orders ADD COLUMN order_source TEXT NOT NULL DEFAULT 'Online'",
     "ALTER TABLE community_media ADD COLUMN title TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE community_media ADD COLUMN description TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE community_media ADD COLUMN poster_url TEXT",
+    "ALTER TABLE advertisement_videos ADD COLUMN poster_url TEXT",
     "ALTER TABLE training_applications ADD COLUMN application_ref TEXT",
     "ALTER TABLE training_applications ADD COLUMN status TEXT NOT NULL DEFAULT 'New'",
     "ALTER TABLE training_applications ADD COLUMN admin_notes TEXT",
@@ -469,19 +482,65 @@ function initSqlite(): void {
   console.warn(`[db] Using SQLite DEMO MODE at ${file} (data resets are NOT synced to Supabase/MySQL).`);
 }
 
+async function ensureMediaSchema(): Promise<void> {
+  await execute(`CREATE TABLE IF NOT EXISTS image_asset_metadata (
+    object_key VARCHAR(191) PRIMARY KEY,
+    public_url TEXT NOT NULL,
+    width INTEGER NOT NULL,
+    height INTEGER NOT NULL,
+    color TEXT NOT NULL,
+    variants_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`);
+
+  if (activeMode === 'supabase' || activeMode === 'postgres') {
+    await query('ALTER TABLE image_asset_metadata ENABLE ROW LEVEL SECURITY');
+    await query('ALTER TABLE advertisement_videos ADD COLUMN IF NOT EXISTS poster_url TEXT');
+    await query('ALTER TABLE community_media ADD COLUMN IF NOT EXISTS poster_url TEXT');
+    await query('ALTER TABLE community_media ADD COLUMN IF NOT EXISTS file_name VARCHAR(255)');
+    try {
+      await query(`UPDATE community_media
+        SET file_name=COALESCE(NULLIF(file_name, ''), NULLIF(media_url, ''), 'community1.png')
+        WHERE file_name IS NULL OR file_name=''`);
+      await query('ALTER TABLE community_media ALTER COLUMN media_url DROP NOT NULL');
+    } catch (err) {
+      if (!String((err as Error).message).includes('media_url')) throw err;
+    }
+  } else if (activeMode === 'mysql') {
+    const alterations = [
+      ['advertisement_videos', 'poster_url', 'TEXT'],
+      ['community_media', 'poster_url', 'TEXT'],
+      ['community_media', 'title', "VARCHAR(255) NOT NULL DEFAULT ''"],
+      ['community_media', 'description', 'TEXT NULL'],
+    ];
+    for (const [table, column, definition] of alterations) {
+      try {
+        await execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+      } catch (err) {
+        const message = (err as Error).message.toLowerCase();
+        if (!message.includes('duplicate column') && !message.includes('duplicate')) throw err;
+      }
+    }
+  }
+}
+
 export async function initDb(): Promise<void> {
   const mode = process.env.DEMO_MODE || 'auto';
   const supabaseOnly = /^(1|true|yes)$/i.test(process.env.SUPABASE_ONLY || '');
 
   // Supabase-only mode is strict: never connect to MySQL or fall back to local SQLite.
-  if (await tryConnectSupabase()) return;
+  if (await tryConnectSupabase()) {
+    await ensureMediaSchema();
+    return;
+  }
   if (supabaseOnly) {
     throw new Error('SUPABASE_ONLY is enabled, but a Supabase PostgreSQL connection could not be established.');
   }
 
   // 2. Try MySQL next if configured
-  if (mode !== 'force') {
-    if (await tryConnectMysql()) return;
+  if (mode !== 'force' && (await tryConnectMysql())) {
+    await ensureMediaSchema();
+    return;
   }
 
   // 3. Fallback to zero-config SQLite
@@ -489,6 +548,7 @@ export async function initDb(): Promise<void> {
     throw new Error('Database is required (DEMO_MODE=off) but neither Supabase nor MySQL could be reached.');
   }
   initSqlite();
+  await ensureMediaSchema();
 }
 
 export async function query(sql: string, params: any[] = []): Promise<Row[]> {

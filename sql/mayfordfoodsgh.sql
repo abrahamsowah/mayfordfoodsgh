@@ -84,6 +84,9 @@ CREATE TABLE `community_media` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `media_type` varchar(20) NOT NULL,
   `file_name` varchar(255) NOT NULL,
+  `title` varchar(255) NOT NULL DEFAULT '',
+  `description` text DEFAULT NULL,
+  `poster_url` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -251,12 +254,24 @@ DROP TABLE IF EXISTS `advertisement_videos`;
 CREATE TABLE `advertisement_videos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `video_name` varchar(255) NOT NULL,
+  `poster_url` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `advertisement_videos` (`id`, `video_name`, `created_at`) VALUES
-(1, 'video.mp4', '2026-06-19 18:10:00');
+INSERT INTO `advertisement_videos` (`id`, `video_name`, `poster_url`, `created_at`) VALUES
+(1, 'video.mp4', 'hero.png', '2026-06-19 18:10:00');
+
+CREATE TABLE `image_asset_metadata` (
+  `object_key` varchar(191) NOT NULL,
+  `public_url` text NOT NULL,
+  `width` int NOT NULL,
+  `height` int NOT NULL,
+  `color` varchar(16) NOT NULL,
+  `variants_json` text NOT NULL,
+  `updated_at` varchar(40) NOT NULL,
+  PRIMARY KEY (`object_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 --  Visitor counter (shown in the footer + admin dashboard)

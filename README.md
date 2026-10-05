@@ -8,7 +8,7 @@ Modernized, high-performance web platform and real-time operations engine for **
 
 | Service | Role | Configuration / Details |
 |---|---|---|
-| **Supabase** | Cloud PostgreSQL Database & Session Store | All 16 tables, check constraints, indexes, RLS policies, and RPC visitor counter ([`sql/supabase_schema.sql`](sql/supabase_schema.sql)). Direct connection via `DATABASE_URL` or `SUPABASE_DB_URL`. |
+| **Supabase** | Cloud PostgreSQL, Session Store & Media Storage | PostgreSQL/RLS plus the public-read `mayford-media` bucket for admin images, video posters, and clips. The API uses the server-only service role to issue signed uploads; direct browser uploads keep large videos out of Vercel's request limit. |
 | **Resend** | Transactional & Branded Email Delivery | Dispatches branded HTML Academy Admission confirmations (`MFA-2026-XXXX`) and Customer Order receipts with cryptographic verification seals via `RESEND_API_KEY`. |
 | **Paystack** | Payment Gateway (GHS) | Direct Mobile Money (MTN, Telecel, AirtelTigo) and Visa/Mastercard processing with HMAC-SHA256 signature verification. |
 
@@ -77,13 +77,16 @@ Modernized, high-performance web platform and real-time operations engine for **
    [`sql/migrations/20261005_harden_supabase_payment_security.sql`](sql/migrations/20261005_harden_supabase_payment_security.sql)
    This immediately locks down RLS policies, isolates financial/payment tables from the public Anon key, secures Paystack references with unique indexes, removes sensitive customer PII from public WebSockets, and provisions the tamper-proof `payment_audit_logs` ledger.
 5. If in-store cashier orders are also needed, run [`sql/migrations/20261005_add_in_store_orders.sql`](sql/migrations/20261005_add_in_store_orders.sql).
-6. Go to **Project Settings → Database → Connection string** (URI) and add the Supabase Postgres URI to your server environment.
+6. Run [`sql/migrations/20261005_durable_media_and_video_posters.sql`](sql/migrations/20261005_durable_media_and_video_posters.sql). It adds poster/variant metadata and creates the public-read `mayford-media` bucket with a 100 MiB limit. Writes are still restricted to signed URLs issued by the server.
+7. Go to **Project Settings → Database → Connection string** (URI) and add the Supabase Postgres URI to your server environment.
    ```env
    SUPABASE_DB_URL=postgresql://postgres.[YOUR-PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?sslmode=require
    SUPABASE_ONLY=true
    DEMO_MODE=off
+   SUPABASE_MEDIA_BUCKET=mayford-media
+   SUPABASE_ANON_KEY=your-public-anon-key
    ```
-   `DATABASE_URL` is also accepted instead of `SUPABASE_DB_URL`. With `SUPABASE_ONLY=true`, the server refuses MySQL and SQLite fallback if Supabase is unavailable.
+   Also set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` for the API. The public anon key is sent with signed Storage requests; it is safe to expose, unlike the service-role key. Never put the service-role key in a `VITE_` variable or expose it to the browser. `DATABASE_URL` is also accepted instead of `SUPABASE_DB_URL`. With `SUPABASE_ONLY=true`, the server refuses MySQL and SQLite fallback if Supabase is unavailable.
 
 ### 2. Resend (Email Delivery) Setup
 1. Create an account in [Resend](https://resend.com) and generate an API key (`re_...`).
@@ -109,6 +112,11 @@ PORT=4000
 SUPABASE_DB_URL=postgresql://postgres:password@db.supabase.co:5432/postgres
 SUPABASE_ONLY=true
 DEMO_MODE=off
+# Supabase Storage (server-only credentials; required for durable Vercel uploads)
+SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
+SUPABASE_ANON_KEY=your-public-anon-key
+SUPABASE_MEDIA_BUCKET=mayford-media
 
 # Resend Transactional Emails (Primary)
 RESEND_API_KEY=re_your_resend_api_key
@@ -213,18 +221,24 @@ stay fast on Ghanaian mobile connections.
   and pass `sizes` matching the layout, e.g.
   `sizes="(min-width: 1024px) 33vw, 100vw"`. `position` maps to
   `object-position` when a tall photo is cropped by a wide frame.
-- **Admin uploads are optimized twice.** The browser re-encodes photos over
-  ~350 KB to WebP with a 1600 px longest edge before sending them
-  (`prepareImageForUpload` in `react/src/utils.ts`), and the API then generates
-  the 480/960/1600 px ladder with `sharp` (`server/src/images.ts`) when the upload
-  is saved. Deleting a slide, advert or community item also removes its generated
-  variants. Video, GIF and SVG uploads pass through untouched.
+- **Durable admin media.** With the Supabase bucket configured, the API issues
+  short-lived, single-object signed upload URLs after checking the admin session,
+  target route, file type, and size. The browser sends media directly to Storage
+  (so large videos bypass Vercel's request-body limit); the service-role key stays
+  server-side. Original asset URLs are stored in the existing media columns, so
+  older bundled filename references continue to work.
+- **Server-side image variants.** The browser first shrinks large camera photos;
+  after upload, `sharp` creates the responsive 480/960/1600 px WebP ladder and
+  the image manifest metadata. Originals and derivatives are stored together in
+  Supabase Storage, not on Vercel's temporary filesystem. Replacing/deleting an
+  admin item also cleans up its managed Storage objects.
+- **Video posters without ffmpeg.** When an admin uploads a clip, the browser
+  captures a frame locally and uploads it as a poster; an admin may choose a
+  custom poster instead. Existing clips use bundled poster fallbacks, and the
+  video tags set `poster` before playback.
 - **Static media is cached** for a day with a week of `stale-while-revalidate`
-  (`server/src/index.ts` + `vercel.json`); Vercel uploads under `/tmp` keep a
-  1 hour TTL.
-- Before the runtime manifest answers, an upload simply renders through
-  `<SmartImage>` as a plain lazy `<img>` and upgrades to responsive variants as
-  soon as the metadata lands — nothing ever appears broken.
+  (`server/src/index.ts` + `vercel.json`). Supabase objects use long-lived cache
+  headers and unique object keys.
 
 ---
 
@@ -235,6 +249,6 @@ The repo is set up for Vercel out of the box (`vercel.json` + `api/index.ts`):
 - The React app is built from `react/` and served as static files from `react/dist`.
 - All `/api/*` routes run the Express app as a serverless function (`api/index.ts`).
 - Import the repo in Vercel with the **Root Directory left as the repo root** (don't pick `react/` or `server/`), and Node.js **22.x**.
-- Add the environment variables listed above in **Project → Settings → Environment Variables**. A Supabase Postgres URI (`SUPABASE_DB_URL` or `DATABASE_URL`) is required. Set `SUPABASE_ONLY=true` so the server fails closed instead of connecting to MySQL or temporary SQLite if Supabase is unavailable.
-- Vercel's filesystem is temporary, so admin media uploads won't stick around between function instances. Use Supabase Storage or another external store for durable uploads. The runtime image derivatives (`sharp`) are generated on the same ephemeral disk and are cheap to rebuild, but they disappear with it — durable uploads on Supabase Storage would need the same treatment server-side.
+- Add the environment variables listed above in **Project → Settings → Environment Variables**. A Supabase Postgres URI (`SUPABASE_DB_URL` or `DATABASE_URL`), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, and `SUPABASE_MEDIA_BUCKET=mayford-media` are required for durable uploads. Set `SUPABASE_ONLY=true` so the server fails closed instead of connecting to MySQL or temporary SQLite if Supabase is unavailable.
+- Run the durable-media migration before deploying. Vercel uploads now go straight to Storage; production requests fail clearly rather than silently writing media to ephemeral `/tmp` when Storage is missing. Uploads from older Vercel instances cannot be migrated if their temporary files have already disappeared; existing bundled assets remain supported.
 - Server-Sent Events (`/api/admin/live-stream`) get cut off at the function's max duration (60s). The client reconnects automatically.

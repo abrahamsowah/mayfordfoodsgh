@@ -6,15 +6,16 @@ import { IMAGE_MANIFEST, type ImageMeta } from '../generated/imageManifest';
  *
  * Bundled photos are described at build time (`npm run images` →
  * `src/generated/imageManifest.ts`). Photos uploaded from the admin panel are
- * described at runtime by the API (`GET /api/image-manifest`), which also
- * generates their WebP variant ladder on demand. The runtime entries are merged
- * over the bundled ones the first time the app boots, so newly uploaded images
- * get responsive `srcset`, intrinsic dimensions and a placeholder colour with no
- * rebuild or deploy.
+ * described at runtime by the API (`GET /api/image-manifest`); local uploads are
+ * optimized on demand, while Supabase Storage uploads are optimized on ingest
+ * and their metadata is persisted with the media. Runtime entries merge over the
+ * bundled ones, so uploaded images get responsive `srcset`, intrinsic dimensions
+ * and a placeholder colour with no rebuild or deploy.
  */
 let merged: Readonly<Record<string, ImageMeta>> = IMAGE_MANIFEST;
 let runtime: Record<string, ImageMeta> = {};
 let started = false;
+let refreshVersion = 0;
 const listeners = new Set<() => void>();
 
 type WireImageMeta = Partial<ImageMeta> & { variants?: Array<{ width?: number; url?: string }> };
@@ -47,23 +48,32 @@ function sanitize(payload: unknown): Record<string, ImageMeta> {
   return clean;
 }
 
+/** Refresh runtime metadata after an upload, replacement or deletion. */
+export async function refreshRuntimeImageManifest(): Promise<void> {
+  if (typeof fetch !== 'function') return;
+  const version = ++refreshVersion;
+  try {
+    const res = await fetch('/api/image-manifest', {
+      cache: 'no-store',
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return;
+    const entries = sanitize(await res.json());
+    if (version !== refreshVersion) return;
+    runtime = entries;
+    merged = { ...IMAGE_MANIFEST, ...entries };
+    listeners.forEach((notify) => notify());
+  } catch {
+    /* offline or API unavailable: bundled metadata still applies */
+  }
+}
+
 /** Fetch the runtime manifest once per page load. Failures are non-fatal. */
 export function loadRuntimeImageManifest(): void {
-  if (started || typeof fetch !== 'function') return;
+  if (started) return;
   started = true;
-
-  fetch('/api/image-manifest', { credentials: 'include', headers: { Accept: 'application/json' } })
-    .then((res) => (res.ok ? res.json() : null))
-    .then((payload) => {
-      const entries = sanitize(payload);
-      if (Object.keys(entries).length === 0) return;
-      runtime = entries;
-      merged = { ...IMAGE_MANIFEST, ...entries };
-      listeners.forEach((notify) => notify());
-    })
-    .catch(() => {
-      /* offline or API unavailable: bundled metadata still applies */
-    });
+  void refreshRuntimeImageManifest();
 }
 
 function subscribe(listener: () => void): () => void {

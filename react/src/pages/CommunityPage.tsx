@@ -5,6 +5,7 @@ import { Reveal } from '../components/motion';
 import { Card, Eyebrow, HeroSmall, LinkBtn, MediaCardSkeleton, Section, SectionHeader } from '../components/ui';
 import { SmartImage } from '../components/SmartImage';
 import type { CommunityMedia } from '../types';
+import { assetUrl } from '../utils';
 
 export default function CommunityPage() {
   const [media, setMedia] = useState<CommunityMedia[] | null>(null);
@@ -77,18 +78,22 @@ export default function CommunityPage() {
                 <div className="flex h-full flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white">
                   {m.media_type === 'video' ? (
                     <div className="relative aspect-[4/3] bg-[#111111]">
-                      <video controls preload="metadata" className="absolute inset-0 h-full w-full object-contain">
-                        <source src={`/assets/community/${m.file_name}`} type="video/mp4" />
-                        <source src={`/assets/videos/${m.file_name}`} type="video/mp4" />
+                      <video
+                        controls
+                        preload="metadata"
+                        poster={assetUrl('community', m.poster_url) || '/assets/images/trainingpic.png'}
+                        className="absolute inset-0 h-full w-full object-contain"
+                      >
+                        <source src={assetUrl('community', m.file_name)} />
                       </video>
                     </div>
                   ) : (
                     <div className="group aspect-[4/3] overflow-hidden bg-neutral-100">
                       <SmartImage
-                        src={`/assets/community/${m.file_name}`}
+                        src={assetUrl('community', m.file_name)}
                         alt={m.title || 'Mayford Community Impact'}
                         sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                        fallbackSrc={`/assets/images/${m.file_name}`}
+                        fallbackSrc={assetUrl('images', m.file_name)}
                         className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
                       />
                     </div>

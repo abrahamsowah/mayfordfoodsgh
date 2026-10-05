@@ -35,6 +35,7 @@ export interface Advert {
 export interface AdVideo {
   id: number;
   video_name: string;
+  poster_url?: string | null;
   created_at: string;
 }
 
@@ -42,6 +43,7 @@ export interface CommunityMedia {
   id: number;
   media_type: 'image' | 'video' | string;
   file_name: string;
+  poster_url?: string | null;
   title?: string;
   description?: string;
   created_at: string;

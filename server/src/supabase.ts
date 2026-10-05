@@ -74,7 +74,7 @@ export function getSupabaseDetails() {
     masked_service_key: SUPABASE_SERVICE_ROLE_KEY ? `${SUPABASE_SERVICE_ROLE_KEY.slice(0, 10)}••••••••` : 'Not Set',
     realtime_enabled: true,
     realtime_tables: REALTIME_TABLES,
-    rls_enabled_tables_count: 17,
+    rls_enabled_tables_count: 18,
     rls_policies_count: 22,
   };
 }

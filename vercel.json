@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm install && npm install --prefix react",
+  "installCommand": "npm install && npm install --prefix server && npm install --prefix react",
   "buildCommand": "npm run build --prefix react",
   "outputDirectory": "react/dist",
   "functions": {

@@ -3,7 +3,7 @@ import { Check, Edit3, FolderOpen, Plus, Search, Tags, X } from 'lucide-react';
 import { api } from '../../api';
 import { Alert, Btn, DeleteBtn, EmptyRow, Field, Input, Select, Textarea } from '../../components/ui';
 import type { Category, MenuItem } from '../../types';
-import { effectivePrice, ghs, prepareImageForUpload } from '../../utils';
+import { assetUrl, effectivePrice, ghs, prepareImageForUpload } from '../../utils';
 import { SmartImage } from '../../components/SmartImage';
 
 const PRESET_KITCHEN_IMAGES = [
@@ -107,7 +107,7 @@ function MenuFormModal({
     }
   }
 
-  const displayImage = previewUrl || `/assets/images/${selectedPresetImage}`;
+  const displayImage = previewUrl || assetUrl('images', selectedPresetImage);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
@@ -429,7 +429,7 @@ export function AdminMenuItems() {
                     <td className="p-4">
                       <div className="flex items-center gap-3.5">
                         <SmartImage
-                          src={`/assets/images/${i.image}`}
+                          src={assetUrl('images', i.image)}
                           alt={i.food_name}
                           sizes="80px"
                           fallbackSrc="/assets/images/Jollof.png"
@@ -726,7 +726,7 @@ export function AdminDiscounts() {
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <SmartImage
-                            src={`/assets/images/${i.image}`}
+                            src={assetUrl('images', i.image)}
                             alt={i.food_name}
                             sizes="64px"
                             fallbackSrc="/assets/images/Jollof.png"
