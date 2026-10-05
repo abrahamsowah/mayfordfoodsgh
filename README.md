@@ -164,3 +164,16 @@ By default it serves its own dashboard and `/api/shield` API on port `5000`. In 
 
 - **Security PIN**: `mayford2026` (Configurable via `ADMIN_PIN`).
 - Passwords can be changed anytime in **Settings $\rightarrow$ Update Staff Password** (hashed with `scrypt`).
+
+---
+
+## Deploying to Vercel
+
+The repo is set up for Vercel out of the box (`vercel.json` + `api/index.ts`):
+
+- The React app is built from `react/` and served as static files from `react/dist`.
+- All `/api/*` routes run the Express app as a serverless function (`api/index.ts`).
+- Import the repo in Vercel with the **Root Directory left as the repo root** (don't pick `react/` or `server/`), and Node.js **22.x**.
+- Add the environment variables listed above in **Project → Settings → Environment Variables**. `DATABASE_URL` (Supabase) is **required**: without it the app falls back to a temporary SQLite database in `/tmp` that gets wiped often.
+- Vercel's filesystem is temporary, so admin media uploads won't stick around between function instances. Use Supabase Storage or another external store for durable uploads.
+- Server-Sent Events (`/api/admin/live-stream`) get cut off at the function's max duration (60s). The client reconnects automatically.
