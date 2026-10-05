@@ -3,9 +3,8 @@
 /* ------------------------------------------------------------------
    Mayford Foods GH Design System
    Inspired by Airbnb DLS & Uber Base:
-   - 85% crisp neutrals (#FFFFFF, #F7F7F7)
-   - 10% deep charcoal/black ink (#111111, #222222, #6B6B6B)
-   - 5% disciplined Mayford Red (#B22222) accent
+   - Warm ivory and muted gold surfaces to complement the Mayford logo
+   - Deep charcoal ink and disciplined Mayford red accents
 ------------------------------------------------------------------- */
 @theme {
   --font-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -66,7 +65,7 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #f7f7f7;
+  background: #FAF6E8;
 }
 ::-webkit-scrollbar-thumb {
   background: #d4d4d4;

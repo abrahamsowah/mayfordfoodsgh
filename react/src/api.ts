@@ -17,6 +17,7 @@ async function request<T = any>(path: string, options: RequestInit = {}): Promis
   const res = await fetch(`/api${path}`, {
     credentials: 'include',
     ...options,
+    ...(path === '/auth/session' ? { cache: 'no-store' as const } : {}),
     headers: {
       ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers || {}),

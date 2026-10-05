@@ -31,7 +31,7 @@ export default function MenuAccessPage() {
               </div>
             </div>
 
-            <div className="mx-auto shrink-0 rounded-lg border border-neutral-200 bg-[#F7F7F7] p-3">
+            <div className="mx-auto shrink-0 rounded-lg border border-neutral-200 bg-[#FAF6E8] p-3">
               <SmartImage
                 src="/assets/images/menuqr.jpeg"
                 alt="Mayford Foods Menu QR Code"

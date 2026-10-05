@@ -47,7 +47,7 @@ export default function CommunityPage() {
           ].map((item, i) => (
             <Reveal key={item.title} delay={i * 70}>
               <Card className="h-full p-6 sm:p-7">
-                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-[#F7F7F7] text-[#111111]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-[#FAF6E8] text-[#111111]">
                   <item.icon className="h-5 w-5" />
                 </span>
                 <h2 className="mt-5 text-lg font-bold tracking-tight text-[#111111]">{item.title}</h2>

@@ -569,7 +569,9 @@ export async function execute(sql: string, params: any[] = []): Promise<Result> 
   if (pgPool) {
     let pgSql = convertToPgSql(sql);
     const isInsert = /^\s*INSERT\s+INTO/i.test(sql);
-    if (isInsert && !/RETURNING/i.test(pgSql)) {
+    // Session rows are keyed by sid, not id; only request an id for other inserts.
+    const isSessionInsert = /^\s*INSERT\s+INTO\s+(?:public\.)?admin_sessions\b/i.test(sql);
+    if (isInsert && !isSessionInsert && !/RETURNING/i.test(pgSql)) {
       pgSql += ' RETURNING id';
     }
     const res = await pgPool.query(pgSql, params);

@@ -45,7 +45,7 @@ export default function OutletsPage() {
 
   return (
     <>
-      <section className="border-b border-neutral-200 bg-[#F7F7F7] py-12 md:py-16">
+      <section className="border-b border-neutral-200 bg-[#FAF6E8] py-12 md:py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div className="max-w-2xl">

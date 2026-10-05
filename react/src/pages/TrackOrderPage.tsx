@@ -260,7 +260,7 @@ export default function TrackOrderPage() {
                           active
                             ? 'border-[#111111] bg-[#111111] text-white shadow-sm'
                             : done
-                            ? 'border-emerald-600 bg-[#F7F7F7] text-[#111111]'
+                            ? 'border-emerald-600 bg-[#FAF6E8] text-[#111111]'
                             : 'border-neutral-200 bg-white text-[#6B6B6B]'
                         }`}
                       >
@@ -291,7 +291,7 @@ export default function TrackOrderPage() {
               </div>
 
               {/* Order & Payment Details Grid */}
-              <div className="grid gap-4 rounded-md border border-neutral-200 bg-[#F7F7F7] p-5 sm:grid-cols-2">
+              <div className="grid gap-4 rounded-md border border-neutral-200 bg-[#FAF6E8] p-5 sm:grid-cols-2">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-wider text-[#6B6B6B]">
                     Ordered Items

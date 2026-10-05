@@ -120,7 +120,7 @@ export default function CateringPage() {
           {SERVICES.map((s, i) => (
             <Reveal key={s.title} delay={i * 70}>
               <Card className="h-full p-6">
-                <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#F7F7F7] border border-neutral-200 text-[#111111]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#FAF6E8] border border-neutral-200 text-[#111111]">
                   <s.icon className="h-5 w-5" />
                 </span>
                 <h3 className="mt-5 text-base font-bold tracking-tight text-[#111111]">{s.title}</h3>
@@ -181,7 +181,7 @@ export default function CateringPage() {
               </video>
             </div>
 
-            <div className="mt-6 rounded-lg border border-neutral-200 bg-[#F7F7F7] p-5">
+            <div className="mt-6 rounded-lg border border-neutral-200 bg-[#FAF6E8] p-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-[#111111]">
                 Need an Immediate Quote?
               </p>

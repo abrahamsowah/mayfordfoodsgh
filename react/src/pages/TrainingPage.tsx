@@ -247,7 +247,7 @@ export default function TrainingPage() {
                 <div className="flex flex-1 flex-col p-6">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <h3 className="text-lg font-bold text-[#111111]">{t.title}</h3>
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#F7F7F7] text-[#111111]">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#FAF6E8] text-[#111111]">
                       <Icon className="h-4 w-4" />
                     </div>
                   </div>
