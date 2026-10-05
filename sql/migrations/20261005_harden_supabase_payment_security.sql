@@ -42,7 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_payment_audit_logs_created ON public.payment_audi
 
 ALTER TABLE public.payment_audit_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Service role full access payment_audit_logs" ON public.payment_audit_logs;
-CREATE POLICY "Service role full access payment_audit_logs" ON public.payment_audit_logs TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access payment_audit_logs" ON public.payment_audit_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
 REVOKE ALL ON public.payment_audit_logs FROM anon, authenticated;
 
 -- ---------------------------------------------------------------------
@@ -66,7 +66,7 @@ DROP POLICY IF EXISTS "Public delete orders" ON public.orders;
 
 -- Backend API server (service_role) retains full CRUD access
 CREATE POLICY "Service role full access orders" ON public.orders
-  TO service_role FOR ALL USING (true) WITH CHECK (true);
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- Revoke direct mutation permissions on orders from public / client roles
 REVOKE INSERT, UPDATE, DELETE ON public.orders FROM anon, authenticated;
@@ -82,9 +82,9 @@ DROP POLICY IF EXISTS "Service role full access admins" ON public.admins;
 DROP POLICY IF EXISTS "Service role full access admin_sessions" ON public.admin_sessions;
 
 CREATE POLICY "Service role full access admins" ON public.admins
-  TO service_role FOR ALL USING (true) WITH CHECK (true);
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access admin_sessions" ON public.admin_sessions
-  TO service_role FOR ALL USING (true) WITH CHECK (true);
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 REVOKE ALL ON public.admins FROM anon, authenticated;
 REVOKE ALL ON public.admin_sessions FROM anon, authenticated;
@@ -104,7 +104,7 @@ DROP POLICY IF EXISTS "Public read website_settings" ON public.website_settings;
 CREATE POLICY "Public read website_settings" ON public.website_settings
   FOR SELECT USING (true);
 CREATE POLICY "Service role full access website_settings" ON public.website_settings
-  TO service_role FOR ALL USING (true) WITH CHECK (true);
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 REVOKE INSERT, UPDATE, DELETE ON public.website_settings FROM anon, authenticated;
 
@@ -120,11 +120,11 @@ DROP POLICY IF EXISTS "Service role full access training_applications" ON public
 DROP POLICY IF EXISTS "Service role full access contact_messages" ON public.contact_messages;
 
 CREATE POLICY "Service role full access catering_bookings" ON public.catering_bookings
-  TO service_role FOR ALL USING (true) WITH CHECK (true);
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access training_applications" ON public.training_applications
-  TO service_role FOR ALL USING (true) WITH CHECK (true);
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access contact_messages" ON public.contact_messages
-  TO service_role FOR ALL USING (true) WITH CHECK (true);
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- Ensure anon cannot SELECT other users' sensitive personal contact details
 REVOKE SELECT ON public.catering_bookings FROM anon;
@@ -135,32 +135,45 @@ REVOKE SELECT ON public.contact_messages FROM anon;
 -- 7. Secure Supabase Realtime (Eliminate PII / Order Broadcast Leaks)
 -- ---------------------------------------------------------------------
 DO $$
+DECLARE
+  publication_table RECORD;
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
-    BEGIN
-      ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS public.orders;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
-    BEGIN
-      ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS public.catering_bookings;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
-    BEGIN
-      ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS public.training_applications;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
-    BEGIN
-      ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS public.contact_messages;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
-    BEGIN
-      ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS public.admins;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
-    BEGIN
-      ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS public.admin_sessions;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
+    -- A FOR ALL TABLES publication cannot exclude individual relations; fail
+    -- instead of silently leaving private customer and staff data exposed.
+    IF EXISTS (
+      SELECT 1
+      FROM pg_publication
+      WHERE pubname = 'supabase_realtime'
+        AND puballtables
+    ) THEN
+      RAISE EXCEPTION
+        'Cannot remove sensitive tables from supabase_realtime because it publishes all tables';
+    END IF;
+
+    -- pg_publication_tables lists only relations currently included, so this
+    -- remains safe to rerun without relying on an unsupported IF EXISTS clause.
+    FOR publication_table IN
+      SELECT schemaname, tablename
+      FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename IN (
+          'orders',
+          'catering_bookings',
+          'training_applications',
+          'contact_messages',
+          'admins',
+          'admin_sessions'
+        )
+    LOOP
+      EXECUTE format(
+        'ALTER PUBLICATION %I DROP TABLE %I.%I',
+        'supabase_realtime',
+        publication_table.schemaname,
+        publication_table.tablename
+      );
+    END LOOP;
   END IF;
 END $$;
 

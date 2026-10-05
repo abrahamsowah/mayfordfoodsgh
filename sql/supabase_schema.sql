@@ -527,23 +527,23 @@ CREATE POLICY "Public insert ratings" ON public.ratings FOR INSERT TO anon
 
 -- 3. SERVICE ROLE POLICIES (Restricted to Backend API via Service Role Key)
 -- Explicitly scoped `TO service_role` so the public Anon key NEVER inherits admin privileges.
-CREATE POLICY "Service role full access admins" ON public.admins TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access admin_sessions" ON public.admin_sessions TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access banners" ON public.banners TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access catering_bookings" ON public.catering_bookings TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access community_media" ON public.community_media TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access contact_messages" ON public.contact_messages TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access menu_categories" ON public.menu_categories TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access menu_items" ON public.menu_items TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access orders" ON public.orders TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access ratings" ON public.ratings TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access slider_images" ON public.slider_images TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access training_applications" ON public.training_applications TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access advertisement_banners" ON public.advertisement_banners TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access advertisement_videos" ON public.advertisement_videos TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access visitor_counter" ON public.visitor_counter TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access website_settings" ON public.website_settings TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access payment_audit_logs" ON public.payment_audit_logs TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access admins" ON public.admins FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access admin_sessions" ON public.admin_sessions FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access banners" ON public.banners FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access catering_bookings" ON public.catering_bookings FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access community_media" ON public.community_media FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access contact_messages" ON public.contact_messages FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access menu_categories" ON public.menu_categories FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access menu_items" ON public.menu_items FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access orders" ON public.orders FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access ratings" ON public.ratings FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access slider_images" ON public.slider_images FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access training_applications" ON public.training_applications FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access advertisement_banners" ON public.advertisement_banners FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access advertisement_videos" ON public.advertisement_videos FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access visitor_counter" ON public.visitor_counter FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access website_settings" ON public.website_settings FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access payment_audit_logs" ON public.payment_audit_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- 4. HARDEN PERMISSIONS (Defense-in-depth: Revoke mutation and privacy leaks from public roles)
 REVOKE ALL ON public.admins, public.admin_sessions, public.payment_audit_logs FROM anon, authenticated;
