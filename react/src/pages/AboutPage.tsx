@@ -6,7 +6,7 @@ import { SmartImage } from '../components/SmartImage';
 export default function AboutPage() {
   return (
     <>
-      <section className="border-b border-neutral-200 bg-[#F7F7F7] py-12 md:py-16">
+      <section className="border-b border-neutral-200 bg-[#FAF7F0] py-12 md:py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl">
             <Eyebrow>Our Heritage</Eyebrow>
@@ -93,7 +93,7 @@ export default function AboutPage() {
           ].map((v, i) => (
             <Reveal key={v.title} delay={i * 80}>
               <Card className="h-full p-6 sm:p-8">
-                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-[#F7F7F7] text-[#111111]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-[#FAF7F0] text-[#111111]">
                   <v.icon className="h-5 w-5" />
                 </span>
                 <h3 className="mt-5 text-lg font-bold tracking-tight text-[#111111]">{v.title}</h3>

@@ -205,7 +205,7 @@ export default function HomePage() {
             </p>
 
             {/* Uber-style Fulfillment Widget */}
-            <div className="mt-8 rounded-lg border border-neutral-200 bg-[#F7F7F7] p-4 sm:p-5">
+            <div className="mt-8 rounded-lg border border-neutral-200 bg-[#FAF7F0] p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-3.5">
                 <span className="text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
                   Select Nearest Kitchen
@@ -291,7 +291,7 @@ export default function HomePage() {
       </section>
 
       {/* ================= THE MAYFORD STANDARD (PILLARS) ================= */}
-      <section className="border-b border-neutral-200 bg-[#F7F7F7]">
+      <section className="border-b border-neutral-200 bg-[#FAF7F0]">
         <div className="mx-auto grid max-w-7xl divide-y divide-neutral-200 px-4 sm:grid-cols-2 sm:divide-y-0 sm:px-6 lg:grid-cols-4 lg:divide-x lg:px-8">
           {[
             {
@@ -376,7 +376,7 @@ export default function HomePage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-neutral-200 bg-[#F7F7F7] p-12 text-center">
+          <div className="rounded-lg border border-neutral-200 bg-[#FAF7F0] p-12 text-center">
             <p className="text-sm text-[#6B6B6B]">Menu items are being updated. Please check back shortly.</p>
           </div>
         )}
@@ -693,7 +693,7 @@ export default function HomePage() {
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
           {/* Training Academy Card */}
           <Reveal>
-            <div className="flex h-full flex-col justify-between rounded-lg border border-neutral-200 bg-[#F7F7F7] p-7 sm:p-10">
+            <div className="flex h-full flex-col justify-between rounded-lg border border-neutral-200 bg-[#F5EBD7] p-7 sm:p-10">
               <div>
                 <div className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#111111] text-white">
                   <GraduationCap className="h-5 w-5" />
@@ -731,7 +731,7 @@ export default function HomePage() {
               </div>
               <div className="flex flex-col justify-between">
                 <div>
-                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-[#F7F7F7] text-[#111111]">
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-[#FAF7F0] text-[#111111]">
                     <HeartHandshake className="h-5 w-5" />
                   </div>
                   <Eyebrow className="mt-4">Family Owned &amp; Operated</Eyebrow>

@@ -1034,6 +1034,7 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 app.get('/api/auth/session', (req, res) => {
+  res.set('Cache-Control', 'private, no-store, max-age=0');
   res.json({
     admin_access: !!req.session?.admin_access,
     admin: req.session?.admin_id

@@ -57,7 +57,7 @@ export default function ContactPage() {
 
   return (
     <>
-      <section className="border-b border-neutral-200 bg-[#F7F7F7] py-12 md:py-16">
+      <section className="border-b border-neutral-200 bg-[#FAF7F0] py-12 md:py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl">
             <Eyebrow>Get in Touch</Eyebrow>
@@ -77,7 +77,7 @@ export default function ContactPage() {
           <div className="space-y-4 lg:col-span-5">
             <Card className="p-6">
               <div className="flex items-start gap-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-[#F7F7F7] text-[#111111]">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-[#FAF7F0] text-[#111111]">
                   <Phone className="h-4 w-4" />
                 </span>
                 <div className="flex-1">
@@ -102,7 +102,7 @@ export default function ContactPage() {
 
             <Card className="p-6">
               <div className="flex items-start gap-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-[#F7F7F7] text-[#111111]">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-[#FAF7F0] text-[#111111]">
                   <Phone className="h-4 w-4" />
                 </span>
                 <div className="flex-1">
@@ -277,7 +277,7 @@ export default function ContactPage() {
           <Reveal delay={120}>
             <Card className="flex h-full flex-col justify-between p-6">
               <div>
-                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-[#F7F7F7] text-[#111111]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-[#FAF7F0] text-[#111111]">
                   <FacebookIcon className="h-5 w-5" />
                 </span>
                 <h3 className="mt-4 text-base font-bold text-[#111111]">Facebook</h3>
@@ -300,7 +300,7 @@ export default function ContactPage() {
           <Reveal delay={180}>
             <Card className="flex h-full flex-col justify-between p-6">
               <div>
-                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-[#F7F7F7] text-[#111111]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-[#FAF7F0] text-[#111111]">
                   <Music2 className="h-5 w-5" />
                 </span>
                 <h3 className="mt-4 text-base font-bold text-[#111111]">TikTok</h3>

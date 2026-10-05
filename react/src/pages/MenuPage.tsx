@@ -66,7 +66,7 @@ export default function MenuPage() {
   return (
     <>
       {/* Editorial Menu Header */}
-      <section className="border-b border-neutral-200 bg-[#F7F7F7] py-10 md:py-14">
+      <section className="border-b border-neutral-200 bg-[#FAF7F0] py-10 md:py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
             <div className="max-w-2xl">
@@ -182,7 +182,7 @@ export default function MenuPage() {
         {!items ? (
           <FoodCardSkeleton count={6} />
         ) : visible.length === 0 ? (
-          <div className="rounded-lg border border-neutral-200 bg-[#F7F7F7] px-6 py-16 text-center">
+          <div className="rounded-lg border border-neutral-200 bg-[#FAF7F0] px-6 py-16 text-center">
             <Utensils className="mx-auto h-8 w-8 text-neutral-400" />
             <h3 className="mt-3 text-base font-bold text-[#111111]">No matching dishes found</h3>
             <p className="mt-1 text-sm text-[#6B6B6B]">

@@ -96,9 +96,9 @@ export function Section({
   tone?: 'default' | 'white' | 'tint';
 }) {
   const tones: Record<string, string> = {
-    default: 'bg-[#F7F7F7]',
+    default: 'bg-[#FAF7F0]',
     white: 'bg-white',
-    tint: 'bg-[#F7F7F7]',
+    tint: 'bg-[#F5EBD7]',
   };
   return (
     <section id={id} className={`py-16 md:py-24 ${tones[tone]} ${className}`}>
