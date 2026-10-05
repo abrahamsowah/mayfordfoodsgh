@@ -189,7 +189,7 @@ const NAV: NavItem[] = [
   { to: '/admin/slides', label: 'Hero Gallery Slides', icon: Images, section: 'Site Content' },
   { to: '/admin/videos', label: 'Kitchen Videos', icon: Clapperboard, section: 'Site Content' },
   { to: '/admin/community', label: 'Community Media', icon: Heart, section: 'Site Content' },
-  { to: '/admin/settings', label: 'Settings & Paystack', icon: Settings, section: 'Configuration' },
+  { to: '/admin/settings', label: 'Settings & Paystack', icon: Settings, section: 'Configuration', superOnly: true },
 ];
 
 export function AdminLayout() {

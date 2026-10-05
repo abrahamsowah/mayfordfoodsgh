@@ -73,8 +73,11 @@ Modernized, high-performance web platform and real-time operations engine for **
 1. Create a project in [Supabase](https://supabase.com).
 2. Go to **SQL Editor** $\rightarrow$ **New Query**.
 3. For a **new/empty project only**, copy [`sql/supabase_schema.sql`](sql/supabase_schema.sql) into the SQL Editor and click **Run**. It drops/recreates tables, so do not rerun it on a database with data.
-4. If your Supabase project already has the Mayford schema/data, **skip step 3** and run [`sql/migrations/20261005_add_in_store_orders.sql`](sql/migrations/20261005_add_in_store_orders.sql) once. It adds in-store order tracking without deleting records.
-5. Go to **Project Settings → Database → Connection string** (URI) and add the Supabase Postgres URI to your server environment.
+4. If your Supabase project already has the Mayford schema/data, **run the security hardening migration**:
+   [`sql/migrations/20261005_harden_supabase_payment_security.sql`](sql/migrations/20261005_harden_supabase_payment_security.sql)
+   This immediately locks down RLS policies, isolates financial/payment tables from the public Anon key, secures Paystack references with unique indexes, removes sensitive customer PII from public WebSockets, and provisions the tamper-proof `payment_audit_logs` ledger.
+5. If in-store cashier orders are also needed, run [`sql/migrations/20261005_add_in_store_orders.sql`](sql/migrations/20261005_add_in_store_orders.sql).
+6. Go to **Project Settings → Database → Connection string** (URI) and add the Supabase Postgres URI to your server environment.
    ```env
    SUPABASE_DB_URL=postgresql://postgres.[YOUR-PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?sslmode=require
    SUPABASE_ONLY=true

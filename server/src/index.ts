@@ -528,13 +528,27 @@ interface EndpointRateConfig {
 
 const endpointRateMap = new Map<string, { count: number; resetAt: number }>();
 
+// Periodic cleanup of expired rate limit entries to prevent memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of endpointRateMap.entries()) {
+    if (now > value.resetAt) {
+      endpointRateMap.delete(key);
+    }
+  }
+  for (const [key, value] of authRateMap.entries()) {
+    if (now > value.resetAt) {
+      authRateMap.delete(key);
+    }
+  }
+}, 5 * 60 * 1000).unref();
+
 function createRateLimiter(options: EndpointRateConfig) {
   const { windowMs, max, message } = options;
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const rawIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip || 'local')
-      .split(',')[0]
-      .trim();
-    const routeKey = `${req.method}:${req.baseUrl || ''}${req.path}:${rawIp}`;
+    // req.ip is parsed by Express with app.set('trust proxy', 1)
+    const clientIp = req.ip || req.socket.remoteAddress || 'local';
+    const routeKey = `${req.method}:${req.baseUrl || ''}${req.path}:${clientIp}`;
     const now = Date.now();
     const current = endpointRateMap.get(routeKey);
 
@@ -645,10 +659,33 @@ app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
   next();
 });
 
-app.use(cors({ origin: true, credentials: true }));
+const ALLOWED_ORIGIN_PATTERNS = [
+  /^https?:\/\/localhost(:\d+)?$/,
+  /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
+  /\.e2b\.app$/,
+  /\.arena\.ai$/,
+  /\.vercel\.app$/,
+  /mayfordfoodsgh\.com$/,
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, same-origin, curl)
+      if (!origin) return callback(null, true);
+      const isAllowed = ALLOWED_ORIGIN_PATTERNS.some((pattern) => pattern.test(origin));
+      if (isAllowed) return callback(null, true);
+      callback(new Error('Cross-Origin Request Blocked by Mayford Security Policy'));
+    },
+    credentials: true,
+  })
+);
 app.use(
   express.json({
     limit: '2mb',
@@ -692,11 +729,20 @@ app.get('/api/health', (_req, res) =>
 
 // ================================================================ PAYSTACK WEBHOOK (HMAC-SHA512)
 app.post('/api/webhooks/paystack', async (req, res) => {
-  const secret = process.env.PAYSTACK_SECRET_KEY || 'sk_test_mayfordfoodsgh_webhook_secret';
+  const isProd = process.env.NODE_ENV === 'production';
+  const secret = process.env.PAYSTACK_SECRET_KEY;
+  if (!secret) {
+    if (isProd) {
+      console.error('[webhook] PAYSTACK_SECRET_KEY is not configured in production.');
+      return res.status(503).json({ ok: false, error: 'Payment gateway webhook not configured' });
+    }
+  }
+
+  const activeSecret = secret || 'sk_test_mayfordfoodsgh_webhook_secret';
   const signature = String(req.headers['x-paystack-signature'] || '');
   const rawBody: Buffer = (req as any).rawBody || Buffer.from(JSON.stringify(req.body || {}));
 
-  const expectedSig = crypto.createHmac('sha512', secret).update(rawBody).digest('hex');
+  const expectedSig = crypto.createHmac('sha512', activeSecret).update(rawBody).digest('hex');
   const sigBuf = Buffer.from(signature, 'utf8');
   const expBuf = Buffer.from(expectedSig, 'utf8');
 
@@ -705,14 +751,74 @@ app.post('/api/webhooks/paystack', async (req, res) => {
   }
 
   const event = req.body?.event;
-  const reference = req.body?.data?.reference ? String(req.body.data.reference).trim() : '';
+  const data = req.body?.data || {};
+  const reference = data.reference ? String(data.reference).trim() : '';
 
   if (event === 'charge.success' && reference) {
-    await execute(
-      "UPDATE orders SET payment_status='Paid', payment_method='Paystack' WHERE payment_reference=?",
+    const paidAmountPesewas = Number(data.amount || 0);
+    const paidCurrency = String(data.currency || '').toUpperCase();
+
+    // Verify currency
+    if (paidCurrency && paidCurrency !== 'GHS') {
+      console.warn(`[webhook] Currency mismatch for ref ${reference}: got ${paidCurrency}, expected GHS`);
+      return res.status(400).json({ ok: false, error: 'Invalid currency' });
+    }
+
+    // Lookup order in database to verify amount against order total
+    const orderRows = await query(
+      'SELECT id, total, payment_status, status, outlet FROM orders WHERE UPPER(payment_reference) = UPPER(?)',
       [reference]
     );
-    broadcastAdminEvent('order_payment_updated', { reference, payment_status: 'Paid' });
+    const order = orderRows[0];
+
+    if (!order) {
+      console.warn(`[webhook] No matching order found for Paystack reference ${reference}`);
+      return res.status(404).json({ ok: false, error: 'Order not found for reference' });
+    }
+
+    const expectedPesewas = Math.round(Number(order.total || 0) * 100);
+    if (paidAmountPesewas < expectedPesewas) {
+      console.error(
+        `[webhook] UNDERPAYMENT DETECTED! Ref: ${reference}, paid: ${paidAmountPesewas} pesewas, expected: ${expectedPesewas} pesewas`
+      );
+      await execute(
+        `INSERT INTO payment_audit_logs (order_id, payment_reference, event_type, amount, currency, gateway, gateway_status, raw_payload)
+         VALUES (?, ?, 'underpayment_rejected', ?, ?, 'Paystack', ?, ?)`,
+        [
+          order.id,
+          reference,
+          Number((paidAmountPesewas / 100).toFixed(2)),
+          paidCurrency || 'GHS',
+          data.status || 'failed',
+          JSON.stringify({ paid_pesewas: paidAmountPesewas, expected_pesewas: expectedPesewas }),
+        ]
+      ).catch(() => undefined);
+      return res.status(400).json({ ok: false, error: 'Paid amount is less than order total' });
+    }
+
+    // Idempotency: if already marked Paid, return success without duplicate processing
+    if (order.payment_status === 'Paid') {
+      return res.json({ ok: true, updated: false, reference, message: 'Order already marked Paid' });
+    }
+
+    await execute(
+      "UPDATE orders SET payment_status='Paid', payment_method='Paystack' WHERE id=?",
+      [order.id]
+    );
+
+    // Record in immutable payment audit ledger
+    await execute(
+      `INSERT INTO payment_audit_logs (order_id, payment_reference, event_type, amount, currency, channel, gateway, gateway_status)
+       VALUES (?, ?, 'webhook_verified', ?, ?, ?, 'Paystack', 'success')`,
+      [order.id, reference, Number(order.total || 0), 'GHS', data.channel || 'online']
+    ).catch(() => undefined);
+
+    broadcastAdminEvent('order_payment_updated', {
+      id: order.id,
+      reference,
+      payment_status: 'Paid',
+      outlet: order.outlet,
+    });
     return res.json({ ok: true, updated: true, reference });
   }
 
@@ -858,9 +964,9 @@ app.post(
       });
     }
 
-    // If live/test Paystack secret key is configured and reference is from live PaystackPop, verify amount & status
+    // If live/test Paystack secret key is configured, verify transaction directly with Paystack API
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
-    if (secretKey && !reference.startsWith('PSK_MF_')) {
+    if (secretKey && secretKey.startsWith('sk_')) {
       try {
         const verifyRes = await fetch(
           `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
@@ -868,7 +974,7 @@ app.post(
         );
         const verifyData = (await verifyRes.json()) as {
           status?: boolean;
-          data?: { status?: string; amount?: number; currency?: string; reference?: string };
+          data?: { status?: string; amount?: number; currency?: string; reference?: string; channel?: string };
         };
         const expectedPesewas = Math.round(amountGhs * 100);
         const payCurrency = String(verifyData?.data?.currency || '').toUpperCase();
@@ -887,11 +993,28 @@ app.post(
                 : 'Paystack transaction could not be verified or amount did not match.',
           });
         }
+
+        // Record successful gateway verification in audit ledger
+        await execute(
+          `INSERT INTO payment_audit_logs (payment_reference, event_type, amount, currency, channel, gateway, gateway_status, ip_address)
+           VALUES (?, 'gateway_verified', ?, 'GHS', ?, 'Paystack', 'success', ?)`,
+          [reference, amountGhs, verifyData?.data?.channel || 'online', req.ip || null]
+        ).catch(() => undefined);
       } catch {
         return res.status(502).json({ ok: false, error: 'Unable to reach Paystack verification gateway' });
       }
-    } else if (!reference.startsWith('PSK_MF_')) {
-      return res.status(400).json({ ok: false, error: 'Unrecognized payment reference format' });
+    } else {
+      // In production, refuse to issue payment tokens if the gateway secret is missing
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(503).json({
+          ok: false,
+          error: 'Online payment verification gateway is not configured on this server.',
+        });
+      }
+      if (!reference.startsWith('PSK_MF_')) {
+        return res.status(400).json({ ok: false, error: 'Unrecognized payment reference format' });
+      }
+      console.warn(`[payments] DEV/DEMO SIMULATION: Issued payment token for unverified reference ${reference}`);
     }
 
     const paymentToken = signPaymentToken(reference, amountGhs);
@@ -977,19 +1100,23 @@ app.get('/api/categories', async (req, res) => {
 });
 
 // Visitor counter (tracked silently on visit, surfaced in Admin Analytics)
-app.post('/api/visit', async (req, res) => {
-  const counted = req.cookies?.mayford_visitor;
-  if (!counted) {
-    await execute('UPDATE visitor_counter SET total_visitors = total_visitors + 1 WHERE id = 1');
-    res.cookie('mayford_visitor', 'counted', {
-      maxAge: 24 * 60 * 60 * 1000,
-      httpOnly: true,
-      sameSite: 'lax',
-    });
+app.post(
+  '/api/visit',
+  createRateLimiter({ windowMs: 60 * 1000, max: 30, message: 'Too many visit requests' }),
+  async (req, res) => {
+    const counted = req.cookies?.mayford_visitor;
+    if (!counted) {
+      await execute('UPDATE visitor_counter SET total_visitors = total_visitors + 1 WHERE id = 1');
+      res.cookie('mayford_visitor', 'counted', {
+        maxAge: 24 * 60 * 60 * 1000,
+        httpOnly: true,
+        sameSite: 'lax',
+      });
+    }
+    const rows = await query('SELECT total_visitors FROM visitor_counter WHERE id = 1');
+    res.json({ ok: true, total_visitors: Number(rows[0]?.total_visitors || 0) });
   }
-  const rows = await query('SELECT total_visitors FROM visitor_counter WHERE id = 1');
-  res.json({ ok: true, total_visitors: Number(rows[0]?.total_visitors || 0) });
-});
+);
 
 app.get('/api/visitor-count', async (_req, res) => {
   const rows = await query('SELECT total_visitors FROM visitor_counter WHERE id = 1');
@@ -1017,20 +1144,21 @@ app.post(
       return res.status(400).json({ ok: false, error: 'Please select Delivery or Pickup.' });
     }
 
-    // Delivery zone & fee calculation
+    // Delivery zone & fee calculation (authoritative server pricing)
     let deliveryZoneLabel: string | null = null;
     let deliveryFee = 0;
     if (orderType === 'Delivery') {
       const resolved = resolveDeliveryZone(b.delivery_zone);
       deliveryZoneLabel = resolved.label;
-      deliveryFee = b.delivery_zone ? resolved.fee : Number(b.delivery_fee || 0);
+      deliveryFee = resolved.fee;
     }
 
-    // Authoritative server-side item & price calculation when items[] or menu_item_id is provided
+    // Authoritative server-side item & price calculation (never trust client-supplied totals)
     let foodItem = String(b.food_item || '').trim();
     let quantity = Math.max(0, Math.round(Number(b.quantity || 0)));
     let orderDetails = b.order_details ? String(b.order_details).trim() : '';
     let computedSubtotal = 0;
+    let hasValidCatalogItems = false;
 
     if (Array.isArray(b.items) && b.items.length > 0) {
       const allMenu = await query('SELECT id, food_name, price, discount_percent FROM menu_items');
@@ -1062,6 +1190,7 @@ app.post(
       foodItem = b.items.length === 1 ? menuMap.get(Number(b.items[0].id))!.food_name : 'Multiple Foods';
       quantity = totalQty;
       orderDetails = lines.join('\n');
+      hasValidCatalogItems = true;
     } else if (b.menu_item_id) {
       const itemId = Number(b.menu_item_id);
       const rows = await query('SELECT id, food_name, price, discount_percent FROM menu_items WHERE id=?', [itemId]);
@@ -1080,8 +1209,14 @@ app.post(
         lines.push(`Delivery (${deliveryZoneLabel}) = GH₵ ${deliveryFee.toFixed(2)}`);
       }
       orderDetails = lines.join('\n');
-    } else {
-      computedSubtotal = Number(b.total || 0) - deliveryFee;
+      hasValidCatalogItems = true;
+    }
+
+    if (!hasValidCatalogItems || computedSubtotal <= 0) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Please select valid menu items from the catalog. Direct price submission is disallowed.',
+      });
     }
 
     const verifiedTotal = Number((computedSubtotal + deliveryFee).toFixed(2));
@@ -1188,6 +1323,21 @@ app.post(
         payment_reference: paymentRef,
       });
 
+      if (paymentRef) {
+        await execute(
+          `INSERT INTO payment_audit_logs (order_id, payment_reference, event_type, amount, currency, channel, gateway, gateway_status)
+           VALUES (?, ?, ?, ?, 'GHS', ?, 'Paystack', ?)`,
+          [
+            result.insertId,
+            paymentRef,
+            paymentStatus === 'Paid' ? 'order_completed_paid' : 'order_placed_pending',
+            verifiedTotal,
+            paymentMethod,
+            paymentStatus,
+          ]
+        ).catch(() => undefined);
+      }
+
       // Broadcast real-time order to all live admin terminals and kitchen screens
       broadcastAdminEvent('order_created', {
         id: result.insertId,
@@ -1287,10 +1437,12 @@ app.get(
 
     const orderPhoneDigits = String(order.phone || '').replace(/\D/g, '');
     const last4Input = phone.slice(-4);
-    if (!orderPhoneDigits.endsWith(last4Input) && !orderPhoneDigits.includes(phone)) {
+    const matchesLast4 = orderPhoneDigits.endsWith(last4Input);
+    const matchesFull = phone.length >= 9 && (orderPhoneDigits === phone || orderPhoneDigits.endsWith(phone));
+    if (!matchesLast4 && !matchesFull) {
       return res.status(403).json({
         ok: false,
-        error: 'Phone number does not match the number used for this order.',
+        error: 'Phone number does not match the customer record for this order.',
       });
     }
 
@@ -2010,6 +2162,7 @@ app.post('/api/admin/menu', requireAdmin, multerUpload('images').single('image')
     return res.status(400).json({ ok: false, error: 'Dish name, category, and a valid price (> 0) are required' });
   }
   const discount = Math.max(0, Math.min(90, Math.round(Number(b.discount_percent || 0))));
+  const imageFile = req.file ? req.file.filename : path.basename(String(b.image || 'Jollof.png'));
   const result = await execute(
     'INSERT INTO menu_items (food_name, category, description, price, image, status, discount_percent, created_at) VALUES (?,?,?,?,?,?,?,?)',
     [
@@ -2017,7 +2170,7 @@ app.post('/api/admin/menu', requireAdmin, multerUpload('images').single('image')
       category,
       b.description ? String(b.description).trim() : '',
       price,
-      req.file ? sanitizeFilename(req.file.originalname) : sanitizeFilename(String(b.image || 'Jollof.png')),
+      imageFile,
       b.status === 'unavailable' ? 'unavailable' : 'available',
       discount,
       nowSql(),
@@ -2034,8 +2187,8 @@ app.put('/api/admin/menu/:id', requireAdmin, multerUpload('images').single('imag
   if (!existing) return res.status(404).json({ ok: false, error: 'Menu item not found' });
 
   const imageFile = req.file
-    ? sanitizeFilename(req.file.originalname)
-    : sanitizeFilename(String(b.image || existing.image));
+    ? req.file.filename
+    : path.basename(String(b.image || existing.image || 'Jollof.png'));
   const discountPercent =
     b.discount_percent !== undefined
       ? Math.max(0, Math.min(90, Math.round(Number(b.discount_percent))))
@@ -2101,8 +2254,8 @@ app.delete('/api/admin/categories/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/adverts', requireAdmin, multerUpload('adverts').single('banner_image'), async (req, res) => {
   const b = req.body || {};
   const bannerImg = req.file
-    ? sanitizeFilename(req.file.originalname)
-    : sanitizeFilename(String(b.banner_image || 'Jollof.png'));
+    ? req.file.filename
+    : path.basename(String(b.banner_image || 'Jollof.png'));
   const result = await execute(
     'INSERT INTO advertisement_banners (banner_image, title, description, button_text, button_link, status, created_at) VALUES (?,?,?,?,?,?,?)',
     [
@@ -2126,8 +2279,8 @@ app.put('/api/admin/adverts/:id', requireAdmin, multerUpload('adverts').single('
   if (!existing) return res.status(404).json({ ok: false, error: 'Advertisement not found' });
 
   const bannerImg = req.file
-    ? sanitizeFilename(req.file.originalname)
-    : sanitizeFilename(String(b.banner_image || existing.banner_image));
+    ? req.file.filename
+    : path.basename(String(b.banner_image || existing.banner_image || 'Jollof.png'));
 
   await execute(
     'UPDATE advertisement_banners SET banner_image=?, title=?, description=?, button_text=?, button_link=?, status=? WHERE id=?',
@@ -2172,10 +2325,8 @@ app.delete('/api/admin/banners/:id', requireAdmin, async (req, res) => {
 // Hero slides CRUD (create, update, delete)
 app.post('/api/admin/slides', requireAdmin, multerUpload('images').single('image'), async (req, res) => {
   const img = req.file
-    ? sanitizeFilename(req.file.originalname)
-    : req.body?.image
-    ? sanitizeFilename(String(req.body.image))
-    : '';
+    ? req.file.filename
+    : path.basename(String(req.body?.image || 'hero.png'));
   if (!img) return res.status(400).json({ ok: false, error: 'Slide image file is required' });
   const result = await execute('INSERT INTO slider_images (image, created_at) VALUES (?,?)', [img, nowSql()]);
   res.json({ ok: true, id: result.insertId });
@@ -2187,8 +2338,8 @@ app.put('/api/admin/slides/:id', requireAdmin, multerUpload('images').single('im
   const existing = rows[0];
   if (!existing) return res.status(404).json({ ok: false, error: 'Slide not found' });
   const img = req.file
-    ? sanitizeFilename(req.file.originalname)
-    : sanitizeFilename(String(req.body?.image || existing.image));
+    ? req.file.filename
+    : path.basename(String(req.body?.image || existing.image || 'hero.png'));
   await execute('UPDATE slider_images SET image=? WHERE id=?', [img, id]);
   res.json({ ok: true });
 });
@@ -2202,7 +2353,7 @@ app.delete('/api/admin/slides/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/videos', requireAdmin, multerUpload('videos').single('video'), async (req, res) => {
   if (!req.file) return res.status(400).json({ ok: false, error: 'Video file is required' });
   const result = await execute('INSERT INTO advertisement_videos (video_name, created_at) VALUES (?,?)', [
-    sanitizeFilename(req.file.originalname),
+    req.file.filename,
     nowSql(),
   ]);
   res.json({ ok: true, id: result.insertId });
@@ -2214,8 +2365,8 @@ app.put('/api/admin/videos/:id', requireAdmin, multerUpload('videos').single('vi
   const existing = rows[0];
   if (!existing) return res.status(404).json({ ok: false, error: 'Video not found' });
   const fileName = req.file
-    ? sanitizeFilename(req.file.originalname)
-    : sanitizeFilename(String(req.body?.video_name || existing.video_name));
+    ? req.file.filename
+    : path.basename(String(req.body?.video_name || existing.video_name));
   await execute('UPDATE advertisement_videos SET video_name=? WHERE id=?', [fileName, id]);
   res.json({ ok: true });
 });
@@ -2223,8 +2374,15 @@ app.put('/api/admin/videos/:id', requireAdmin, multerUpload('videos').single('vi
 app.delete('/api/admin/videos/:id', requireAdmin, async (req, res) => {
   const rows = await query('SELECT * FROM advertisement_videos WHERE id=?', [Number(req.params.id)]);
   if (rows[0]) {
-    const file = path.join(ASSETS_DIR, 'videos', sanitizeFilename(String(rows[0].video_name)));
-    if (fs.existsSync(file)) fs.unlinkSync(file);
+    const safeName = path.basename(String(rows[0].video_name));
+    const targetPath = path.resolve(ASSETS_DIR, 'videos', safeName);
+    if (targetPath.startsWith(path.resolve(ASSETS_DIR, 'videos')) && fs.existsSync(targetPath)) {
+      try {
+        fs.unlinkSync(targetPath);
+      } catch {
+        /* ignore */
+      }
+    }
     await execute('DELETE FROM advertisement_videos WHERE id=?', [Number(req.params.id)]);
   }
   res.json({ ok: true });
@@ -2234,10 +2392,8 @@ app.delete('/api/admin/videos/:id', requireAdmin, async (req, res) => {
 app.post('/api/admin/community', requireAdmin, multerUpload('community').single('media'), async (req, res) => {
   const b = req.body || {};
   const fileName = req.file
-    ? sanitizeFilename(req.file.originalname)
-    : b.file_name
-    ? sanitizeFilename(String(b.file_name))
-    : '';
+    ? req.file.filename
+    : path.basename(String(b.file_name || 'community1.png'));
   if (!fileName) return res.status(400).json({ ok: false, error: 'Media file or preset selection is required' });
   const result = await execute(
     'INSERT INTO community_media (media_type, file_name, title, description, created_at) VALUES (?,?,?,?,?)',
@@ -2260,8 +2416,8 @@ app.put('/api/admin/community/:id', requireAdmin, multerUpload('community').sing
   if (!existing) return res.status(404).json({ ok: false, error: 'Community activity not found' });
 
   const fileName = req.file
-    ? sanitizeFilename(req.file.originalname)
-    : sanitizeFilename(String(b.file_name || existing.file_name));
+    ? req.file.filename
+    : path.basename(String(b.file_name || existing.file_name || 'community1.png'));
   const mediaType = b.media_type
     ? b.media_type === 'video'
       ? 'video'
@@ -2284,8 +2440,15 @@ app.put('/api/admin/community/:id', requireAdmin, multerUpload('community').sing
 app.delete('/api/admin/community/:id', requireAdmin, async (req, res) => {
   const rows = await query('SELECT * FROM community_media WHERE id=?', [Number(req.params.id)]);
   if (rows[0]) {
-    const file = path.join(ASSETS_DIR, 'community', sanitizeFilename(String(rows[0].file_name)));
-    if (fs.existsSync(file)) fs.unlinkSync(file);
+    const safeName = path.basename(String(rows[0].file_name));
+    const targetPath = path.resolve(ASSETS_DIR, 'community', safeName);
+    if (targetPath.startsWith(path.resolve(ASSETS_DIR, 'community')) && fs.existsSync(targetPath)) {
+      try {
+        fs.unlinkSync(targetPath);
+      } catch {
+        /* ignore */
+      }
+    }
     await execute('DELETE FROM community_media WHERE id=?', [Number(req.params.id)]);
   }
   res.json({ ok: true });
@@ -2426,14 +2589,10 @@ app.get('/api/admin/system-status', requireAdmin, async (_req, res) => {
     },
     security_audit: {
       rls_locked: true,
-      rls_tables_protected: 16,
+      rls_tables_protected: 17,
       rls_policies_count: 22,
       realtime_enabled: true,
       realtime_tables: [
-        'orders',
-        'catering_bookings',
-        'training_applications',
-        'contact_messages',
         'visitor_counter',
         'menu_items',
         'menu_categories',
@@ -2455,8 +2614,8 @@ app.get('/api/admin/system-status', requireAdmin, async (_req, res) => {
   });
 });
 
-// Resend Email Test Dispatcher
-app.post('/api/admin/resend/test', requireAdmin, async (req, res) => {
+// Resend Email Test Dispatcher (super admin only)
+app.post('/api/admin/resend/test', requireAdmin, requireSuper, async (req, res) => {
   const recipient = String(req.body?.recipient_email || '').trim();
   if (!recipient || !recipient.includes('@')) {
     return res.status(400).json({ ok: false, error: 'A valid recipient email address is required' });
@@ -2523,13 +2682,13 @@ app.post('/api/admin/resend/test', requireAdmin, async (req, res) => {
   }
 });
 
-// Website settings
-app.get('/api/admin/settings', requireAdmin, async (_req, res) => {
+// Website settings (super admin only)
+app.get('/api/admin/settings', requireAdmin, requireSuper, async (_req, res) => {
   const rows = await query('SELECT * FROM website_settings WHERE id=1');
   res.json({ ok: true, settings: rows[0] || null });
 });
 
-app.put('/api/admin/settings', requireAdmin, async (req, res) => {
+app.put('/api/admin/settings', requireAdmin, requireSuper, async (req, res) => {
   const b = req.body || {};
   await execute(
     `UPDATE website_settings SET email=?, adabraka_phone=?, dzorwulu_phone=?, facebook_link=?, tiktok_link=?, opening_hours=?, paystack_public_key=? WHERE id=1`,

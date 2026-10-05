@@ -184,18 +184,34 @@ CREATE TABLE IF NOT EXISTS website_settings (
   opening_hours TEXT NOT NULL,
   paystack_public_key TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS payment_audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER,
+  payment_reference TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  amount REAL NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'GHS',
+  channel TEXT,
+  gateway TEXT NOT NULL DEFAULT 'Paystack',
+  gateway_status TEXT,
+  raw_payload TEXT,
+  ip_address TEXT,
+  created_at TEXT NOT NULL
+);
 `;
 
 export type SeedEntry = { sql: string; rows: any[][] };
 
 export function starterSeeds(ts: string): SeedEntry[] {
+  const defaultAdminPass =
+    'scrypt$a1b2c3d4e5f60718293a4b5c6d7e8f90$bf6bdd1693dc31289e14d0eca9d8dd21d9e5d6945a99a798b2bbd904873d4578962b2471595c04a15459dab8ff124511d0288e7e5d3c60b4a850d8211c4903db';
   return [
     {
       sql: 'INSERT INTO admins (admin_name, username, password, role, created_at) VALUES (?,?,?,?,?)',
       rows: [
-        ['Mayford Main Admin', 'mainadmin', '123456', 'super_admin', ts],
-        ['Adabraka Admin', 'adabraka', '123456', 'adabraka_admin', ts],
-        ['Dzorwulu Admin', 'dzorwulu', '123456', 'dzorwulu_admin', ts],
+        ['Mayford Main Admin', 'mainadmin', defaultAdminPass, 'super_admin', ts],
+        ['Adabraka Admin', 'adabraka', defaultAdminPass, 'adabraka_admin', ts],
+        ['Dzorwulu Admin', 'dzorwulu', defaultAdminPass, 'dzorwulu_admin', ts],
       ],
     },
     {
