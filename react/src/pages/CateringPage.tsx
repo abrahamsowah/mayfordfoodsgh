@@ -170,7 +170,12 @@ export default function CateringPage() {
             </p>
 
             <div className="mt-6 overflow-hidden rounded-lg border border-neutral-200 bg-[#111111]">
-              <video controls preload="metadata" className="aspect-video w-full object-contain">
+              <video
+                controls
+                preload="metadata"
+                poster="/assets/images/outsidecater4.jpeg"
+                className="aspect-video w-full object-contain"
+              >
                 <source src="/assets/videos/outsidecatervideo1.mp4" type="video/mp4" />
                 Your browser does not support video.
               </video>

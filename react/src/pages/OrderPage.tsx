@@ -21,7 +21,7 @@ import { ACCRA_DELIVERY_ZONES } from './CheckoutPage';
 import { Alert, Btn, Card, Eyebrow, Field, Input, LinkBtn, Section, Select, Spinner, Textarea } from '../components/ui';
 import { SmartImage } from '../components/SmartImage';
 import type { MenuItem } from '../types';
-import { effectivePrice, ghs, outletWhatsApp, waLink } from '../utils';
+import { assetUrl, effectivePrice, ghs, outletWhatsApp, waLink } from '../utils';
 
 export default function OrderPage() {
   const { id } = useParams<{ id: string }>();
@@ -326,7 +326,7 @@ export default function OrderPage() {
             <div>
               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-neutral-200">
                 <SmartImage
-                  src={`/assets/images/${food.image}`}
+                  src={assetUrl('images', food.image)}
                   alt={food.food_name}
                   priority
                   sizes="(min-width: 1024px) 50vw, 100vw"

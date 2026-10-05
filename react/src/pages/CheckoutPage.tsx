@@ -21,7 +21,7 @@ import { useSettings } from '../components/SiteLayout';
 import { launchOfficialPaystack, PaystackModal } from '../components/PaystackCheckout';
 import { Alert, Btn, Card, Eyebrow, Field, Input, LinkBtn, Section, Select, Textarea } from '../components/ui';
 import { SmartImage } from '../components/SmartImage';
-import { ghs, outletWhatsApp, waLink } from '../utils';
+import { assetUrl, ghs, outletWhatsApp, waLink } from '../utils';
 
 export const ACCRA_DELIVERY_ZONES = [
   { id: 'adabraka_ridge', label: 'Adabraka / Asylum Down / Ridge', fee: 15 },
@@ -567,7 +567,7 @@ export default function CheckoutPage() {
             {items.map((item) => (
               <li key={item.id} className="flex items-center gap-3.5 py-3 first:pt-0 last:pb-0">
                 <SmartImage
-                  src={`/assets/images/${item.image}`}
+                  src={assetUrl('images', item.image)}
                   alt={item.food_name}
                   sizes="56px"
                   fallbackSrc="/assets/images/Jollof.png"

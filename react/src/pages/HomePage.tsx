@@ -25,7 +25,7 @@ import { Reveal } from '../components/motion';
 import { Eyebrow, FoodCard, FoodCardSkeleton, LinkBtn, Section, SectionHeader, Stars } from '../components/ui';
 import { SmartImage } from '../components/SmartImage';
 import type { Advert, AdVideo, MenuItem, Rating, Slide } from '../types';
-import { ghs, waLink } from '../utils';
+import { assetUrl, ghs, waLink } from '../utils';
 
 function HeroGallery({ slides }: { slides: Slide[] }) {
   const [index, setIndex] = useState(0);
@@ -44,7 +44,7 @@ function HeroGallery({ slides }: { slides: Slide[] }) {
       {list.map((img, i) => (
         <SmartImage
           key={`${img}-${i}`}
-          src={`/assets/images/${img}`}
+          src={assetUrl('images', img)}
           alt="Mayford Foods signature dishes"
           priority={i === 0}
           sizes="(min-width: 1024px) 58vw, 100vw"
@@ -143,11 +143,11 @@ function AdvertShowcase({ adverts }: { adverts: Advert[] }) {
         </div>
         <div className="relative aspect-[16/10] w-full bg-neutral-100 md:aspect-auto md:h-full md:min-h-[260px]">
           <SmartImage
-            src={`/assets/adverts/${active.banner_image}`}
+            src={assetUrl('adverts', active.banner_image)}
             alt={active.title}
             priority
             sizes="(min-width: 768px) 42vw, 100vw"
-            fallbackSrc={`/assets/images/${active.banner_image}`}
+            fallbackSrc={assetUrl('images', active.banner_image)}
             className="h-full w-full object-cover"
           />
         </div>
@@ -560,8 +560,13 @@ export default function HomePage() {
             <Reveal>
               <div className="mx-auto max-w-4xl overflow-hidden rounded-lg border border-neutral-200 bg-[#111111]">
                 <div className="relative aspect-video w-full">
-                  <video controls preload="metadata" className="absolute inset-0 h-full w-full object-contain">
-                    <source src={`/assets/videos/${videos[0].video_name}`} type="video/mp4" />
+                  <video
+                    controls
+                    preload="metadata"
+                    poster={assetUrl('images', videos[0].poster_url) || '/assets/images/hero.png'}
+                    className="absolute inset-0 h-full w-full object-contain"
+                  >
+                    <source src={assetUrl('videos', videos[0].video_name)} />
                     Your browser does not support the video tag.
                   </video>
                 </div>
@@ -573,8 +578,13 @@ export default function HomePage() {
                 <Reveal key={v.id} delay={i * 80}>
                   <div className="overflow-hidden rounded-lg border border-neutral-200 bg-[#111111]">
                     <div className="relative aspect-video w-full">
-                      <video controls preload="metadata" className="absolute inset-0 h-full w-full object-contain">
-                        <source src={`/assets/videos/${v.video_name}`} type="video/mp4" />
+                      <video
+                        controls
+                        preload="metadata"
+                        poster={assetUrl('images', v.poster_url) || '/assets/images/hero.png'}
+                        className="absolute inset-0 h-full w-full object-contain"
+                      >
+                        <source src={assetUrl('videos', v.video_name)} />
                         Your browser does not support the video tag.
                       </video>
                     </div>

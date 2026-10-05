@@ -11,7 +11,7 @@ import { Reveal } from './motion';
 import { SmartImage } from './SmartImage';
 import { useCart } from '../context/CartContext';
 import type { MenuItem } from '../types';
-import { effectivePrice, ghs } from '../utils';
+import { assetUrl, effectivePrice, ghs } from '../utils';
 
 export function Btn({
   className = '',
@@ -431,7 +431,7 @@ export function FoodCard({ item }: { item: MenuItem }) {
       {/* Image Frame */}
       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-neutral-100">
         <SmartImage
-          src={`/assets/images/${item.image}`}
+          src={assetUrl('images', item.image)}
           alt={item.food_name}
           sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
           fallbackSrc="/assets/images/Jollof.png"

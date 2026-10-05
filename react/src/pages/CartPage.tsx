@@ -12,7 +12,7 @@ import {
 import { useCart } from '../context/CartContext';
 import { Btn, Card, Eyebrow, LinkBtn, Section } from '../components/ui';
 import { SmartImage } from '../components/SmartImage';
-import { ghs } from '../utils';
+import { assetUrl, ghs } from '../utils';
 
 export default function CartPage() {
   const { items, count, total, updateQuantity, removeItem, clear } = useCart();
@@ -80,7 +80,7 @@ export default function CartPage() {
             >
               <div className="flex items-center gap-4">
                 <SmartImage
-                  src={`/assets/images/${item.image}`}
+                  src={assetUrl('images', item.image)}
                   alt={item.food_name}
                   sizes="80px"
                   fallbackSrc="/assets/images/Jollof.png"

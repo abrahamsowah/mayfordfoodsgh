@@ -4,7 +4,7 @@ import { api } from '../../api';
 import { Alert, Btn, DeleteBtn, EmptyRow, Field, Input, Select, Textarea } from '../../components/ui';
 import type { AdVideo, Advert, Banner, CommunityMedia, Slide } from '../../types';
 import { SmartImage } from '../../components/SmartImage';
-import { prepareFormImage, prepareImageForUpload } from '../../utils';
+import { assetUrl, createVideoPoster, prepareFormImage, prepareImageForUpload } from '../../utils';
 
 const COMMUNITY_PRESETS = [
   { file: 'community1.png', label: 'Meal Donation Drive' },
@@ -165,10 +165,10 @@ export function AdminAdverts() {
                     <td className="p-4 font-mono font-bold text-[#6B6B6B]">#{a.id}</td>
                     <td className="p-4">
                       <SmartImage
-                        src={`/assets/adverts/${a.banner_image}`}
+                        src={assetUrl('adverts', a.banner_image)}
                         alt=""
                         sizes="80px"
-                        fallbackSrc={`/assets/images/${a.banner_image}`}
+                        fallbackSrc={assetUrl('images', a.banner_image)}
                         className="h-12 w-20 rounded-md border border-neutral-200 object-cover"
                       />
                     </td>
@@ -512,7 +512,7 @@ export function AdminSlides() {
           : slides.map((s) => (
               <div key={s.id} className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
                 <SmartImage
-                  src={`/assets/images/${s.image}`}
+                  src={assetUrl('images', s.image)}
                   alt=""
                   sizes="(min-width: 768px) 33vw, 50vw"
                   fallbackSrc="/assets/images/hero.png"
@@ -565,10 +565,20 @@ export function AdminVideos() {
     e.preventDefault();
     const form = e.currentTarget;
     const fd = new FormData(form);
+    const video = fd.get('video');
+    const suppliedPoster = fd.get('poster');
     setBusy(true);
     setError('');
     setSaved('');
     try {
+      if (video instanceof File && video.size > 0) {
+        if (suppliedPoster instanceof File && suppliedPoster.size > 0) {
+          await prepareFormImage(fd, 'poster');
+        } else {
+          const capturedPoster = await createVideoPoster(video);
+          if (capturedPoster) fd.set('poster', await prepareImageForUpload(capturedPoster));
+        }
+      }
       await api.upload('/admin/videos', fd);
       setSaved('Video Uploaded Successfully');
       form.reset();
@@ -601,8 +611,16 @@ export function AdminVideos() {
         {error && <Alert tone="red">{error}</Alert>}
         <form onSubmit={add} className="flex flex-wrap items-end gap-3">
           <div className="w-72">
-            <Input type="file" accept="video/*" name="video" required />
+            <Field label="Video file">
+              <Input type="file" accept=".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime" name="video" required />
+            </Field>
           </div>
+          <div className="w-72">
+            <Field label="Poster image (optional)">
+              <Input type="file" accept="image/*" name="poster" />
+            </Field>
+          </div>
+          <p className="basis-full text-xs text-[#6B6B6B]">If you skip the poster, a still is captured in your browser where the clip format supports it; otherwise a bundled thumbnail is shown.</p>
           <Btn type="submit" variant="red" disabled={busy}>
             <Plus className="h-4 w-4" />
             <span>{busy ? 'Uploading...' : 'Upload Video'}</span>
@@ -614,8 +632,12 @@ export function AdminVideos() {
           ? null
           : videos.map((v) => (
               <div key={v.id} className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-                <video controls className="h-48 w-full bg-black object-cover">
-                  <source src={`/assets/videos/${v.video_name}`} type="video/mp4" />
+                <video
+                  controls
+                  poster={assetUrl('images', v.poster_url) || '/assets/images/hero.png'}
+                  className="h-48 w-full bg-black object-cover"
+                >
+                  <source src={assetUrl('videos', v.video_name)} />
                 </video>
                 <div className="flex items-center justify-between p-4">
                   <span className="truncate text-xs font-bold text-[#111111]">{v.video_name}</span>
@@ -651,16 +673,32 @@ export function AdminCommunity() {
     e.preventDefault();
     const form = e.currentTarget;
     const fd = new FormData(form);
-    if (imageMode === 'preset') {
-      fd.delete('media');
-      fd.set('file_name', presetFile);
-    } else {
-      await prepareFormImage(fd, 'media');
-    }
+    const selectedMedia = fd.get('media');
+    const selectedPoster = fd.get('poster');
     setBusy(true);
     setError('');
     setSaved('');
     try {
+      if (imageMode === 'preset') {
+        fd.delete('media');
+        fd.delete('poster');
+        fd.set('file_name', presetFile);
+        fd.set('media_type', 'image');
+      } else {
+        await prepareFormImage(fd, 'media');
+        if (selectedMedia instanceof File && selectedMedia.size > 0 && selectedMedia.type.startsWith('video/')) {
+          fd.set('media_type', 'video');
+          if (selectedPoster instanceof File && selectedPoster.size > 0) {
+            await prepareFormImage(fd, 'poster');
+          } else {
+            const capturedPoster = await createVideoPoster(selectedMedia);
+            if (capturedPoster) fd.set('poster', await prepareImageForUpload(capturedPoster));
+          }
+        } else {
+          if (selectedMedia instanceof File && selectedMedia.size > 0) fd.set('media_type', 'image');
+          fd.delete('poster');
+        }
+      }
       await api.upload('/admin/community', fd);
       setSaved('Community Activity Added Successfully');
       form.reset();
@@ -676,10 +714,28 @@ export function AdminCommunity() {
     e.preventDefault();
     if (!editing) return;
     const fd = new FormData(e.currentTarget);
-    await prepareFormImage(fd, 'media');
+    const selectedMedia = fd.get('media');
+    const selectedPoster = fd.get('poster');
     setEditBusy(true);
     setError('');
     try {
+      await prepareFormImage(fd, 'media');
+      if (selectedMedia instanceof File && selectedMedia.size > 0 && selectedMedia.type.startsWith('video/')) {
+        fd.set('media_type', 'video');
+        if (selectedPoster instanceof File && selectedPoster.size > 0) {
+          await prepareFormImage(fd, 'poster');
+        } else {
+          const capturedPoster = await createVideoPoster(selectedMedia);
+          if (capturedPoster) fd.set('poster', await prepareImageForUpload(capturedPoster));
+        }
+      } else if (selectedMedia instanceof File && selectedMedia.size > 0) {
+        fd.set('media_type', 'image');
+        fd.delete('poster');
+      } else if (fd.get('media_type') === 'video' && selectedPoster instanceof File && selectedPoster.size > 0) {
+        await prepareFormImage(fd, 'poster');
+      } else {
+        fd.delete('poster');
+      }
       await api.uploadPut(`/admin/community/${editing.id}`, fd);
       setSaved('Community Activity Updated Successfully');
       setEditing(null);
@@ -778,7 +834,7 @@ export function AdminCommunity() {
                     }`}
                   >
                     <SmartImage
-                      src={`/assets/images/${p.file}`}
+                      src={assetUrl('images', p.file)}
                       alt={p.label}
                       sizes="(min-width: 768px) 25vw, 50vw"
                       className="h-24 w-full object-cover"
@@ -788,7 +844,17 @@ export function AdminCommunity() {
                 ))}
               </div>
             ) : (
-              <Input type="file" name="media" accept="image/*,video/*" required />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Photo or video file">
+                  <Input type="file" name="media" accept="image/*,.mp4,.webm,.mov,video/mp4,video/webm,video/quicktime" required />
+                </Field>
+                <Field label="Poster image (optional for videos)">
+                  <Input type="file" name="poster" accept="image/*" />
+                </Field>
+                <p className="text-xs text-[#6B6B6B] sm:col-span-2">
+                  Video posters are captured in your browser where the clip format supports it; otherwise the site uses a bundled fallback. You can choose a custom image instead.
+                </p>
+              </div>
             )}
           </div>
 
@@ -809,16 +875,19 @@ export function AdminCommunity() {
               <div key={m.id} className="flex flex-col justify-between overflow-hidden rounded-lg border border-neutral-200 bg-white">
                 <div>
                   {m.media_type === 'video' ? (
-                    <video controls className="h-48 w-full bg-black object-cover">
-                      <source src={`/assets/community/${m.file_name}`} type="video/mp4" />
-                      <source src={`/assets/videos/${m.file_name}`} type="video/mp4" />
+                    <video
+                      controls
+                      poster={assetUrl('community', m.poster_url) || '/assets/images/trainingpic.png'}
+                      className="h-48 w-full bg-black object-cover"
+                    >
+                      <source src={assetUrl('community', m.file_name)} />
                     </video>
                   ) : (
                     <SmartImage
-                      src={`/assets/community/${m.file_name}`}
+                      src={assetUrl('community', m.file_name)}
                       alt={m.title || ''}
                       sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                      fallbackSrc={`/assets/images/${m.file_name}`}
+                      fallbackSrc={assetUrl('images', m.file_name)}
                       className="h-48 w-full object-cover"
                     />
                   )}
@@ -898,7 +967,10 @@ export function AdminCommunity() {
                 </Field>
               </div>
               <Field label="Upload Replacement Photo / Video (Optional)">
-                <Input type="file" name="media" accept="image/*,video/*" />
+                <Input type="file" name="media" accept="image/*,.mp4,.webm,.mov,video/mp4,video/webm,video/quicktime" />
+              </Field>
+              <Field label="Replace video poster (optional)">
+                <Input type="file" name="poster" accept="image/*" />
               </Field>
               <div className="flex justify-end gap-2 pt-2">
                 <Btn type="button" variant="outline" onClick={() => setEditing(null)}>

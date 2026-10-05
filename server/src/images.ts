@@ -31,6 +31,50 @@ const QUALITY_PHOTO = 80;
 const QUALITY_ALPHA = 84;
 const MANIFEST_TTL_MS = 15_000;
 
+export type ProcessedImageVariant = { width: number; data: Buffer };
+export type ProcessedImage = {
+  width: number;
+  height: number;
+  color: string;
+  variants: ProcessedImageVariant[];
+};
+
+/**
+ * Decode and build the same responsive WebP ladder for a Buffer.
+ * Used when an upload is stored outside the app filesystem (for example in
+ * Supabase Storage), so the optimizer remains server-side without relying on a
+ * writable persistent disk.
+ */
+export async function processImageBuffer(buffer: Buffer): Promise<ProcessedImage> {
+  const sourceMeta = await sharp(buffer, { failOn: 'none' }).metadata();
+  const oriented = await sharp(buffer, { failOn: 'none' }).rotate().toBuffer({ resolveWithObject: true });
+  const { width, height } = oriented.info;
+  const hasAlpha = !!sourceMeta.hasAlpha;
+  if (!width || !height) throw new Error('The uploaded image has no readable dimensions');
+
+  const { data: colorData } = await sharp(oriented.data, { failOn: 'none' })
+    .flatten({ background: '#ffffff' })
+    .resize(1, 1, { fit: 'fill' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const color = `#${[colorData[0] || 0, colorData[1] || 0, colorData[2] || 0]
+    .map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0'))
+    .join('')}`;
+
+  const variants = await Promise.all(
+    ladderFor(width).map(async (targetWidth) => {
+      const { data, info } = await sharp(oriented.data, { failOn: 'none' })
+        .resize({ width: targetWidth, withoutEnlargement: true })
+        .webp({ quality: hasAlpha ? QUALITY_ALPHA : QUALITY_PHOTO, effort: 4 })
+        .toBuffer({ resolveWithObject: true });
+      return { width: info.width, data };
+    })
+  );
+
+  return { width, height, color, variants };
+}
+
 let bundledRoot = '';
 let writableRoot = '';
 

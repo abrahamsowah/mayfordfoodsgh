@@ -25,6 +25,19 @@ import {
   type ImageDir,
 } from './images';
 import { getSupabaseDetails } from './supabase';
+import {
+  createSignedMediaUpload,
+  deleteStoredMedia,
+  discardStoredUpload,
+  expectedContentType,
+  finalizeSignedMediaUpload,
+  isStoragePublicUrl,
+  isSupabaseMediaConfigured,
+  remoteImageManifest,
+  uploadLimitFor,
+  uploadMediaBuffer,
+  type MediaDirectory,
+} from './mediaStorage';
 
 // Real-time admin event bus for live kitchen order streaming & dashboard sync
 export const adminEventBus = new EventEmitter();
@@ -583,8 +596,8 @@ function createRateLimiter(options: EndpointRateConfig) {
 }
 
 // ---------------------------------------------------------------- multer
-// Vercel's filesystem is read-only except /tmp (uploads there are ephemeral —
-// use Supabase Storage for durable media in production).
+// Vercel's writable filesystem is temporary. New production uploads are sent
+// directly to Supabase Storage; /tmp is only a short-lived compatibility buffer.
 const IS_VERCEL = !!process.env.VERCEL;
 const UPLOAD_DIR = IS_VERCEL ? path.join('/tmp', 'mayford-assets') : ASSETS_DIR;
 const subDir = (dir: string) => {
@@ -593,21 +606,25 @@ const subDir = (dir: string) => {
   return dest;
 };
 
-// Runtime derivative generator for admin uploads (bundled photos are processed
-// ahead of time by react/scripts/optimize-images.mjs).
+// Runtime derivative generator for bundled photos (processed at build time) and
+// local-development uploads. Cloud uploads use the same server-side sharp ladder
+// but save the variants to Supabase Storage instead of this ephemeral disk.
 configureImageService({ bundledRoot: ASSETS_DIR, writableRoot: UPLOAD_DIR });
 
-const multerUpload = (dir: 'images' | 'adverts' | 'videos' | 'community') => {
+const uploadDirForField = (defaultDir: MediaDirectory, field: string): MediaDirectory =>
+  field === 'poster' && defaultDir !== 'community' ? 'images' : defaultDir;
+
+const multerUpload = (dir: MediaDirectory) => {
   const allowVideo = dir === 'videos' || dir === 'community';
   const upload = multer({
     storage: multer.diskStorage({
-      destination: (_req, _file, cb) => cb(null, subDir(dir)),
+      destination: (_req, file, cb) => cb(null, subDir(uploadDirForField(dir, file.fieldname))),
       filename: (_req, file, cb) => cb(null, sanitizeFilename(file.originalname)),
     }),
     limits: { fileSize: allowVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
       const ext = path.extname(file.originalname || '').toLowerCase();
-      const allowed = allowVideo ? MEDIA_EXTS : IMAGE_EXTS;
+      const allowed = file.fieldname === 'poster' ? IMAGE_EXTS : allowVideo ? MEDIA_EXTS : IMAGE_EXTS;
       if (!allowed.has(ext)) {
         return cb(new Error(`Unsupported file extension (${ext || 'none'}). Allowed: ${Array.from(allowed).join(', ')}`));
       }
@@ -615,22 +632,59 @@ const multerUpload = (dir: 'images' | 'adverts' | 'videos' | 'community') => {
     },
   });
 
-  // Generate the WebP ladder for uploaded photos before the request continues,
-  // so the admin list, the manifest and the frontend see a ready image. Failures
-  // are non-fatal: the original file is still served as a fallback.
-  const single = upload.single.bind(upload);
+  const finish = (parser: express.RequestHandler) =>
+    (req: express.Request, res: express.Response, next: express.NextFunction) =>
+      parser(req, res, (err: any) => {
+        if (err) return next(err);
+        const parsedFiles = (req as any).files as Record<string, Express.Multer.File[]> | undefined;
+        const files = [
+          ...(((req as any).file as Express.Multer.File | undefined) ? [(req as any).file as Express.Multer.File] : []),
+          ...Object.values(parsedFiles || {}).flat(),
+        ];
+        if (files.length === 0) return next();
+
+        void (async () => {
+          const oversized = files.find((file) =>
+            file.size > uploadLimitFor(uploadDirForField(dir, file.fieldname), file.originalname)
+          );
+          if (oversized) {
+            await Promise.all(files.map((file) => fs.promises.unlink(file.path).catch(() => undefined)));
+            const error = new Error('The media file exceeds the allowed size.') as Error & { status?: number };
+            error.status = 413;
+            throw error;
+          }
+          if (IS_VERCEL && !isSupabaseMediaConfigured()) {
+            await Promise.all(files.map((file) => fs.promises.unlink(file.path).catch(() => undefined)));
+            const error = new Error('Admin media uploads are disabled until Supabase Storage is configured.') as Error & { status?: number };
+            error.status = 503;
+            throw error;
+          }
+          for (const file of files) {
+            const fileDir = uploadDirForField(dir, file.fieldname);
+            if (isSupabaseMediaConfigured()) {
+              try {
+                const buffer = await fs.promises.readFile(file.path);
+                const stored = await uploadMediaBuffer(
+                  fileDir,
+                  file.originalname,
+                  buffer,
+                  file.mimetype || expectedContentType(file.originalname)
+                );
+                file.filename = stored.publicUrl;
+              } finally {
+                await fs.promises.unlink(file.path).catch(() => undefined);
+              }
+            } else if (IMAGE_DIRS.includes(fileDir as ImageDir)) {
+              await ensureVariants(fileDir as ImageDir, file.filename).catch(() => undefined);
+              invalidateImageManifest();
+            }
+          }
+        })().then(() => next(), next);
+      });
+
   return {
-    single: (field: string) => {
-      const middleware = single(field);
-      return (req: express.Request, res: express.Response, next: express.NextFunction) =>
-        middleware(req, res, (err: any) => {
-          const file = (req as any).file as Express.Multer.File | undefined;
-          if (err || !file || dir === 'videos') return next(err);
-          ensureVariants(dir, file.filename)
-            .catch(() => undefined)
-            .then(() => next());
-        });
-    },
+    single: (field: string) => finish(upload.single(field)),
+    fields: (fields: Array<{ name: string; maxCount?: number }>) => finish(upload.fields(fields)),
   };
 };
 
@@ -742,8 +796,8 @@ app.use(
 //
 // Bundled media (react/public/assets/**) changes only on deploy, so it is cached
 // for a day and revalidated in the background — repeat visits render instantly
-// instead of re-downloading photos. Uploads on Vercel land in ephemeral /tmp
-// storage, so they keep a short 1 hour TTL.
+// instead of re-downloading photos. The /tmp mount is only a compatibility path
+// for legacy Vercel uploads; new admin files are stored durably in Supabase.
 const bundledAssetOptions = {
   maxAge: '1d',
   setHeaders: (res: express.Response) =>
@@ -775,7 +829,8 @@ app.get(
 app.get('/api/image-manifest', async (_req, res) => {
   try {
     res.setHeader('Cache-Control', 'private, max-age=60');
-    res.json({ ok: true, images: await imageManifest() });
+    const images = await imageManifest();
+    res.json({ ok: true, images: { ...images, ...(await remoteImageManifest()) } });
   } catch (err) {
     console.error('[images] manifest failed:', (err as Error).message);
     res.status(500).json({ ok: false, error: 'Image manifest unavailable' });
@@ -792,6 +847,7 @@ app.get('/api/health', (_req, res) =>
       pinGateActive: true,
       rateLimitActive: true,
       uploadFilterActive: true,
+      mediaStorageCredentialsConfigured: isSupabaseMediaConfigured(),
       serverPriceVerification: true,
       paystackWebhookActive: true,
     },
@@ -2223,6 +2279,151 @@ app.delete('/api/admin/orders', requireAdmin, requireSuper, async (_req, res) =>
   res.json({ ok: true });
 });
 
+type SignedUploadRequest = { field: string; fileName: string; size: number };
+
+function uploadDirectoryForTarget(target: string, field: string): MediaDirectory | null {
+  const route = String(target || '').split('?')[0].replace(/\/+$/, '').replace(/\/\d+$/, '');
+  if (route === '/admin/menu' && field === 'image') return 'images';
+  if (route === '/admin/adverts' && field === 'banner_image') return 'adverts';
+  if (route === '/admin/slides' && field === 'image') return 'images';
+  if (route === '/admin/videos' && field === 'video') return 'videos';
+  if (route === '/admin/videos' && field === 'poster') return 'images';
+  if (route === '/admin/community' && field === 'media') return 'community';
+  if (route === '/admin/community' && field === 'poster') return 'community';
+  return null;
+}
+
+function isAllowedUploadField(dir: MediaDirectory, field: string, fileName: string): boolean {
+  const ext = path.extname(fileName || '').toLowerCase();
+  if (field === 'poster') return IMAGE_EXTS.has(ext);
+  if (field === 'video') return ['.mp4', '.webm', '.mov'].includes(ext);
+  if (dir === 'community') return MEDIA_EXTS.has(ext);
+  return IMAGE_EXTS.has(ext);
+}
+
+function uploadedReference(
+  req: express.Request,
+  field: string,
+  dir: MediaDirectory,
+  file?: Express.Multer.File
+): { value?: string; error?: string } {
+  if (file?.filename) return { value: file.filename };
+  const publicUrl = String((req.body || {})[`${field}_url`] || '').trim();
+  if (!publicUrl) return {};
+  if (!isStoragePublicUrl(publicUrl, dir)) return { error: 'The uploaded media URL is not a valid Mayford Storage asset.' };
+  return { value: publicUrl };
+}
+
+function keepAssetReference(value: unknown, dir: MediaDirectory): string {
+  const raw = String(value || '').trim();
+  if (isStoragePublicUrl(raw, dir) || /^(https?:)?\/\//i.test(raw)) return raw;
+  return path.basename(raw);
+}
+
+async function cleanupStoredMedia(dir: MediaDirectory, value: string): Promise<void> {
+  try {
+    await deleteStoredMedia(dir, value);
+  } catch (error) {
+    console.warn(`[media] could not clean up ${dir} asset:`, (error as Error).message);
+  }
+}
+
+function removeLocalMedia(dir: MediaDirectory, value: string): void {
+  const raw = String(value || '').trim();
+  if (!raw || /^(https?:)?\/\//i.test(raw) || /^(data|blob):/i.test(raw)) return;
+  const fileName = path.basename(raw);
+  // Admin uploads use sanitizeFilename's timestamp + random suffix. Avoid ever
+  // unlinking a bundled/preset asset when its database reference is removed.
+  if (!/^(?:[A-Za-z0-9_-]+_)?\d{10,16}_[a-f0-9]{24}\.(?:jpg|jpeg|png|webp|gif|mp4|webm|mov)$/i.test(fileName)) return;
+  const root = path.resolve(UPLOAD_DIR, dir);
+  const target = path.resolve(root, fileName);
+  if (!target.startsWith(`${root}${path.sep}`)) return;
+  try {
+    if (fs.existsSync(target)) fs.unlinkSync(target);
+    if (IMAGE_DIRS.includes(dir as ImageDir)) removeVariants(dir as ImageDir, fileName);
+    invalidateImageManifest();
+  } catch (error) {
+    console.warn(`[media] could not remove local ${dir} asset:`, (error as Error).message);
+  }
+}
+
+function uploadedFile(req: express.Request, field: string): Express.Multer.File | undefined {
+  const single = (req as any).file as Express.Multer.File | undefined;
+  if (single?.fieldname === field) return single;
+  const files = (req as any).files as Record<string, Express.Multer.File[]> | undefined;
+  return files?.[field]?.[0];
+}
+
+// Signed uploads bypass Vercel's request-body limit for large video files. The
+// server chooses the bucket path and signs it only after checking the admin
+// session, route/field, extension and declared size.
+app.post('/api/admin/media/sign', requireAdmin, async (req, res) => {
+  const files = Array.isArray(req.body?.files) ? (req.body.files as SignedUploadRequest[]) : [];
+  if (files.length === 0 || files.length > 2 || new Set(files.map((file) => String(file?.field || ''))).size !== files.length) {
+    return res.status(400).json({ ok: false, error: 'One or two distinct media fields are required.' });
+  }
+  if (!isSupabaseMediaConfigured()) {
+    if (IS_VERCEL) {
+      return res.status(503).json({
+        ok: false,
+        error: 'Persistent uploads are not configured. Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and create the media bucket.',
+      });
+    }
+    return res.json({ ok: true, mode: 'local' });
+  }
+
+  try {
+    const uploads = [];
+    for (const file of files) {
+      const field = String(file?.field || '');
+      const fileName = String(file?.fileName || '');
+      const dir = uploadDirectoryForTarget(String(req.body?.target || ''), field);
+      if (!dir || !isAllowedUploadField(dir, field, fileName)) {
+        return res.status(400).json({ ok: false, error: `Unsupported upload field or file type (${field}).` });
+      }
+      const size = Number(file.size);
+      if (!Number.isFinite(size) || size <= 0 || size > uploadLimitFor(dir, fileName)) {
+        return res.status(size > uploadLimitFor(dir, fileName) ? 413 : 400).json({
+          ok: false,
+          error: 'The media file is empty or exceeds the upload size limit.',
+        });
+      }
+      uploads.push({ field, ...(await createSignedMediaUpload(dir, fileName)) });
+    }
+    res.json({ ok: true, mode: 'supabase', uploads });
+  } catch (err) {
+    const status = Number((err as any)?.status || 503);
+    res.status(status).json({ ok: false, error: (err as Error).message || 'Could not prepare media upload.' });
+  }
+});
+
+app.post('/api/admin/media/finalize', requireAdmin, async (req, res) => {
+  const dir = String(req.body?.dir || '') as MediaDirectory;
+  const key = String(req.body?.key || '');
+  if (!['images', 'adverts', 'videos', 'community'].includes(dir)) {
+    return res.status(400).json({ ok: false, error: 'Invalid media folder.' });
+  }
+  try {
+    const uploaded = await finalizeSignedMediaUpload(dir, key);
+    res.json({ ok: true, ...uploaded });
+  } catch (err) {
+    const status = Number((err as any)?.status || 500);
+    res.status(status).json({ ok: false, error: (err as Error).message || 'Could not finalize media upload.' });
+  }
+});
+
+app.post('/api/admin/media/discard', requireAdmin, async (req, res) => {
+  const uploads = Array.isArray(req.body?.uploads) ? req.body.uploads : [];
+  for (const upload of uploads) {
+    const dir = String(upload?.dir || '') as MediaDirectory;
+    const key = String(upload?.key || '');
+    if (['images', 'adverts', 'videos', 'community'].includes(dir)) {
+      await discardStoredUpload(dir, key).catch(() => undefined);
+    }
+  }
+  res.json({ ok: true });
+});
+
 // Menu items CRUD (supports all food details + image upload on both create and update)
 app.post('/api/admin/menu', requireAdmin, multerUpload('images').single('image'), async (req, res) => {
   const b = req.body || {};
@@ -2233,7 +2434,9 @@ app.post('/api/admin/menu', requireAdmin, multerUpload('images').single('image')
     return res.status(400).json({ ok: false, error: 'Dish name, category, and a valid price (> 0) are required' });
   }
   const discount = Math.max(0, Math.min(90, Math.round(Number(b.discount_percent || 0))));
-  const imageFile = req.file ? req.file.filename : path.basename(String(b.image || 'Jollof.png'));
+  const imageUpload = uploadedReference(req, 'image', 'images', uploadedFile(req, 'image'));
+  if (imageUpload.error) return res.status(400).json({ ok: false, error: imageUpload.error });
+  const imageFile = imageUpload.value || keepAssetReference(b.image || 'Jollof.png', 'images');
   const result = await execute(
     'INSERT INTO menu_items (food_name, category, description, price, image, status, discount_percent, created_at) VALUES (?,?,?,?,?,?,?,?)',
     [
@@ -2257,9 +2460,9 @@ app.put('/api/admin/menu/:id', requireAdmin, multerUpload('images').single('imag
   const existing = existingRows[0];
   if (!existing) return res.status(404).json({ ok: false, error: 'Menu item not found' });
 
-  const imageFile = req.file
-    ? req.file.filename
-    : path.basename(String(b.image || existing.image || 'Jollof.png'));
+  const imageUpload = uploadedReference(req, 'image', 'images', uploadedFile(req, 'image'));
+  if (imageUpload.error) return res.status(400).json({ ok: false, error: imageUpload.error });
+  const imageFile = imageUpload.value || keepAssetReference(b.image || existing.image || 'Jollof.png', 'images');
   const discountPercent =
     b.discount_percent !== undefined
       ? Math.max(0, Math.min(90, Math.round(Number(b.discount_percent))))
@@ -2278,15 +2481,20 @@ app.put('/api/admin/menu/:id', requireAdmin, multerUpload('images').single('imag
       id,
     ]
   );
+  if (String(existing.image || '') !== imageFile) {
+    await cleanupStoredMedia('images', String(existing.image || ''));
+    removeLocalMedia('images', String(existing.image || ''));
+  }
   res.json({ ok: true });
 });
 
 app.delete('/api/admin/menu/:id', requireAdmin, async (req, res) => {
   const rows = await query('SELECT image FROM menu_items WHERE id=?', [Number(req.params.id)]);
-  const image = rows[0] ? path.basename(String(rows[0].image || '')) : '';
+  const image = rows[0] ? String(rows[0].image || '') : '';
   await execute('DELETE FROM menu_items WHERE id=?', [Number(req.params.id)]);
   if (image) {
-    removeVariants('images', image);
+    await cleanupStoredMedia('images', image);
+    removeLocalMedia('images', image);
     invalidateImageManifest();
   }
   res.json({ ok: true });
@@ -2330,9 +2538,9 @@ app.delete('/api/admin/categories/:id', requireAdmin, async (req, res) => {
 // Adverts CRUD (create, update, delete)
 app.post('/api/admin/adverts', requireAdmin, multerUpload('adverts').single('banner_image'), async (req, res) => {
   const b = req.body || {};
-  const bannerImg = req.file
-    ? req.file.filename
-    : path.basename(String(b.banner_image || 'Jollof.png'));
+  const imageUpload = uploadedReference(req, 'banner_image', 'adverts', uploadedFile(req, 'banner_image'));
+  if (imageUpload.error) return res.status(400).json({ ok: false, error: imageUpload.error });
+  const bannerImg = imageUpload.value || keepAssetReference(b.banner_image || 'Jollof.png', 'adverts');
   const result = await execute(
     'INSERT INTO advertisement_banners (banner_image, title, description, button_text, button_link, status, created_at) VALUES (?,?,?,?,?,?,?)',
     [
@@ -2355,9 +2563,9 @@ app.put('/api/admin/adverts/:id', requireAdmin, multerUpload('adverts').single('
   const existing = rows[0];
   if (!existing) return res.status(404).json({ ok: false, error: 'Advertisement not found' });
 
-  const bannerImg = req.file
-    ? req.file.filename
-    : path.basename(String(b.banner_image || existing.banner_image || 'Jollof.png'));
+  const imageUpload = uploadedReference(req, 'banner_image', 'adverts', uploadedFile(req, 'banner_image'));
+  if (imageUpload.error) return res.status(400).json({ ok: false, error: imageUpload.error });
+  const bannerImg = imageUpload.value || keepAssetReference(b.banner_image || existing.banner_image || 'Jollof.png', 'adverts');
 
   await execute(
     'UPDATE advertisement_banners SET banner_image=?, title=?, description=?, button_text=?, button_link=?, status=? WHERE id=?',
@@ -2371,15 +2579,20 @@ app.put('/api/admin/adverts/:id', requireAdmin, multerUpload('adverts').single('
       id,
     ]
   );
+  if (String(existing.banner_image || '') !== bannerImg) {
+    await cleanupStoredMedia('adverts', String(existing.banner_image || ''));
+    removeLocalMedia('adverts', String(existing.banner_image || ''));
+  }
   res.json({ ok: true });
 });
 
 app.delete('/api/admin/adverts/:id', requireAdmin, async (req, res) => {
   const rows = await query('SELECT banner_image FROM advertisement_banners WHERE id=?', [Number(req.params.id)]);
-  const image = rows[0] ? path.basename(String(rows[0].banner_image || '')) : '';
+  const image = rows[0] ? String(rows[0].banner_image || '') : '';
   await execute('DELETE FROM advertisement_banners WHERE id=?', [Number(req.params.id)]);
   if (image) {
-    removeVariants('adverts', image);
+    await cleanupStoredMedia('adverts', image);
+    removeLocalMedia('adverts', image);
     invalidateImageManifest();
   }
   res.json({ ok: true });
@@ -2407,9 +2620,9 @@ app.delete('/api/admin/banners/:id', requireAdmin, async (req, res) => {
 
 // Hero slides CRUD (create, update, delete)
 app.post('/api/admin/slides', requireAdmin, multerUpload('images').single('image'), async (req, res) => {
-  const img = req.file
-    ? req.file.filename
-    : path.basename(String(req.body?.image || 'hero.png'));
+  const imageUpload = uploadedReference(req, 'image', 'images', uploadedFile(req, 'image'));
+  if (imageUpload.error) return res.status(400).json({ ok: false, error: imageUpload.error });
+  const img = imageUpload.value || keepAssetReference(req.body?.image || 'hero.png', 'images');
   if (!img) return res.status(400).json({ ok: false, error: 'Slide image file is required' });
   const result = await execute('INSERT INTO slider_images (image, created_at) VALUES (?,?)', [img, nowSql()]);
   res.json({ ok: true, id: result.insertId });
@@ -2420,127 +2633,183 @@ app.put('/api/admin/slides/:id', requireAdmin, multerUpload('images').single('im
   const rows = await query('SELECT * FROM slider_images WHERE id=?', [id]);
   const existing = rows[0];
   if (!existing) return res.status(404).json({ ok: false, error: 'Slide not found' });
-  const img = req.file
-    ? req.file.filename
-    : path.basename(String(req.body?.image || existing.image || 'hero.png'));
+  const imageUpload = uploadedReference(req, 'image', 'images', uploadedFile(req, 'image'));
+  if (imageUpload.error) return res.status(400).json({ ok: false, error: imageUpload.error });
+  const img = imageUpload.value || keepAssetReference(req.body?.image || existing.image || 'hero.png', 'images');
   await execute('UPDATE slider_images SET image=? WHERE id=?', [img, id]);
+  if (String(existing.image || '') !== img) {
+    await cleanupStoredMedia('images', String(existing.image || ''));
+    removeLocalMedia('images', String(existing.image || ''));
+  }
   res.json({ ok: true });
 });
 
 app.delete('/api/admin/slides/:id', requireAdmin, async (req, res) => {
   const rows = await query('SELECT image FROM slider_images WHERE id=?', [Number(req.params.id)]);
-  const image = rows[0] ? path.basename(String(rows[0].image || '')) : '';
+  const image = rows[0] ? String(rows[0].image || '') : '';
   await execute('DELETE FROM slider_images WHERE id=?', [Number(req.params.id)]);
   if (image) {
-    removeVariants('images', image);
+    await cleanupStoredMedia('images', image);
+    removeLocalMedia('images', image);
     invalidateImageManifest();
   }
   res.json({ ok: true });
 });
 
 // Advertisement videos CRUD
-app.post('/api/admin/videos', requireAdmin, multerUpload('videos').single('video'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ ok: false, error: 'Video file is required' });
-  const result = await execute('INSERT INTO advertisement_videos (video_name, created_at) VALUES (?,?)', [
-    req.file.filename,
-    nowSql(),
-  ]);
-  res.json({ ok: true, id: result.insertId });
-});
+app.post(
+  '/api/admin/videos',
+  requireAdmin,
+  multerUpload('videos').fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }]),
+  async (req, res) => {
+    const video = uploadedReference(req, 'video', 'videos', uploadedFile(req, 'video'));
+    const poster = uploadedReference(req, 'poster', 'images', uploadedFile(req, 'poster'));
+    if (video.error || poster.error) {
+      return res.status(400).json({ ok: false, error: video.error || poster.error });
+    }
+    if (!video.value) return res.status(400).json({ ok: false, error: 'Video file is required' });
+    const result = await execute(
+      'INSERT INTO advertisement_videos (video_name, poster_url, created_at) VALUES (?,?,?)',
+      [video.value, poster.value || null, nowSql()]
+    );
+    res.json({ ok: true, id: result.insertId });
+  }
+);
 
-app.put('/api/admin/videos/:id', requireAdmin, multerUpload('videos').single('video'), async (req, res) => {
-  const id = Number(req.params.id);
-  const rows = await query('SELECT * FROM advertisement_videos WHERE id=?', [id]);
-  const existing = rows[0];
-  if (!existing) return res.status(404).json({ ok: false, error: 'Video not found' });
-  const fileName = req.file
-    ? req.file.filename
-    : path.basename(String(req.body?.video_name || existing.video_name));
-  await execute('UPDATE advertisement_videos SET video_name=? WHERE id=?', [fileName, id]);
-  res.json({ ok: true });
-});
+app.put(
+  '/api/admin/videos/:id',
+  requireAdmin,
+  multerUpload('videos').fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }]),
+  async (req, res) => {
+    const id = Number(req.params.id);
+    const rows = await query('SELECT * FROM advertisement_videos WHERE id=?', [id]);
+    const existing = rows[0];
+    if (!existing) return res.status(404).json({ ok: false, error: 'Video not found' });
+
+    const video = uploadedReference(req, 'video', 'videos', uploadedFile(req, 'video'));
+    const poster = uploadedReference(req, 'poster', 'images', uploadedFile(req, 'poster'));
+    if (video.error || poster.error) {
+      return res.status(400).json({ ok: false, error: video.error || poster.error });
+    }
+    const fileName = video.value || keepAssetReference(req.body?.video_name || existing.video_name, 'videos');
+    const posterUrl = poster.value || (video.value ? null : existing.poster_url || null);
+    await execute('UPDATE advertisement_videos SET video_name=?, poster_url=? WHERE id=?', [fileName, posterUrl, id]);
+    if (String(existing.video_name || '') !== fileName) {
+      await cleanupStoredMedia('videos', String(existing.video_name || ''));
+      removeLocalMedia('videos', String(existing.video_name || ''));
+    }
+    if (String(existing.poster_url || '') !== String(posterUrl || '')) {
+      await cleanupStoredMedia('images', String(existing.poster_url || ''));
+      removeLocalMedia('images', String(existing.poster_url || ''));
+    }
+    res.json({ ok: true });
+  }
+);
 
 app.delete('/api/admin/videos/:id', requireAdmin, async (req, res) => {
   const rows = await query('SELECT * FROM advertisement_videos WHERE id=?', [Number(req.params.id)]);
   if (rows[0]) {
-    const safeName = path.basename(String(rows[0].video_name));
-    const targetPath = path.resolve(ASSETS_DIR, 'videos', safeName);
-    if (targetPath.startsWith(path.resolve(ASSETS_DIR, 'videos')) && fs.existsSync(targetPath)) {
-      try {
-        fs.unlinkSync(targetPath);
-      } catch {
-        /* ignore */
-      }
-    }
     await execute('DELETE FROM advertisement_videos WHERE id=?', [Number(req.params.id)]);
+    await cleanupStoredMedia('videos', String(rows[0].video_name || ''));
+    removeLocalMedia('videos', String(rows[0].video_name || ''));
+    await cleanupStoredMedia('images', String(rows[0].poster_url || ''));
+    removeLocalMedia('images', String(rows[0].poster_url || ''));
   }
   res.json({ ok: true });
 });
 
 // Community media & activities CRUD (create, update, delete)
-app.post('/api/admin/community', requireAdmin, multerUpload('community').single('media'), async (req, res) => {
-  const b = req.body || {};
-  const fileName = req.file
-    ? req.file.filename
-    : path.basename(String(b.file_name || 'community1.png'));
-  if (!fileName) return res.status(400).json({ ok: false, error: 'Media file or preset selection is required' });
-  const result = await execute(
-    'INSERT INTO community_media (media_type, file_name, title, description, created_at) VALUES (?,?,?,?,?)',
-    [
-      b.media_type === 'video' ? 'video' : 'image',
-      fileName,
-      String(b.title || '').trim(),
-      String(b.description || '').trim(),
-      nowSql(),
-    ]
-  );
-  res.json({ ok: true, id: result.insertId });
-});
+app.post(
+  '/api/admin/community',
+  requireAdmin,
+  multerUpload('community').fields([{ name: 'media', maxCount: 1 }, { name: 'poster', maxCount: 1 }]),
+  async (req, res) => {
+    const b = req.body || {};
+    const media = uploadedReference(req, 'media', 'community', uploadedFile(req, 'media'));
+    const poster = uploadedReference(req, 'poster', 'community', uploadedFile(req, 'poster'));
+    if (media.error || poster.error) {
+      return res.status(400).json({ ok: false, error: media.error || poster.error });
+    }
+    const fileName = media.value || keepAssetReference(b.file_name || 'community1.png', 'community');
+    if (!fileName) return res.status(400).json({ ok: false, error: 'Media file or preset selection is required' });
+    const mediaType = b.media_type === 'video' ? 'video' : 'image';
+    const result = await execute(
+      'INSERT INTO community_media (media_type, file_name, title, description, poster_url, created_at) VALUES (?,?,?,?,?,?)',
+      [
+        mediaType,
+        fileName,
+        String(b.title || '').trim(),
+        String(b.description || '').trim(),
+        mediaType === 'video' ? poster.value || null : null,
+        nowSql(),
+      ]
+    );
+    res.json({ ok: true, id: result.insertId });
+  }
+);
 
-app.put('/api/admin/community/:id', requireAdmin, multerUpload('community').single('media'), async (req, res) => {
-  const b = req.body || {};
-  const id = Number(req.params.id);
-  const rows = await query('SELECT * FROM community_media WHERE id=?', [id]);
-  const existing = rows[0];
-  if (!existing) return res.status(404).json({ ok: false, error: 'Community activity not found' });
+app.put(
+  '/api/admin/community/:id',
+  requireAdmin,
+  multerUpload('community').fields([{ name: 'media', maxCount: 1 }, { name: 'poster', maxCount: 1 }]),
+  async (req, res) => {
+    const b = req.body || {};
+    const id = Number(req.params.id);
+    const rows = await query('SELECT * FROM community_media WHERE id=?', [id]);
+    const existing = rows[0];
+    if (!existing) return res.status(404).json({ ok: false, error: 'Community activity not found' });
 
-  const fileName = req.file
-    ? req.file.filename
-    : path.basename(String(b.file_name || existing.file_name || 'community1.png'));
-  const mediaType = b.media_type
-    ? b.media_type === 'video'
-      ? 'video'
-      : 'image'
-    : String(existing.media_type || 'image');
+    const media = uploadedReference(req, 'media', 'community', uploadedFile(req, 'media'));
+    const poster = uploadedReference(req, 'poster', 'community', uploadedFile(req, 'poster'));
+    if (media.error || poster.error) {
+      return res.status(400).json({ ok: false, error: media.error || poster.error });
+    }
+    const fileName = media.value || keepAssetReference(b.file_name || existing.file_name || 'community1.png', 'community');
+    const mediaType = b.media_type
+      ? b.media_type === 'video'
+        ? 'video'
+        : 'image'
+      : String(existing.media_type || 'image');
+    const newMedia = Boolean(media.value && media.value !== String(existing.file_name || ''));
+    const posterUrl = mediaType !== 'video'
+      ? null
+      : poster.value || (newMedia ? null : existing.poster_url || null);
 
-  await execute(
-    'UPDATE community_media SET media_type=?, file_name=?, title=?, description=? WHERE id=?',
-    [
-      mediaType,
-      fileName,
-      String(b.title ?? existing.title ?? '').trim(),
-      String(b.description ?? existing.description ?? '').trim(),
-      id,
-    ]
-  );
-  res.json({ ok: true });
-});
+    await execute(
+      'UPDATE community_media SET media_type=?, file_name=?, title=?, description=?, poster_url=? WHERE id=?',
+      [
+        mediaType,
+        fileName,
+        String(b.title ?? existing.title ?? '').trim(),
+        String(b.description ?? existing.description ?? '').trim(),
+        posterUrl,
+        id,
+      ]
+    );
+    if (String(existing.file_name || '') !== fileName) {
+      await cleanupStoredMedia('community', String(existing.file_name || ''));
+      removeLocalMedia('community', String(existing.file_name || ''));
+    }
+    if (String(existing.poster_url || '') !== String(posterUrl || '')) {
+      await cleanupStoredMedia('community', String(existing.poster_url || ''));
+      removeLocalMedia('community', String(existing.poster_url || ''));
+    }
+    invalidateImageManifest();
+    res.json({ ok: true });
+  }
+);
 
 app.delete('/api/admin/community/:id', requireAdmin, async (req, res) => {
   const rows = await query('SELECT * FROM community_media WHERE id=?', [Number(req.params.id)]);
   if (rows[0]) {
-    const safeName = path.basename(String(rows[0].file_name));
-    const targetPath = path.resolve(ASSETS_DIR, 'community', safeName);
-    if (targetPath.startsWith(path.resolve(ASSETS_DIR, 'community')) && fs.existsSync(targetPath)) {
-      try {
-        fs.unlinkSync(targetPath);
-      } catch {
-        /* ignore */
-      }
-    }
-    removeVariants('community', safeName);
-    invalidateImageManifest();
     await execute('DELETE FROM community_media WHERE id=?', [Number(req.params.id)]);
+    const media = String(rows[0].file_name || '');
+    const poster = String(rows[0].poster_url || '');
+    await cleanupStoredMedia('community', media);
+    removeLocalMedia('community', media);
+    await cleanupStoredMedia('community', poster);
+    removeLocalMedia('community', poster);
+    invalidateImageManifest();
   }
   res.json({ ok: true });
 });

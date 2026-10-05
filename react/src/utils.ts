@@ -33,6 +33,96 @@ export function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** Resolve a legacy asset filename or a durable absolute Storage URL. */
+export function assetUrl(
+  directory: 'images' | 'adverts' | 'videos' | 'community',
+  value: string | null | undefined
+): string {
+  const source = String(value || '').trim();
+  if (!source) return '';
+  if (/^(https?:)?\/\//i.test(source) || /^(data|blob):/i.test(source)) return source;
+  if (source.startsWith('/')) return source;
+  return `/assets/${directory}/${source.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+/** Capture a representative frame in the browser, avoiding a runtime ffmpeg dependency. */
+export async function createVideoPoster(file: File): Promise<File | null> {
+  if (!file.type.startsWith('video/') || typeof document === 'undefined') return null;
+  let objectUrl = '';
+  try {
+    objectUrl = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+
+    return await new Promise<File | null>((resolve) => {
+      let settled = false;
+      const finish = (poster: File | null) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        video.removeAttribute('src');
+        video.load();
+        URL.revokeObjectURL(objectUrl);
+        resolve(poster);
+      };
+      const timeout = window.setTimeout(() => finish(null), 15_000);
+
+      const capture = () => {
+        if (settled || !video.videoWidth || !video.videoHeight) return;
+        try {
+          const scale = Math.min(1, 1280 / Math.max(video.videoWidth, video.videoHeight));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+          canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+          const context = canvas.getContext('2d');
+          if (!context) return finish(null);
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return finish(null);
+              try {
+                const base = file.name.replace(/\.[^.]+$/, '') || 'video';
+                finish(new File([blob], `${base}-poster.jpg`, { type: 'image/jpeg' }));
+              } catch {
+                finish(null);
+              }
+            },
+            'image/jpeg',
+            0.86
+          );
+        } catch {
+          finish(null);
+        }
+      };
+
+      video.addEventListener('error', () => finish(null), { once: true });
+      video.addEventListener('loadedmetadata', () => {
+        const time = video.duration > 1.5 ? Math.min(1.25, video.duration * 0.15) : video.duration > 0.1 ? video.duration / 2 : 0;
+        if (time > 0) {
+          video.addEventListener('seeked', capture, { once: true });
+          try {
+            video.currentTime = time;
+          } catch {
+            video.addEventListener('loadeddata', capture, { once: true });
+          }
+        } else if (video.readyState >= 2) {
+          capture();
+        } else {
+          video.addEventListener('loadeddata', capture, { once: true });
+        }
+      }, { once: true });
+
+      video.src = objectUrl;
+      video.load();
+    });
+  } catch {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    return null;
+  }
+}
+
 /* ---------------------------------------------------------------- images */
 
 /** Longest edge we keep when a photo is uploaded from the admin panel. */
