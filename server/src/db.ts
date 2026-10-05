@@ -41,6 +41,44 @@ function convertToPgSql(sql: string): string {
   return pgSql;
 }
 
+/**
+ * Tables whose primary key is NOT a surrogate `id` column.
+ *
+ * `INSERT ... RETURNING id` is how the MySQL/SQLite drivers report insertId, but
+ * PostgreSQL rejects it for these tables with error 42703:
+ *     column "id" does not exist
+ * Because every request awaits initDb() (which seeds menu_item_outlet_availability),
+ * that single failure used to 500 the entire API - admin PIN included.
+ *
+ * The set is seeded with the tables created that way in sql/supabase_schema.sql and
+ * grows automatically at runtime if any other id-less table is inserted into.
+ */
+const PG_TABLES_WITHOUT_ID = new Set<string>([
+  'admin_sessions', // keyed by sid
+  'image_asset_metadata', // keyed by object_key
+  'menu_item_outlet_availability', // composite key (menu_item_id, outlet)
+]);
+
+/** Extracts the (unqualified, lowercase) target table of an INSERT statement. */
+function pgInsertTable(sql: string): string | null {
+  const match = /^\s*INSERT\s+(?:OR\s+\w+\s+|IGNORE\s+)*INTO\s+(?:"[^"]+"|[\w$]+)(?:\s*\.\s*(?:"[^"]+"|[\w$]+))?/i.exec(
+    sql
+  );
+  if (!match) return null;
+  const qualified = match[0].slice(match[0].search(/INTO\s+/i) + 5).trim();
+  const parts = qualified.replace(/["'`[\]]/g, '').split('.');
+  const table = parts[parts.length - 1] || '';
+  return table.toLowerCase() || null;
+}
+
+/** PostgreSQL 42703 (undefined_column) raised specifically for a missing `id`. */
+function isMissingIdColumnError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null;
+  return (
+    e?.code === '42703' && /column\s+"?id"?\s+does\s+not\s+exist/i.test(String(e?.message || ''))
+  );
+}
+
 const SQLITE_SCHEMA = `
 CREATE TABLE IF NOT EXISTS admins (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -471,15 +509,35 @@ async function ensureVisitorCounter(): Promise<void> {
   if (rows.length === 0) await execute('INSERT INTO visitor_counter (id, total_visitors) VALUES (1, 0)');
 }
 
+/**
+ * Runs a schema bootstrap step (CREATE TABLE IF NOT EXISTS / ALTER / seed).
+ *
+ * These steps are additive housekeeping, not part of the connection handshake.
+ * Every request waits on initDb(), so a single failing step used to turn every
+ * endpoint - including /api/auth/admin-pin - into a 500. Connection failures
+ * are still fatal; only optional bootstrap work degrades to a logged warning.
+ */
+async function runSchemaStep(label: string, step: () => Promise<void>): Promise<void> {
+  try {
+    await step();
+  } catch (err) {
+    console.error(`[db] ${label} skipped: ${(err as Error).message.split('\n')[0]}`);
+  }
+}
+
+async function bootstrapSchema(): Promise<void> {
+  await runSchemaStep('media schema', ensureMediaSchema);
+  await runSchemaStep('menu availability schema', ensureMenuAvailabilitySchema);
+  await runSchemaStep('visitor counter', ensureVisitorCounter);
+}
+
 export async function initDb(): Promise<void> {
   const mode = process.env.DEMO_MODE || (process.env.NODE_ENV === 'production' ? 'off' : 'auto');
   const supabaseOnly = /^(1|true|yes)$/i.test(process.env.SUPABASE_ONLY || '');
 
   // Supabase-only mode is strict: never connect to MySQL or fall back to local SQLite.
   if (await tryConnectSupabase()) {
-    await ensureMediaSchema();
-    await ensureMenuAvailabilitySchema();
-    await ensureVisitorCounter();
+    await bootstrapSchema();
     return;
   }
   if (supabaseOnly) {
@@ -488,9 +546,7 @@ export async function initDb(): Promise<void> {
 
   // 2. Try MySQL next if configured
   if (mode !== 'force' && (await tryConnectMysql())) {
-    await ensureMediaSchema();
-    await ensureMenuAvailabilitySchema();
-    await ensureVisitorCounter();
+    await bootstrapSchema();
     return;
   }
 
@@ -499,9 +555,7 @@ export async function initDb(): Promise<void> {
     throw new Error('No database connection is available. Configure Supabase/PostgreSQL/MySQL, or explicitly enable DEMO_MODE=auto for a local SQLite database.');
   }
   initSqlite();
-  await ensureMediaSchema();
-  await ensureMenuAvailabilitySchema();
-  await ensureVisitorCounter();
+  await bootstrapSchema();
 }
 
 export async function query(sql: string, params: any[] = []): Promise<Row[]> {
@@ -520,16 +574,36 @@ export async function query(sql: string, params: any[] = []): Promise<Row[]> {
 
 export async function execute(sql: string, params: any[] = []): Promise<Result> {
   if (pgPool) {
-    let pgSql = convertToPgSql(sql);
-    const isInsert = /^\s*INSERT\s+INTO/i.test(sql);
-    // Session rows are keyed by sid, not id; only request an id for other inserts.
-    const isSessionInsert = /^\s*INSERT\s+INTO\s+(?:public\.)?admin_sessions\b/i.test(sql);
-    if (isInsert && !isSessionInsert && !/RETURNING/i.test(pgSql)) {
-      pgSql += ' RETURNING id';
+    const isInsert = /^\s*INSERT\s+(?:OR\s+\w+\s+|IGNORE\s+)*INTO/i.test(sql);
+    if (!isInsert) {
+      const res = await pgPool.query(convertToPgSql(sql), params);
+      return { insertId: 0, affectedRows: res.rowCount || 0 };
     }
-    const res = await pgPool.query(pgSql, params);
-    const insertId = isInsert && res.rows.length > 0 ? Number(res.rows[0].id) : 0;
-    return { insertId, affectedRows: res.rowCount || 0 };
+
+    let pgSql = convertToPgSql(sql);
+    const table = pgInsertTable(sql);
+    // Only ask Postgres to return the new id when the table actually has one.
+    const injectedReturning =
+      (!table || !PG_TABLES_WITHOUT_ID.has(table)) && !/RETURNING/i.test(pgSql);
+    if (injectedReturning) pgSql += ' RETURNING id';
+
+    let res;
+    try {
+      res = await pgPool.query(pgSql, params);
+    } catch (err) {
+      // Unknown table shape: learn it once per process and retry without RETURNING id
+      // instead of failing the request (and, during initDb, the whole API).
+      if (!injectedReturning || !isMissingIdColumnError(err)) throw err;
+      if (table) PG_TABLES_WITHOUT_ID.add(table);
+      res = await pgPool.query(pgSql.replace(/\s+RETURNING\s+id\s*$/i, ''), params);
+      return { insertId: 0, affectedRows: res.rowCount || 0 };
+    }
+
+    const returnedId = res.rows.length > 0 ? res.rows[0]?.id : undefined;
+    return {
+      insertId: returnedId === undefined || returnedId === null ? 0 : Number(returnedId),
+      affectedRows: res.rowCount || 0,
+    };
   }
   if (activeMode === 'sqlite' && sqlite) {
     const r = sqlite.prepare(sql).run(...params);
