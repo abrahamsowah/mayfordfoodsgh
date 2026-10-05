@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { Btn, Card, Eyebrow, LinkBtn, Section } from '../components/ui';
+import { SmartImage } from '../components/SmartImage';
 import { ghs } from '../utils';
 
 export default function CartPage() {
@@ -78,9 +79,11 @@ export default function CartPage() {
               className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center sm:p-6"
             >
               <div className="flex items-center gap-4">
-                <img
+                <SmartImage
                   src={`/assets/images/${item.image}`}
                   alt={item.food_name}
+                  sizes="80px"
+                  fallbackSrc="/assets/images/Jollof.png"
                   className="h-16 w-20 shrink-0 rounded-md bg-neutral-100 object-cover"
                 />
                 <div>

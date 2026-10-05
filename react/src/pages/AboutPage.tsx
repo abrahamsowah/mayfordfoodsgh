@@ -1,6 +1,7 @@
 import { ArrowRight, Sprout, Users, UtensilsCrossed } from 'lucide-react';
 import { Reveal } from '../components/motion';
 import { Card, Eyebrow, LinkBtn, Section, SectionHeader } from '../components/ui';
+import { SmartImage } from '../components/SmartImage';
 
 export default function AboutPage() {
   return (
@@ -24,9 +25,10 @@ export default function AboutPage() {
           <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">
             <div className="lg:col-span-5">
               <div className="overflow-hidden rounded-lg border border-neutral-200 bg-neutral-100">
-                <img
+                <SmartImage
                   src="/assets/images/ownersofmayford.jpeg"
                   alt="Founders of Mayford Foods"
+                  sizes="(min-width: 1024px) 42vw, 100vw"
                   className="h-full max-h-[520px] w-full object-cover object-top"
                 />
               </div>

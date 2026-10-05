@@ -23,6 +23,7 @@ import { useSettings } from '../components/SiteLayout';
 import { useCart } from '../context/CartContext';
 import { Reveal } from '../components/motion';
 import { Eyebrow, FoodCard, FoodCardSkeleton, LinkBtn, Section, SectionHeader, Stars } from '../components/ui';
+import { SmartImage } from '../components/SmartImage';
 import type { Advert, AdVideo, MenuItem, Rating, Slide } from '../types';
 import { ghs, waLink } from '../utils';
 
@@ -41,10 +42,13 @@ function HeroGallery({ slides }: { slides: Slide[] }) {
   return (
     <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-neutral-900 lg:aspect-[5/4]">
       {list.map((img, i) => (
-        <img
+        <SmartImage
           key={`${img}-${i}`}
           src={`/assets/images/${img}`}
           alt="Mayford Foods signature dishes"
+          priority={i === 0}
+          sizes="(min-width: 1024px) 58vw, 100vw"
+          position="50% 38%"
           className={`hero-slide absolute inset-0 h-full w-full object-cover ${
             i === index ? 'opacity-100' : 'pointer-events-none opacity-0'
           }`}
@@ -138,13 +142,13 @@ function AdvertShowcase({ adverts }: { adverts: Advert[] }) {
           </div>
         </div>
         <div className="relative aspect-[16/10] w-full bg-neutral-100 md:aspect-auto md:h-full md:min-h-[260px]">
-          <img
+          <SmartImage
             src={`/assets/adverts/${active.banner_image}`}
             alt={active.title}
+            priority
+            sizes="(min-width: 768px) 42vw, 100vw"
+            fallbackSrc={`/assets/images/${active.banner_image}`}
             className="h-full w-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = `/assets/images/${active.banner_image}`;
-            }}
           />
         </div>
       </div>
@@ -385,24 +389,27 @@ export default function HomePage() {
           <Reveal className="lg:col-span-7">
             <div className="grid grid-cols-12 gap-3 sm:gap-4">
               <div className="col-span-7 overflow-hidden rounded-lg bg-neutral-200">
-                <img
+                <SmartImage
                   src="/assets/images/outsidecater1.jpeg"
                   alt="Mayford outside catering service"
+                  sizes="(min-width: 1024px) 34vw, 100vw"
                   className="h-full max-h-[420px] min-h-[260px] w-full object-cover"
                 />
               </div>
               <div className="col-span-5 flex flex-col gap-3 sm:gap-4">
                 <div className="flex-1 overflow-hidden rounded-lg bg-neutral-200">
-                  <img
+                  <SmartImage
                     src="/assets/images/outsidecater4.jpeg"
                     alt="Event buffet setup"
+                    sizes="(min-width: 1024px) 24vw, (min-width: 640px) 50vw, 100vw"
                     className="h-full max-h-[202px] min-h-[124px] w-full object-cover"
                   />
                 </div>
                 <div className="flex-1 overflow-hidden rounded-lg bg-neutral-200">
-                  <img
+                  <SmartImage
                     src="/assets/images/outsidecater7.jpeg"
                     alt="Catering team in action"
+                    sizes="(min-width: 1024px) 24vw, (min-width: 640px) 50vw, 100vw"
                     className="h-full max-h-[202px] min-h-[124px] w-full object-cover"
                   />
                 </div>
@@ -487,9 +494,10 @@ export default function HomePage() {
             <Reveal key={branch.name} delay={i * 80}>
               <div className="group flex h-full flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white">
                 <div className="relative aspect-[16/9] overflow-hidden bg-neutral-100">
-                  <img
+                  <SmartImage
                     src={`/assets/images/${branch.img}`}
                     alt={branch.name}
+                    sizes="(min-width: 768px) 50vw, 100vw"
                     className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
                   />
                 </div>
@@ -615,9 +623,10 @@ export default function HomePage() {
               <Reveal key={item.img} delay={i * 80}>
                 <Link to="/community" className="group block">
                   <div className="aspect-[4/3] overflow-hidden rounded-lg bg-neutral-900">
-                    <img
+                    <SmartImage
                       src={`/assets/images/${item.img}`}
                       alt={item.title}
+                      sizes="(min-width: 768px) 33vw, 100vw"
                       className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
                     />
                   </div>
@@ -703,9 +712,10 @@ export default function HomePage() {
           <Reveal delay={100}>
             <div className="grid h-full gap-6 rounded-lg border border-neutral-200 bg-white p-6 sm:grid-cols-[0.85fr_1.15fr] sm:p-8">
               <div className="overflow-hidden rounded-md bg-neutral-100">
-                <img
+                <SmartImage
                   src="/assets/images/ownersofmayford.jpeg"
                   alt="Founders of Mayford Foods"
+                  sizes="(min-width: 640px) 30vw, 100vw"
                   className="h-64 w-full object-cover object-top sm:h-full"
                 />
               </div>

@@ -93,6 +93,12 @@ body {
   animation-play-state: paused;
 }
 
+/* SmartImage: the <picture> shell is layout-transparent so the inner <img>
+   keeps participating in the surrounding flex/grid/aspect-ratio box. */
+.img-shell {
+  display: contents;
+}
+
 /* Hero slide crossfade */
 .hero-slide {
   transition: opacity 1s cubic-bezier(0.2, 0.8, 0.2, 1);

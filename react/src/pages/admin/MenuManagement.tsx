@@ -3,7 +3,8 @@ import { Check, Edit3, FolderOpen, Plus, Search, Tags, X } from 'lucide-react';
 import { api } from '../../api';
 import { Alert, Btn, DeleteBtn, EmptyRow, Field, Input, Select, Textarea } from '../../components/ui';
 import type { Category, MenuItem } from '../../types';
-import { effectivePrice, ghs } from '../../utils';
+import { effectivePrice, ghs, prepareImageForUpload } from '../../utils';
+import { SmartImage } from '../../components/SmartImage';
 
 const PRESET_KITCHEN_IMAGES = [
   { file: 'Jollof.png', label: 'Jollof Rice' },
@@ -86,7 +87,7 @@ function MenuFormModal({
       fd.append('discount_percent', String(numericDiscount));
       fd.append('status', status);
       if (imageFile) {
-        fd.append('image', imageFile);
+        fd.append('image', await prepareImageForUpload(imageFile));
       } else {
         fd.append('image', selectedPresetImage);
       }
@@ -229,7 +230,13 @@ function MenuFormModal({
             </p>
             <div className="grid items-start gap-4 sm:grid-cols-[140px_1fr]">
               <div className="aspect-[4/3] w-full overflow-hidden rounded-md border border-neutral-200 bg-white">
-                <img src={displayImage} alt="Dish preview" className="h-full w-full object-cover" />
+                <SmartImage
+                  src={displayImage}
+                  alt="Dish preview"
+                  sizes="(min-width: 640px) 40vw, 100vw"
+                  fallbackSrc="/assets/images/Jollof.png"
+                  className="h-full w-full object-cover"
+                />
               </div>
               <div className="space-y-3">
                 <div>
@@ -421,9 +428,11 @@ export function AdminMenuItems() {
                   <tr key={i.id} className="hover:bg-[#F7F7F7]">
                     <td className="p-4">
                       <div className="flex items-center gap-3.5">
-                        <img
+                        <SmartImage
                           src={`/assets/images/${i.image}`}
                           alt={i.food_name}
+                          sizes="80px"
+                          fallbackSrc="/assets/images/Jollof.png"
                           className="h-14 w-20 shrink-0 rounded-md border border-neutral-200 bg-neutral-100 object-cover"
                         />
                         <div>
@@ -716,9 +725,11 @@ export function AdminDiscounts() {
                     <tr key={i.id} className="hover:bg-[#F7F7F7]">
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <img
+                          <SmartImage
                             src={`/assets/images/${i.image}`}
                             alt={i.food_name}
+                            sizes="64px"
+                            fallbackSrc="/assets/images/Jollof.png"
                             className="h-12 w-16 rounded-md border border-neutral-200 object-cover"
                           />
                           <span className="text-sm font-bold text-[#111111]">{i.food_name}</span>

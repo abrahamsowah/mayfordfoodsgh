@@ -30,6 +30,7 @@ import { api } from '../api';
 import type { Admin } from '../types';
 import { Spinner } from './ui';
 import { ghs } from '../utils';
+import { SmartImage } from './SmartImage';
 
 /* ============================= SYNTHESIZED KITCHEN AUDIO BELL ============================= */
 export function playKitchenOrderChime() {
@@ -330,7 +331,13 @@ export function AdminLayout() {
       {/* Brand Header */}
       <div className="flex items-center justify-between border-b border-neutral-800 px-5 py-4">
         <Link to="/admin/dashboard" className="flex items-center gap-3">
-          <img src="/assets/images/logo.png" alt="Mayford Foods" className="h-9 w-9 rounded-md object-cover" />
+          <SmartImage
+            src="/assets/images/logo.png"
+            alt="Mayford Foods"
+            sizes="36px"
+            eager
+            className="h-9 w-9 rounded-md object-cover"
+          />
           <div className="leading-none">
             <p className="text-sm font-bold tracking-tight text-white">Mayford Admin</p>
             <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400">

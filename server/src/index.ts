@@ -14,6 +14,16 @@ import cookieParser from 'cookie-parser';
 import fs from 'fs';
 import multer from 'multer';
 import { initDb, query, execute, nowSql, dbMode } from './db';
+import {
+  configureImageService,
+  ensureVariants,
+  imageManifest,
+  invalidateImageManifest,
+  resolveVariant,
+  removeVariants,
+  IMAGE_DIRS,
+  type ImageDir,
+} from './images';
 import { getSupabaseDetails } from './supabase';
 
 // Real-time admin event bus for live kitchen order streaming & dashboard sync
@@ -583,9 +593,13 @@ const subDir = (dir: string) => {
   return dest;
 };
 
+// Runtime derivative generator for admin uploads (bundled photos are processed
+// ahead of time by react/scripts/optimize-images.mjs).
+configureImageService({ bundledRoot: ASSETS_DIR, writableRoot: UPLOAD_DIR });
+
 const multerUpload = (dir: 'images' | 'adverts' | 'videos' | 'community') => {
   const allowVideo = dir === 'videos' || dir === 'community';
-  return multer({
+  const upload = multer({
     storage: multer.diskStorage({
       destination: (_req, _file, cb) => cb(null, subDir(dir)),
       filename: (_req, file, cb) => cb(null, sanitizeFilename(file.originalname)),
@@ -600,6 +614,24 @@ const multerUpload = (dir: 'images' | 'adverts' | 'videos' | 'community') => {
       cb(null, true);
     },
   });
+
+  // Generate the WebP ladder for uploaded photos before the request continues,
+  // so the admin list, the manifest and the frontend see a ready image. Failures
+  // are non-fatal: the original file is still served as a fallback.
+  const single = upload.single.bind(upload);
+  return {
+    single: (field: string) => {
+      const middleware = single(field);
+      return (req: express.Request, res: express.Response, next: express.NextFunction) =>
+        middleware(req, res, (err: any) => {
+          const file = (req as any).file as Express.Multer.File | undefined;
+          if (err || !file || dir === 'videos') return next(err);
+          ensureVariants(dir, file.filename)
+            .catch(() => undefined)
+            .then(() => next());
+        });
+    },
+  };
 };
 
 // ---------------------------------------------------------------- auth helpers
@@ -707,9 +739,48 @@ app.use(
 );
 
 // Static assets (images, videos, sounds + admin uploads)
-app.use('/assets', express.static(ASSETS_DIR, { maxAge: '1h' }));
+//
+// Bundled media (react/public/assets/**) changes only on deploy, so it is cached
+// for a day and revalidated in the background — repeat visits render instantly
+// instead of re-downloading photos. Uploads on Vercel land in ephemeral /tmp
+// storage, so they keep a short 1 hour TTL.
+const bundledAssetOptions = {
+  maxAge: '1d',
+  setHeaders: (res: express.Response) =>
+    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800'),
+};
+app.use('/assets', express.static(ASSETS_DIR, bundledAssetOptions));
 if (IS_VERCEL) app.use('/assets', express.static(UPLOAD_DIR, { maxAge: '1h' }));
 
+// Missing derivative (first request after an upload, or a size the pipeline has
+// not produced yet): build it on demand, then serve it as a normal static file.
+app.get(
+  IMAGE_DIRS.map((dir) => `/assets/${dir}/optimized/:file`),
+  async (req, res) => {
+    const dir = req.path.split('/')[2] as ImageDir;
+    try {
+      const file = await resolveVariant(dir, String(req.params.file || ''));
+      if (!file) return res.status(404).end();
+      res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      res.sendFile(file);
+    } catch {
+      res.status(404).end();
+    }
+  }
+);
+
+
+// Per-image metadata (intrinsic size, placeholder colour, variant URLs) for
+// bundled photos plus anything uploaded through the admin panel.
+app.get('/api/image-manifest', async (_req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    res.json({ ok: true, images: await imageManifest() });
+  } catch (err) {
+    console.error('[images] manifest failed:', (err as Error).message);
+    res.status(500).json({ ok: false, error: 'Image manifest unavailable' });
+  }
+});
 
 app.get('/api/health', (_req, res) =>
   res.json({
@@ -2211,7 +2282,13 @@ app.put('/api/admin/menu/:id', requireAdmin, multerUpload('images').single('imag
 });
 
 app.delete('/api/admin/menu/:id', requireAdmin, async (req, res) => {
+  const rows = await query('SELECT image FROM menu_items WHERE id=?', [Number(req.params.id)]);
+  const image = rows[0] ? path.basename(String(rows[0].image || '')) : '';
   await execute('DELETE FROM menu_items WHERE id=?', [Number(req.params.id)]);
+  if (image) {
+    removeVariants('images', image);
+    invalidateImageManifest();
+  }
   res.json({ ok: true });
 });
 
@@ -2298,7 +2375,13 @@ app.put('/api/admin/adverts/:id', requireAdmin, multerUpload('adverts').single('
 });
 
 app.delete('/api/admin/adverts/:id', requireAdmin, async (req, res) => {
+  const rows = await query('SELECT banner_image FROM advertisement_banners WHERE id=?', [Number(req.params.id)]);
+  const image = rows[0] ? path.basename(String(rows[0].banner_image || '')) : '';
   await execute('DELETE FROM advertisement_banners WHERE id=?', [Number(req.params.id)]);
+  if (image) {
+    removeVariants('adverts', image);
+    invalidateImageManifest();
+  }
   res.json({ ok: true });
 });
 
@@ -2345,7 +2428,13 @@ app.put('/api/admin/slides/:id', requireAdmin, multerUpload('images').single('im
 });
 
 app.delete('/api/admin/slides/:id', requireAdmin, async (req, res) => {
+  const rows = await query('SELECT image FROM slider_images WHERE id=?', [Number(req.params.id)]);
+  const image = rows[0] ? path.basename(String(rows[0].image || '')) : '';
   await execute('DELETE FROM slider_images WHERE id=?', [Number(req.params.id)]);
+  if (image) {
+    removeVariants('images', image);
+    invalidateImageManifest();
+  }
   res.json({ ok: true });
 });
 
@@ -2449,6 +2538,8 @@ app.delete('/api/admin/community/:id', requireAdmin, async (req, res) => {
         /* ignore */
       }
     }
+    removeVariants('community', safeName);
+    invalidateImageManifest();
     await execute('DELETE FROM community_media WHERE id=?', [Number(req.params.id)]);
   }
   res.json({ ok: true });

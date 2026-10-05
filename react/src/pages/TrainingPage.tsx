@@ -25,6 +25,7 @@ import {
   Select,
   Textarea,
 } from '../components/ui';
+import { SmartImage } from '../components/SmartImage';
 
 const TRACKS = [
   {
@@ -48,7 +49,7 @@ const TRACKS = [
     defaultProgram: 'Artisan Baking & Pastry (6 Weeks)',
     duration: '6 Weeks Practical',
     level: 'All Skill Levels',
-    img: '/assets/images/food1.jpg',
+    img: '/assets/images/samosa.jpg',
     icon: UtensilsCrossed,
     modules: [
       'Artisan bread making, lamination, and savoury pastries',
@@ -226,13 +227,12 @@ export default function TrainingPage() {
             return (
               <Card key={t.title} className="flex flex-col overflow-hidden">
                 <div className="relative h-52 overflow-hidden bg-neutral-100">
-                  <img
+                  <SmartImage
                     src={t.img}
                     alt={t.title}
+                    sizes="(min-width: 768px) 50vw, 100vw"
+                    fallbackSrc="/assets/images/hero.png"
                     className="h-full w-full object-cover"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = '/assets/images/hero.png';
-                    }}
                   />
                   <div className="absolute left-3 top-3 flex flex-wrap gap-2">
                     <span className="rounded bg-[#111111] px-2.5 py-1 text-xs font-semibold text-white">

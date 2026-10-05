@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import { useSettings } from '../components/SiteLayout';
+import { SmartImage } from '../components/SmartImage';
 import { Reveal } from '../components/motion';
 import {
   Alert,
@@ -142,10 +143,11 @@ export default function CateringPage() {
           {GALLERY.map((img, i) => (
             <Reveal key={img} delay={(i % 3) * 60}>
               <div className="group aspect-[4/3] overflow-hidden rounded-lg bg-neutral-200">
-                <img
+                <SmartImage
                   src={`/assets/images/${img}`}
                   alt="Mayford Catering Event"
-                  loading="lazy"
+                  sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                  fallbackSrc="/assets/images/Jollof.png"
                   className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
                 />
               </div>

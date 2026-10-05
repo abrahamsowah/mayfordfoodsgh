@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "sh -c '[ -d node_modules ] || npm install; exec npx vite'",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "images": "node scripts/optimize-images.mjs",
+    "predev": "node scripts/optimize-images.mjs --auto",
+    "prebuild": "node scripts/optimize-images.mjs --auto"
   },
   "dependencies": {
     "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
