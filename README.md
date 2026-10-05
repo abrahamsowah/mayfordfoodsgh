@@ -35,6 +35,8 @@ Modernized, high-performance web platform and real-time operations engine for **
 - **Synthesized Kitchen Audio Chime**: 3-tone Web Audio API synthesizer chime with persistent mute/unmute header toggle.
 - **Live Dispatch Controls (`/admin/orders`)**:
   - Instant order prepending and visual highlight on new incoming orders.
+  - **New In-Store Order** cashier flow with branch-scoped access, current-menu pricing, cash/MoMo/card tender, and payment collection status.
+  - In-store sales are saved in the shared orders table and roll into paid revenue, outlet totals, order counts, top foods, sales-channel, and payment-mix reporting.
   - 1-click status pills (**`Pending`** $\rightarrow$ **`Preparing`** $\rightarrow$ **`Ready`** $\rightarrow$ **`Completed`**).
   - 1-click **Paid / Unpaid** payment toggle.
   - Full **Edit Order Modal** for modifying branch, delivery address, line items, and notes.
@@ -43,7 +45,7 @@ Modernized, high-performance web platform and real-time operations engine for **
   - Real-time revenue and Paystack settlement totals.
   - Live kitchen order breakdown.
   - Outlet performance comparison (Adabraka vs. Dzorwulu).
-  - Fulfillment breakdown (Delivery vs. Pickup).
+  - Fulfillment breakdown (Delivery vs. Pickup), sales-channel totals (Online vs. In-Store), and tender/payment mix.
   - Privacy-first visitor counter (removed from public footer and tracked in Admin).
 - **Admissions CRM (`/admin/training-applications`)**:
   - Filter applicants by admission status (*New*, *Contacted*, *Interview Scheduled*, *Admitted*, *Archived*) and school.
@@ -70,12 +72,15 @@ Modernized, high-performance web platform and real-time operations engine for **
 ### 1. Supabase (Database) Setup
 1. Create a project in [Supabase](https://supabase.com).
 2. Go to **SQL Editor** $\rightarrow$ **New Query**.
-3. Copy the entire contents of [`sql/supabase_schema.sql`](sql/supabase_schema.sql) and click **Run**.
-4. Go to **Project Settings** $\rightarrow$ **Database** $\rightarrow$ **Connection string** (URI).
-5. Add to your `.env`:
+3. For a **new/empty project only**, copy [`sql/supabase_schema.sql`](sql/supabase_schema.sql) into the SQL Editor and click **Run**. It drops/recreates tables, so do not rerun it on a database with data.
+4. If your Supabase project already has the Mayford schema/data, **skip step 3** and run [`sql/migrations/20261005_add_in_store_orders.sql`](sql/migrations/20261005_add_in_store_orders.sql) once. It adds in-store order tracking without deleting records.
+5. Go to **Project Settings → Database → Connection string** (URI) and add the Supabase Postgres URI to your server environment.
    ```env
-   DATABASE_URL=postgresql://postgres.[YOUR-PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?sslmode=require
+   SUPABASE_DB_URL=postgresql://postgres.[YOUR-PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?sslmode=require
+   SUPABASE_ONLY=true
+   DEMO_MODE=off
    ```
+   `DATABASE_URL` is also accepted instead of `SUPABASE_DB_URL`. With `SUPABASE_ONLY=true`, the server refuses MySQL and SQLite fallback if Supabase is unavailable.
 
 ### 2. Resend (Email Delivery) Setup
 1. Create an account in [Resend](https://resend.com) and generate an API key (`re_...`).
@@ -97,9 +102,10 @@ Create a `.env` in your production environment or root/`server`:
 # Server Port
 PORT=4000
 
-# Supabase PostgreSQL Database (Primary)
-DATABASE_URL=postgresql://postgres:password@db.supabase.co:5432/postgres
-DEMO_MODE=auto
+# Supabase PostgreSQL (Primary; URI copied from Supabase Project Settings → Database)
+SUPABASE_DB_URL=postgresql://postgres:password@db.supabase.co:5432/postgres
+SUPABASE_ONLY=true
+DEMO_MODE=off
 
 # Resend Transactional Emails (Primary)
 RESEND_API_KEY=re_your_resend_api_key
@@ -174,6 +180,6 @@ The repo is set up for Vercel out of the box (`vercel.json` + `api/index.ts`):
 - The React app is built from `react/` and served as static files from `react/dist`.
 - All `/api/*` routes run the Express app as a serverless function (`api/index.ts`).
 - Import the repo in Vercel with the **Root Directory left as the repo root** (don't pick `react/` or `server/`), and Node.js **22.x**.
-- Add the environment variables listed above in **Project → Settings → Environment Variables**. `DATABASE_URL` (Supabase) is **required**: without it the app falls back to a temporary SQLite database in `/tmp` that gets wiped often.
+- Add the environment variables listed above in **Project → Settings → Environment Variables**. A Supabase Postgres URI (`SUPABASE_DB_URL` or `DATABASE_URL`) is required. Set `SUPABASE_ONLY=true` so the server fails closed instead of connecting to MySQL or temporary SQLite if Supabase is unavailable.
 - Vercel's filesystem is temporary, so admin media uploads won't stick around between function instances. Use Supabase Storage or another external store for durable uploads.
 - Server-Sent Events (`/api/admin/live-stream`) get cut off at the function's max duration (60s). The client reconnects automatically.

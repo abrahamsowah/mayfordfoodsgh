@@ -156,6 +156,7 @@ CREATE TABLE `orders` (
   `quantity` int(11) NOT NULL,
   `outlet` varchar(100) NOT NULL,
   `order_type` varchar(100) NOT NULL,
+  `order_source` varchar(30) NOT NULL DEFAULT 'Online',
   `address` text DEFAULT NULL,
   `order_details` text DEFAULT NULL,
   `total` decimal(10,2) NOT NULL,

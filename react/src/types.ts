@@ -74,6 +74,7 @@ export interface Order {
   quantity: number;
   outlet: string;
   order_type: string;
+  order_source?: 'Online' | 'In-Store' | string;
   address: string | null;
   order_details: string | null;
   delivery_zone?: string | null;
@@ -168,7 +169,8 @@ export interface DashStats {
   training_applications?: number;
   outlet_stats?: Array<{ outlet: string; orders: number; revenue: number }>;
   fulfillment_stats?: Array<{ type: string; orders: number }>;
-  payment_stats?: Array<{ method: string; orders: number; revenue: number }>;
+  order_source_stats?: Array<{ source: string; orders: number; revenue: number; paid_revenue: number }>;
+  payment_stats?: Array<{ method: string; orders: number; revenue: number; paid_revenue: number }>;
   top_foods?: Array<{ name: string; count: number; revenue: number }>;
   recent_orders?: Order[];
 }

@@ -175,7 +175,7 @@ INSERT INTO public.menu_items (id, food_name, category, description, price, imag
 SELECT setval(pg_get_serial_sequence('public.menu_items', 'id'), (SELECT COALESCE(MAX(id), 1) FROM public.menu_items));
 
 -- ---------------------------------------------------------------------
---  9. Orders (online food orders & Paystack settlements)
+--  9. Orders (online and in-store food orders & settlements)
 -- ---------------------------------------------------------------------
 DROP TABLE IF EXISTS public.orders CASCADE;
 CREATE TABLE public.orders (
@@ -187,6 +187,7 @@ CREATE TABLE public.orders (
   quantity INTEGER NOT NULL DEFAULT 1,
   outlet VARCHAR(100) NOT NULL CHECK (outlet IN ('Adabraka', 'Dzorwulu')),
   order_type VARCHAR(100) NOT NULL CHECK (order_type IN ('Delivery', 'Pickup')),
+  order_source VARCHAR(30) NOT NULL DEFAULT 'Online' CHECK (order_source IN ('Online', 'In-Store')),
   delivery_zone VARCHAR(120),
   delivery_fee NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
   address TEXT,
@@ -468,6 +469,7 @@ CREATE POLICY "Public insert orders" ON public.orders FOR INSERT TO anon
     AND length(trim(phone)) >= 7
     AND outlet IN ('Adabraka', 'Dzorwulu')
     AND order_type IN ('Delivery', 'Pickup')
+    AND order_source = 'Online'
   );
 
 CREATE POLICY "Public insert catering_bookings" ON public.catering_bookings FOR INSERT TO anon
