@@ -399,7 +399,7 @@ async function tryConnectMysql(): Promise<boolean> {
 
 // ---------------------------------------------------------------- SQLite fallback
 function initSqlite(): void {
-  const dataDir = path.resolve(__dirname, '../data');
+  const dataDir = process.env.VERCEL ? '/tmp/mayford-data' : path.resolve(__dirname, '../data');
   fs.mkdirSync(dataDir, { recursive: true });
   const file = path.join(dataDir, 'demo.sqlite');
   sqlite = new DatabaseSync(file);

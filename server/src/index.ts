@@ -559,8 +559,12 @@ function createRateLimiter(options: EndpointRateConfig) {
 }
 
 // ---------------------------------------------------------------- multer
+// Vercel's filesystem is read-only except /tmp (uploads there are ephemeral —
+// use Supabase Storage for durable media in production).
+const IS_VERCEL = !!process.env.VERCEL;
+const UPLOAD_DIR = IS_VERCEL ? path.join('/tmp', 'mayford-assets') : ASSETS_DIR;
 const subDir = (dir: string) => {
-  const dest = path.join(ASSETS_DIR, dir);
+  const dest = path.join(UPLOAD_DIR, dir);
   fs.mkdirSync(dest, { recursive: true });
   return dest;
 };
@@ -629,6 +633,12 @@ const outletScope = (
 // ---------------------------------------------------------------- app
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
+
+// Serverless: make sure the DB is initialised before handling any request.
+let dbReady: Promise<void> | null = null;
+export const ensureDb = () => (dbReady ??= initDb().catch((e) => { dbReady = null; throw e; }));
+app.use((_req, _res, next) => { ensureDb().then(() => next(), next); });
 
 // Security headers (preserving iframe compatibility for Arena preview)
 app.use((_req, res, next) => {
@@ -661,6 +671,8 @@ app.use(
 
 // Static assets (images, videos, sounds + admin uploads)
 app.use('/assets', express.static(ASSETS_DIR, { maxAge: '1h' }));
+if (IS_VERCEL) app.use('/assets', express.static(UPLOAD_DIR, { maxAge: '1h' }));
+
 
 app.get('/api/health', (_req, res) =>
   res.json({
@@ -2395,8 +2407,10 @@ if (fs.existsSync(path.join(DIST_DIR, 'index.html'))) {
   });
 }
 
+export default app;
+
 // ================================================================ start
-initDb()
+if (!IS_VERCEL) ensureDb()
   .then(() => {
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Mayford Foods GH server running on http://0.0.0.0:${PORT} (db: ${dbMode()})`);
