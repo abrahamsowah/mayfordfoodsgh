@@ -87,6 +87,7 @@ export interface Order {
   payment_reference?: string | null;
   receipt_signature?: string;
   status: string;
+  notification_status?: string;
   order_date: string;
 }
 
@@ -151,6 +152,14 @@ export interface CartItem {
 }
 
 export interface DashStats {
+  database_mode?: string;
+  branch_info?: {
+    name: string;
+    phone: string;
+    hours: string;
+    manager: string;
+    kitchen_queue: { pending: number; preparing: number; ready: number; completed: number };
+  };
   revenue: number;
   paid_revenue: number;
   avg_order_value: number;
@@ -161,11 +170,11 @@ export interface DashStats {
   completed_orders: number;
   paid_orders: number;
   unpaid_orders: number;
-  total_visitors: number;
-  menu_items_count: number;
-  categories_count: number;
-  avg_rating: number;
-  ratings_count: number;
+  total_visitors?: number;
+  menu_items_count?: number;
+  categories_count?: number;
+  avg_rating?: number;
+  ratings_count?: number;
   catering_bookings?: number;
   contact_messages?: number;
   training_applications?: number;

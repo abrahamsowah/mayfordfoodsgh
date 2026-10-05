@@ -37,6 +37,8 @@ interface CompletedReceipt {
   customer_name: string;
   phone: string;
   outlet: string;
+  requested_outlet?: string;
+  fulfillment_rerouted?: boolean;
   order_type: string;
   delivery_zone?: string | null;
   delivery_fee?: number;
@@ -57,6 +59,7 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<'Paystack' | 'Pay on Delivery'>('Paystack');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [stockNotice, setStockNotice] = useState('');
 
   // Pending checkout form state for Paystack modal
   const [pendingCustomer, setPendingCustomer] = useState<{
@@ -95,6 +98,9 @@ export default function CheckoutPage() {
       const res = await api.post<{
         ok: boolean;
         id: number;
+        outlet: string;
+        requested_outlet: string;
+        fulfillment_rerouted: boolean;
         total: number;
         delivery_zone: string | null;
         delivery_fee: number;
@@ -126,7 +132,9 @@ export default function CheckoutPage() {
         id: res.id,
         customer_name: customer.customer_name,
         phone: customer.phone,
-        outlet,
+        outlet: res.outlet || outlet,
+        requested_outlet: res.requested_outlet || outlet,
+        fulfillment_rerouted: Boolean(res.fulfillment_rerouted),
         order_type: orderType,
         delivery_zone: res.delivery_zone || (orderType === 'Delivery' ? selectedZone.label : null),
         delivery_fee: res.delivery_fee ?? deliveryFee,
@@ -149,6 +157,8 @@ export default function CheckoutPage() {
 
   async function handleCheckoutSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError('');
+    setStockNotice('');
     const fd = Object.fromEntries(new FormData(e.currentTarget).entries());
     const customer = {
       customer_name: String(fd.customer_name || '').trim(),
@@ -161,6 +171,28 @@ export default function CheckoutPage() {
       await finalizeOrder(customer, 'Pay on Delivery', 'Pending');
       return;
     }
+
+    // Confirm inventory and receive the server-selected fulfillment outlet before charging a payment method.
+    setBusy(true);
+    try {
+      const availability = await api.post<{
+        outlet: string;
+        requested_outlet: string;
+        fulfillment_rerouted: boolean;
+      }>('/orders/availability', {
+        items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
+        outlet,
+        order_type: orderType,
+      });
+      if (availability.fulfillment_rerouted) {
+        setStockNotice(`Delivery will be fulfilled by ${availability.outlet} because ${availability.requested_outlet} is out of stock.`);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
 
     // Paystack online payment flow
     setPendingCustomer(customer);
@@ -227,7 +259,14 @@ export default function CheckoutPage() {
             <dl className="mt-6 grid grid-cols-2 gap-4 border-b border-neutral-200 pb-6 text-xs">
               <div>
                 <dt className="font-medium text-[#6B6B6B]">Kitchen Branch</dt>
-                <dd className="mt-1 font-bold text-[#111111]">{receipt.outlet}</dd>
+                <dd className="mt-1 font-bold text-[#111111]">
+                  {receipt.outlet}
+                  {receipt.fulfillment_rerouted && (
+                    <span className="mt-1 block text-[11px] font-medium text-[#6B6B6B]">
+                      Delivery routed from {receipt.requested_outlet} due to stock.
+                    </span>
+                  )}
+                </dd>
               </div>
               <div>
                 <dt className="font-medium text-[#6B6B6B]">Fulfillment</dt>
@@ -308,6 +347,7 @@ export default function CheckoutPage() {
         {/* Left: Fulfillment, Contact & Payment Form */}
         <Card className="p-6 sm:p-8">
           {error && <Alert tone="red">{error}</Alert>}
+          {stockNotice && <Alert tone="orange">{stockNotice}</Alert>}
 
           <form onSubmit={handleCheckoutSubmit}>
             {/* Step 1: Select Kitchen Branch */}

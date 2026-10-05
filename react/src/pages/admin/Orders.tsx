@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   BellRing,
   Check,
@@ -16,7 +17,7 @@ import { Btn, EmptyRow, Field, Input, Select, Textarea } from '../../components/
 import { ghs, waLink } from '../../utils';
 import InStoreOrderModal from './InStoreOrderModal';
 
-const STATUS_FILTERS = ['All', 'Pending', 'Preparing', 'Ready', 'Completed'];
+const STATUS_FILTERS = ['All', 'Live', 'Pending', 'Preparing', 'Ready', 'Fulfilled'];
 const hasContactPhone = (phone?: string | null) => String(phone || '').replace(/\D/g, '').length >= 7;
 
 interface StatusNotification {
@@ -32,9 +33,13 @@ interface StatusNotification {
 export default function AdminOrders() {
   const { admin } = useAdminSession();
   const { lastEvent } = useAdminLive();
+  const isBranchAdmin = admin?.role === 'adabraka_admin' || admin?.role === 'dzorwulu_admin';
+  const branchName = admin?.role === 'dzorwulu_admin' ? 'Dzorwulu' : 'Adabraka';
+  const location = useLocation();
+  const routeSearch = new URLSearchParams(location.search).get('search') || '';
   const [orders, setOrders] = useState<Order[] | null>(null);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [search, setSearch] = useState(routeSearch);
+  const [status, setStatus] = useState(isBranchAdmin ? 'Live' : '');
   const [outlet, setOutlet] = useState('');
   const [source, setSource] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('');
@@ -59,6 +64,11 @@ export default function AdminOrders() {
         if (!silent) setOrders([]);
       });
   }, [search, status, outlet, source, paymentStatus]);
+
+  useEffect(() => {
+    setSearch(routeSearch);
+    if (routeSearch) setStatus(isBranchAdmin ? 'Live' : '');
+  }, [routeSearch, isBranchAdmin]);
 
   useEffect(() => {
     void load();
@@ -116,6 +126,18 @@ export default function AdminOrders() {
           ...res.notification,
         });
       }
+      await load(true);
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function acknowledgeOrder(order: Order) {
+    setBusyId(order.id);
+    try {
+      await api.post(`/admin/orders/${order.id}/acknowledge`);
       await load(true);
     } catch (err) {
       alert((err as Error).message);
@@ -197,15 +219,13 @@ export default function AdminOrders() {
       <div className="flex flex-col justify-between gap-4 rounded-lg border border-neutral-200 bg-white p-5 sm:p-6 md:flex-row md:items-center">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-mayford-600">Order Management</p>
-          <div className="flex items-center gap-3">
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#111111]">Customer Orders</h1>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Real-Time Sync</span>
-            </span>
-          </div>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#111111]">
+            {isBranchAdmin ? `${branchName} Orders` : 'Customer Orders'}
+          </h1>
           <p className="mt-1 text-xs text-[#6B6B6B]">
-            Track kitchen progress, update customer fulfillment in real-time, and trigger automatic status alerts.
+            {isBranchAdmin
+              ? `Live and fulfilled orders for ${branchName}. Use Fulfilled or search by order number to investigate past orders.`
+              : 'Review live and fulfilled orders, manage fulfillment, and send customer status updates.'}
           </p>
         </div>
 
@@ -250,7 +270,7 @@ export default function AdminOrders() {
               </p>
               <p className="mt-0.5 text-[#6B6B6B]">
                 {lastNotify.smsDispatched
-                  ? `Automated SMS dispatched via ${lastNotify.provider.toUpperCase()}. Client tracking page updated in real time.`
+                  ? `Automated SMS dispatched via ${lastNotify.provider.toUpperCase()}. Client tracking page updated.`
                   : lastNotify.whatsappUrl
                   ? 'Customer status alert ready. Click below to send an instant WhatsApp update to guest.'
                   : 'No customer phone was provided for this in-store order.'}
@@ -345,7 +365,7 @@ export default function AdminOrders() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Name, phone, Paystack ref..."
+                placeholder="Order #, name, phone or Paystack ref..."
                 className="w-full rounded-md border border-neutral-300 bg-white py-2 pl-9 pr-8 text-xs text-[#111111] placeholder-neutral-400 outline-none focus:border-[#111111]"
               />
               {search && (
@@ -422,6 +442,16 @@ export default function AdminOrders() {
                     >
                       {o.status}
                     </span>
+                    {o.status === 'Pending' && o.notification_status === 'new' && (
+                      <button
+                        type="button"
+                        disabled={busyId === o.id}
+                        onClick={() => void acknowledgeOrder(o)}
+                        className="mt-1 block w-full rounded border border-neutral-300 bg-white px-2 py-1 text-[10px] font-semibold text-[#111111] hover:border-[#111111] disabled:opacity-60"
+                      >
+                        {busyId === o.id ? 'Saving…' : 'Acknowledge'}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -636,6 +666,16 @@ export default function AdminOrders() {
                         >
                           {o.status}
                         </span>
+                        {o.status === 'Pending' && o.notification_status === 'new' && (
+                          <button
+                            type="button"
+                            disabled={busyId === o.id}
+                            onClick={() => void acknowledgeOrder(o)}
+                            className="mt-1 block rounded border border-neutral-300 bg-white px-2 py-1 text-[10px] font-semibold text-[#111111] hover:border-[#111111] disabled:opacity-60"
+                          >
+                            {busyId === o.id ? 'Saving…' : 'Acknowledge'}
+                          </button>
+                        )}
                       </td>
                       <td className="p-4">
                         <div className="grid grid-cols-2 gap-1 w-36">

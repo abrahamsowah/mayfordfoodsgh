@@ -4,7 +4,7 @@
  * Supported engines:
  *   1. Supabase / PostgreSQL (pg)  -> Direct connection pool via SUPABASE_DB_URL or DATABASE_URL
  *   2. MySQL / MariaDB (mysql2)     -> Optional legacy fallback when SUPABASE_ONLY is unset
- *   3. SQLite (node:sqlite)         -> Optional demo fallback when SUPABASE_ONLY is unset
+ *   3. SQLite (node:sqlite)         -> Local development fallback when SUPABASE_ONLY is unset
  */
 import path from 'path';
 import fs from 'fs';
@@ -103,6 +103,14 @@ CREATE TABLE IF NOT EXISTS menu_items (
   status TEXT NOT NULL DEFAULT 'available',
   discount_percent INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS menu_item_outlet_availability (
+  menu_item_id BIGINT NOT NULL,
+  outlet VARCHAR(100) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'available',
+  updated_at TEXT NOT NULL,
+  updated_by BIGINT,
+  PRIMARY KEY (menu_item_id, outlet)
 );
 CREATE TABLE IF NOT EXISTS orders (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -216,6 +224,8 @@ export type SeedEntry = { sql: string; rows: any[][] };
 export function starterSeeds(ts: string): SeedEntry[] {
   const defaultAdminPass =
     'scrypt$a1b2c3d4e5f60718293a4b5c6d7e8f90$bf6bdd1693dc31289e14d0eca9d8dd21d9e5d6945a99a798b2bbd904873d4578962b2471595c04a15459dab8ff124511d0288e7e5d3c60b4a850d8211c4903db';
+  // Local SQLite needs bootstrap access only. Business records and dashboard metrics
+  // must come from actual orders/content, never fixture rows.
   return [
     {
       sql: 'INSERT INTO admins (admin_name, username, password, role, created_at) VALUES (?,?,?,?,?)',
@@ -223,126 +233,6 @@ export function starterSeeds(ts: string): SeedEntry[] {
         ['Mayford Main Admin', 'mainadmin', defaultAdminPass, 'super_admin', ts],
         ['Adabraka Admin', 'adabraka', defaultAdminPass, 'adabraka_admin', ts],
         ['Dzorwulu Admin', 'dzorwulu', defaultAdminPass, 'dzorwulu_admin', ts],
-      ],
-    },
-    {
-      sql: 'INSERT INTO banners (banner_text, created_at) VALUES (?,?)',
-      rows: [
-        ['Available on Bolt Food & Online Direct Ordering', ts],
-        ['Outside Catering Available for Weddings & Corporate Events', ts],
-        ['Open Monday - Sunday 9:00 AM - 9:30 PM', ts],
-        ['Mayford Community Outreach Initiatives', ts],
-        ['Culinary Academy Training Programmes Available', ts],
-      ],
-    },
-    {
-      sql: 'INSERT INTO menu_categories (category_name, created_at) VALUES (?,?)',
-      rows: [
-        ['Rice Dishes', ts],
-        ['Local Dishes', ts],
-        ['Soups', ts],
-        ['Drinks', ts],
-        ['Snacks', ts],
-        ['Breakfast', ts],
-      ],
-    },
-    {
-      sql: 'INSERT INTO menu_items (food_name, category, description, price, image, status, discount_percent, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      rows: [
-        ['Jollof', 'Rice Dishes', 'Smoky Ghanaian Jollof served with grilled chicken and shito', 80.0, 'Jollof.png', 'available', 0, ts],
-        ['Banku', 'Local Dishes', 'Freshly prepared corn and cassava dough served with okro soup and tilapia', 45.0, 'bankuokro.jpeg', 'available', 0, ts],
-        ['Fried Rice Special', 'Rice Dishes', 'Seasoned wok fried rice with seasoned vegetables and chicken', 85.0, 'hero.png', 'available', 0, ts],
-      ],
-    },
-    {
-      sql: 'INSERT INTO orders (customer_name, customer_email, phone, food_item, quantity, outlet, order_type, address, order_details, total, payment_method, payment_status, payment_reference, status, notification_status, order_date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-      rows: [
-        ['Kwame Mensah', 'kwame@example.com', '0557605261', 'Jollof', 3, 'Dzorwulu', 'Delivery', 'Dzorwulu Junction, Accra', 'Jollof x 3', 240.0, 'Paystack', 'Paid', 'PSK_MF_902814', 'Completed', 'seen', ts],
-        ['Ama Osei', 'ama@example.com', '0244192837', 'Multiple Foods', 2, 'Adabraka', 'Delivery', 'Adabraka Official Town, Accra', 'Jollof x 1 = GH₵ 80.00\nBanku x 1 = GH₵ 45.00', 125.0, 'Paystack', 'Paid', 'PSK_MF_902889', 'Preparing', 'new', ts],
-      ],
-    },
-    {
-      sql: 'INSERT INTO slider_images (image, created_at) VALUES (?,?)',
-      rows: [
-        ['hero.png', ts],
-        ['hero2.png', ts],
-        ['community1.png', ts],
-        ['hero3.png', ts],
-        ['outsidecater4.jpeg', ts],
-      ],
-    },
-    {
-      sql: 'INSERT INTO advertisement_banners (banner_image, title, description, button_text, button_link, status, created_at) VALUES (?,?,?,?,?,?,?)',
-      rows: [
-        ['Jollof.png', 'Fresh Jollof Special', 'Enjoy our signature smoky party jollof served with grilled chicken. Order today!', 'Order Now', '/menu', 'Active', ts],
-        ['riceball.jpg', 'Riceball Deal', 'Quick, tasty and affordable riceballs prepared fresh every day.', 'View Menu', '/menu', 'Active', ts],
-      ],
-    },
-    {
-      sql: 'INSERT INTO advertisement_videos (video_name, poster_url, created_at) VALUES (?,?,?)',
-      rows: [['video.mp4', 'hero.png', ts]],
-    },
-    {
-      sql: 'INSERT INTO community_media (media_type, file_name, title, description, created_at) VALUES (?,?,?,?,?)',
-      rows: [
-        [
-          'image',
-          'community1.png',
-          'Accra Neighbourhood Meal Drive',
-          'Sharing freshly prepared Jollof and hot meals with families and children in our local community.',
-          ts,
-        ],
-        [
-          'image',
-          'community2.png',
-          'Youth Culinary Mentorship Outreach',
-          'Hands-on kitchen mentorship and food hygiene workshops for aspiring young cooks in Accra.',
-          ts,
-        ],
-        [
-          'image',
-          'community5.png',
-          'Holiday Community Welfare Support',
-          'Partnering with neighbourhood leaders to distribute food packages and hot meals.',
-          ts,
-        ],
-      ],
-    },
-    {
-      sql: 'INSERT INTO training_applications (application_ref, full_name, phone, email, training_school, program, message, status, admin_notes, email_sent, notification_status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-      rows: [
-        [
-          'MFA-2026-0001',
-          'Abena Mensah',
-          '0248112233',
-          'abena.mensah@example.com',
-          'School of Culinary Arts',
-          'Professional Chef Training (3-Month Certificate)',
-          'Passionate about commercial Ghanaian kitchen operations.',
-          'New',
-          'Branded confirmation email sent automatically via Resend. Awaiting admissions call.',
-          1,
-          'new',
-          ts,
-        ],
-      ],
-    },
-    {
-      sql: 'INSERT INTO visitor_counter (total_visitors) VALUES (?)',
-      rows: [[1250]],
-    },
-    {
-      sql: 'INSERT INTO website_settings (email, adabraka_phone, dzorwulu_phone, facebook_link, tiktok_link, opening_hours, paystack_public_key) VALUES (?,?,?,?,?,?,?)',
-      rows: [
-        [
-          'mayfordfoods@gmail.com',
-          '0244143271',
-          '0533634378',
-          'https://www.facebook.com/share/1PDFLKArpt/',
-          'https://www.tiktok.com/@maryafuahboakye?_r=1&_t=ZS-97IIPfQ9uRo',
-          'Monday - Sunday 9:00 AM - 9:30 PM',
-          '',
-        ],
       ],
     },
   ];
@@ -434,7 +324,7 @@ async function tryConnectMysql(): Promise<boolean> {
 function initSqlite(): void {
   const dataDir = process.env.VERCEL ? '/tmp/mayford-data' : path.resolve(__dirname, '../data');
   fs.mkdirSync(dataDir, { recursive: true });
-  const file = path.join(dataDir, 'demo.sqlite');
+  const file = path.join(dataDir, 'local.sqlite');
   sqlite = new DatabaseSync(file);
   sqlite.exec('PRAGMA journal_mode = WAL');
   sqlite.exec(SQLITE_SCHEMA);
@@ -467,19 +357,34 @@ function initSqlite(): void {
     }
   }
 
-  // Seed SQLite if admins empty
-  const count = sqlite.prepare('SELECT COUNT(*) AS c FROM admins').get() as { c: number };
-  if (count.c === 0) {
-    const ts = nowSql();
+  const ts = nowSql();
+  const adminCount = sqlite.prepare('SELECT COUNT(*) AS c FROM admins').get() as { c: number };
+  if (adminCount.c === 0) {
     for (const seed of starterSeeds(ts)) {
-      for (const row of seed.rows) {
-        sqlite.prepare(seed.sql).run(...row);
-      }
+      for (const row of seed.rows) sqlite.prepare(seed.sql).run(...row);
     }
   }
 
+  const visitorCount = sqlite.prepare('SELECT COUNT(*) AS c FROM visitor_counter').get() as { c: number };
+  if (visitorCount.c === 0) sqlite.prepare('INSERT INTO visitor_counter (id, total_visitors) VALUES (1, 0)').run();
+
+  const settingsCount = sqlite.prepare('SELECT COUNT(*) AS c FROM website_settings').get() as { c: number };
+  if (settingsCount.c === 0) {
+    sqlite.prepare(
+      'INSERT INTO website_settings (id, email, adabraka_phone, dzorwulu_phone, facebook_link, tiktok_link, opening_hours, paystack_public_key) VALUES (1,?,?,?,?,?,?,?)'
+    ).run(
+      'mayfordfoods@gmail.com',
+      '0244143271',
+      '0533634378',
+      'https://www.facebook.com/share/1PDFLKArpt/',
+      'https://www.tiktok.com/@maryafuahboakye?_r=1&_t=ZS-97IIPfQ9uRo',
+      'Monday - Sunday 9:00 AM - 9:30 PM',
+      ''
+    );
+  }
+
   activeMode = 'sqlite';
-  console.warn(`[db] Using SQLite DEMO MODE at ${file} (data resets are NOT synced to Supabase/MySQL).`);
+  console.warn(`[db] Using local SQLite at ${file}. Data is not synced to Supabase/MySQL.`);
 }
 
 async function ensureMediaSchema(): Promise<void> {
@@ -524,13 +429,57 @@ async function ensureMediaSchema(): Promise<void> {
   }
 }
 
+async function ensureMenuAvailabilitySchema(): Promise<void> {
+  await execute(`CREATE TABLE IF NOT EXISTS menu_item_outlet_availability (
+    menu_item_id BIGINT NOT NULL,
+    outlet VARCHAR(100) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'available',
+    updated_at TEXT NOT NULL,
+    updated_by BIGINT,
+    PRIMARY KEY (menu_item_id, outlet)
+  )`);
+
+  if (activeMode === 'supabase') {
+    await execute('ALTER TABLE menu_item_outlet_availability ENABLE ROW LEVEL SECURITY');
+    try {
+      await execute(`CREATE POLICY "Service role full access menu_item_outlet_availability"
+        ON menu_item_outlet_availability FOR ALL TO service_role USING (true) WITH CHECK (true)`);
+    } catch (err) {
+      if (!String((err as Error).message).toLowerCase().includes('already exists')) throw err;
+    }
+    await execute('REVOKE ALL ON menu_item_outlet_availability FROM anon, authenticated');
+    await execute('GRANT ALL ON menu_item_outlet_availability TO service_role');
+  }
+
+  const menuItems = await query('SELECT id FROM menu_items');
+  const availability = await query('SELECT menu_item_id, outlet FROM menu_item_outlet_availability');
+  const existing = new Set(availability.map((row) => `${Number(row.menu_item_id)}:${String(row.outlet)}`));
+  for (const item of menuItems) {
+    for (const outlet of ['Adabraka', 'Dzorwulu']) {
+      const key = `${Number(item.id)}:${outlet}`;
+      if (existing.has(key)) continue;
+      await execute(
+        'INSERT INTO menu_item_outlet_availability (menu_item_id, outlet, status, updated_at) VALUES (?,?,?,?)',
+        [Number(item.id), outlet, 'available', nowSql()]
+      );
+    }
+  }
+}
+
+async function ensureVisitorCounter(): Promise<void> {
+  const rows = await query('SELECT id FROM visitor_counter WHERE id=1');
+  if (rows.length === 0) await execute('INSERT INTO visitor_counter (id, total_visitors) VALUES (1, 0)');
+}
+
 export async function initDb(): Promise<void> {
-  const mode = process.env.DEMO_MODE || 'auto';
+  const mode = process.env.DEMO_MODE || (process.env.NODE_ENV === 'production' ? 'off' : 'auto');
   const supabaseOnly = /^(1|true|yes)$/i.test(process.env.SUPABASE_ONLY || '');
 
   // Supabase-only mode is strict: never connect to MySQL or fall back to local SQLite.
   if (await tryConnectSupabase()) {
     await ensureMediaSchema();
+    await ensureMenuAvailabilitySchema();
+    await ensureVisitorCounter();
     return;
   }
   if (supabaseOnly) {
@@ -540,15 +489,19 @@ export async function initDb(): Promise<void> {
   // 2. Try MySQL next if configured
   if (mode !== 'force' && (await tryConnectMysql())) {
     await ensureMediaSchema();
+    await ensureMenuAvailabilitySchema();
+    await ensureVisitorCounter();
     return;
   }
 
-  // 3. Fallback to zero-config SQLite
+  // 3. Local-development SQLite fallback; production defaults to fail closed.
   if (mode === 'off') {
-    throw new Error('Database is required (DEMO_MODE=off) but neither Supabase nor MySQL could be reached.');
+    throw new Error('No database connection is available. Configure Supabase/PostgreSQL/MySQL, or explicitly enable DEMO_MODE=auto for a local SQLite database.');
   }
   initSqlite();
   await ensureMediaSchema();
+  await ensureMenuAvailabilitySchema();
+  await ensureVisitorCounter();
 }
 
 export async function query(sql: string, params: any[] = []): Promise<Row[]> {

@@ -34,6 +34,7 @@ export default function OrderPage() {
   const [addedToCart, setAddedToCart] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [stockNotice, setStockNotice] = useState('');
   const [pendingOrder, setPendingOrder] = useState<{
     customer_name: string;
     customer_email: string;
@@ -50,6 +51,8 @@ export default function OrderPage() {
     customer_name: string;
     phone: string;
     outlet: string;
+    requested_outlet?: string;
+    fulfillment_rerouted?: boolean;
     order_type: string;
     delivery_zone?: string | null;
     delivery_fee?: number;
@@ -132,6 +135,9 @@ export default function OrderPage() {
       const res = await api.post<{
         ok: boolean;
         id: number;
+        outlet: string;
+        requested_outlet: string;
+        fulfillment_rerouted: boolean;
         total: number;
         delivery_zone: string | null;
         delivery_fee: number;
@@ -161,7 +167,9 @@ export default function OrderPage() {
         id: res.id,
         customer_name: orderData.customer_name,
         phone: orderData.phone,
-        outlet: orderData.outlet,
+        outlet: res.outlet || orderData.outlet,
+        requested_outlet: res.requested_outlet || orderData.outlet,
+        fulfillment_rerouted: Boolean(res.fulfillment_rerouted),
         order_type: orderData.order_type,
         delivery_zone: res.delivery_zone || (orderData.order_type === 'Delivery' ? selectedZone.label : null),
         delivery_fee: res.delivery_fee ?? fee,
@@ -181,6 +189,8 @@ export default function OrderPage() {
 
   async function handleFormSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError('');
+    setStockNotice('');
     const fd = Object.fromEntries(new FormData(e.currentTarget).entries());
     const chosenType = String(fd.order_type || orderType) as 'Delivery' | 'Pickup';
     const orderData = {
@@ -198,6 +208,27 @@ export default function OrderPage() {
       await submitOrderToBackend(orderData, 'Pay on Delivery', 'Pending');
       return;
     }
+
+    setBusy(true);
+    try {
+      const availability = await api.post<{
+        outlet: string;
+        requested_outlet: string;
+        fulfillment_rerouted: boolean;
+      }>('/orders/availability', {
+        menu_item_id: food!.id,
+        outlet: orderData.outlet,
+        order_type: orderData.order_type,
+      });
+      if (availability.fulfillment_rerouted) {
+        setStockNotice(`Delivery will be fulfilled by ${availability.outlet} because ${availability.requested_outlet} is out of stock.`);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
 
     setPendingOrder(orderData);
     const launched = await launchOfficialPaystack({
@@ -224,6 +255,7 @@ export default function OrderPage() {
       `Phone: ${completedReceipt.phone}\n` +
       `Food: ${food.food_name} x ${completedReceipt.quantity}\n` +
       `Outlet: ${completedReceipt.outlet}\n` +
+      (completedReceipt.fulfillment_rerouted ? `Fulfilled at ${completedReceipt.outlet} instead of ${completedReceipt.requested_outlet} due to stock.\n` : '') +
       `Order Type: ${completedReceipt.order_type}\n` +
       `Address: ${completedReceipt.address}\n` +
       `Payment: ${completedReceipt.payment_method} (${completedReceipt.payment_status})` +
@@ -269,6 +301,11 @@ export default function OrderPage() {
                   {completedReceipt.delivery_zone ? ` (${completedReceipt.delivery_zone})` : ''} ·{' '}
                   {completedReceipt.payment_method}
                 </p>
+                {completedReceipt.fulfillment_rerouted && (
+                  <p className="mt-1 text-xs text-[#6B6B6B]">
+                    Routed from {completedReceipt.requested_outlet} due to branch stock.
+                  </p>
+                )}
                 {completedReceipt.payment_reference && (
                   <p className="mt-1 font-mono text-xs font-semibold text-[#111111]">
                     Ref: {completedReceipt.payment_reference}
@@ -416,6 +453,11 @@ export default function OrderPage() {
             {error && (
               <div className="mt-4">
                 <Alert tone="red">{error}</Alert>
+              </div>
+            )}
+            {stockNotice && (
+              <div className="mt-4">
+                <Alert tone="orange">{stockNotice}</Alert>
               </div>
             )}
 

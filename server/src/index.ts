@@ -712,6 +712,54 @@ const requireSuper = (req: express.Request, res: express.Response, next: express
   next();
 };
 
+type OutletName = 'Adabraka' | 'Dzorwulu';
+const OUTLETS: OutletName[] = ['Adabraka', 'Dzorwulu'];
+
+function outletForRole(role?: string): OutletName | null {
+  if (role === 'adabraka_admin') return 'Adabraka';
+  if (role === 'dzorwulu_admin') return 'Dzorwulu';
+  return null;
+}
+
+type FulfillmentResolution =
+  | { available: true; requestedOutlet: OutletName; outlet: OutletName; rerouted: boolean }
+  | { available: false; requestedOutlet: OutletName; availableOutlet: OutletName | null; unavailableIds: number[] };
+
+async function resolveFulfillmentOutlet(
+  itemIds: number[],
+  requestedOutlet: OutletName,
+  orderType: 'Delivery' | 'Pickup'
+): Promise<FulfillmentResolution> {
+  const uniqueIds = Array.from(new Set(itemIds));
+  const placeholders = uniqueIds.map(() => '?').join(',');
+  const rows = await query(
+    `SELECT menu_item_id, outlet, status FROM menu_item_outlet_availability WHERE menu_item_id IN (${placeholders})`,
+    uniqueIds
+  );
+  const availability = new Map<string, string>();
+  for (const row of rows) {
+    availability.set(`${Number(row.menu_item_id)}:${String(row.outlet)}`, String(row.status).toLowerCase());
+  }
+  const canFulfillAt = (outlet: OutletName) => uniqueIds.every(
+    (id) => availability.get(`${id}:${outlet}`) === 'available'
+  );
+
+  if (canFulfillAt(requestedOutlet)) {
+    return { available: true, requestedOutlet, outlet: requestedOutlet, rerouted: false };
+  }
+  const alternateOutlet: OutletName = requestedOutlet === 'Adabraka' ? 'Dzorwulu' : 'Adabraka';
+  if (orderType === 'Delivery' && canFulfillAt(alternateOutlet)) {
+    return { available: true, requestedOutlet, outlet: alternateOutlet, rerouted: true };
+  }
+  const alternativeCanFulfill = canFulfillAt(alternateOutlet);
+  return {
+    available: false,
+    requestedOutlet,
+    availableOutlet: alternativeCanFulfill ? alternateOutlet : null,
+    unavailableIds: uniqueIds.filter((id) => availability.get(`${id}:${requestedOutlet}`) !== 'available'),
+  };
+}
+
 /** The outlet a logged-in admin may see (super_admin sees all or can filter). */
 const outletScope = (
   req: express.Request
@@ -1206,12 +1254,21 @@ app.get('/api/community-media', async (_req, res) => {
   res.json({ ok: true, media: rows });
 });
 
-// Menu items
-app.get('/api/menu', async (req, res) => {
+// Menu items. The public catalog only includes dishes available at at least one outlet.
+app.get('/api/menu', (req, res, next) => {
+  if (req.query.all !== '1') return next();
+  return requireAdmin(req, res, () => requireSuper(req, res, next));
+}, async (req, res) => {
   const all = req.query.all === '1';
   const rows = all
     ? await query('SELECT * FROM menu_items ORDER BY id DESC')
-    : await query("SELECT * FROM menu_items WHERE status='available' ORDER BY id DESC");
+    : await query(`SELECT item.* FROM menu_items AS item
+        WHERE LOWER(COALESCE(item.status, ''))='available'
+          AND EXISTS (
+            SELECT 1 FROM menu_item_outlet_availability AS availability
+            WHERE availability.menu_item_id=item.id AND LOWER(availability.status)='available'
+          )
+        ORDER BY item.id DESC`);
   res.json({ ok: true, items: rows });
 });
 
@@ -1220,7 +1277,12 @@ app.get('/api/menu/:id', async (req, res) => {
   if (!Number.isFinite(id) || id <= 0) {
     return res.status(400).json({ ok: false, error: 'Invalid menu item ID' });
   }
-  const rows = await query('SELECT * FROM menu_items WHERE id=?', [id]);
+  const rows = await query(`SELECT item.* FROM menu_items AS item
+    WHERE item.id=? AND LOWER(COALESCE(item.status, ''))='available'
+      AND EXISTS (
+        SELECT 1 FROM menu_item_outlet_availability AS availability
+        WHERE availability.menu_item_id=item.id AND LOWER(availability.status)='available'
+      )`, [id]);
   if (rows.length === 0) return res.status(404).json({ ok: false, error: 'Food item not found' });
   res.json({ ok: true, item: rows[0] });
 });
@@ -1256,6 +1318,76 @@ app.get('/api/visitor-count', async (_req, res) => {
   res.json({ ok: true, total_visitors: Number(rows[0]?.total_visitors || 0) });
 });
 
+// Stock preflight for online payment flows. The create-order endpoint repeats this check before writing an order.
+app.post(
+  '/api/orders/availability',
+  createRateLimiter({ windowMs: 60 * 1000, max: 40, message: 'Too many availability checks. Please wait a moment.' }),
+  async (req, res) => {
+    const body = req.body || {};
+    const requestedOutlet = String(body.outlet || '').trim() as OutletName;
+    const orderType = String(body.order_type || '').trim();
+    if (!OUTLETS.includes(requestedOutlet)) {
+      return res.status(400).json({ ok: false, error: 'Please select a valid outlet (Adabraka or Dzorwulu).' });
+    }
+    if (!['Delivery', 'Pickup'].includes(orderType)) {
+      return res.status(400).json({ ok: false, error: 'Please select Delivery or Pickup.' });
+    }
+
+    const entries = Array.isArray(body.items) ? body.items : body.menu_item_id ? [{ id: body.menu_item_id }] : [];
+    if (entries.length === 0 || entries.length > 50) {
+      return res.status(400).json({ ok: false, error: 'Select between 1 and 50 menu items.' });
+    }
+    const itemIds: number[] = entries.map((entry: any) => Number(entry?.id ?? entry?.menu_item_id));
+    if (itemIds.some((id: number) => !Number.isSafeInteger(id) || id <= 0)) {
+      return res.status(400).json({ ok: false, error: 'One or more menu item IDs are invalid.' });
+    }
+    const uniqueIds: number[] = Array.from(new Set<number>(itemIds));
+    const placeholders = uniqueIds.map(() => '?').join(',');
+    const menuItems = await query(
+      `SELECT id, food_name, status FROM menu_items WHERE id IN (${placeholders})`,
+      uniqueIds
+    );
+    const itemById = new Map<number, any>(menuItems.map((item) => [Number(item.id), item]));
+    if (itemById.size !== uniqueIds.length) {
+      return res.status(400).json({ ok: false, error: 'One or more selected menu items no longer exist.' });
+    }
+    const unlisted = uniqueIds
+      .filter((id) => String(itemById.get(id)?.status || '').toLowerCase() !== 'available')
+      .map((id) => String(itemById.get(id)?.food_name || `Item #${id}`));
+    if (unlisted.length > 0) {
+      return res.status(409).json({
+        ok: false,
+        code: 'MENU_ITEM_UNLISTED',
+        error: `These items are no longer listed on the menu: ${unlisted.join(', ')}.`,
+        unavailable_items: unlisted,
+      });
+    }
+
+    const resolution = await resolveFulfillmentOutlet(uniqueIds, requestedOutlet, orderType as 'Delivery' | 'Pickup');
+    if (!resolution.available) {
+      const unavailableNames = resolution.unavailableIds.map((id) => String(itemById.get(id)?.food_name || `Item #${id}`));
+      const message = resolution.availableOutlet
+        ? `Some items are out of stock at ${requestedOutlet}. Select ${resolution.availableOutlet} for ${orderType.toLowerCase()} fulfillment.`
+        : 'No single branch can fulfill the full basket right now. Please remove or replace unavailable items.';
+      return res.status(409).json({
+        ok: false,
+        code: 'OUTLET_STOCK_UNAVAILABLE',
+        error: message,
+        requested_outlet: requestedOutlet,
+        available_outlet: resolution.availableOutlet,
+        unavailable_items: unavailableNames,
+      });
+    }
+
+    res.json({
+      ok: true,
+      outlet: resolution.outlet,
+      requested_outlet: requestedOutlet,
+      fulfillment_rerouted: resolution.rerouted,
+    });
+  }
+);
+
 // Create order (with authoritative server-side price verification, delivery zone fee, & Paystack anti-fraud verification)
 app.post(
   '/api/orders',
@@ -1264,13 +1396,14 @@ app.post(
     const b = req.body || {};
     const customerName = String(b.customer_name || '').trim();
     const phone = String(b.phone || '').trim();
-    const outlet = String(b.outlet || '').trim();
+    const requestedOutlet = String(b.outlet || '').trim();
+    let outlet = requestedOutlet as OutletName;
     const orderType = String(b.order_type || '').trim();
 
     if (!customerName || customerName.length < 2 || !phone || phone.length < 7) {
       return res.status(400).json({ ok: false, error: 'Valid customer name and phone number are required.' });
     }
-    if (!['Adabraka', 'Dzorwulu'].includes(outlet)) {
+    if (!OUTLETS.includes(outlet)) {
       return res.status(400).json({ ok: false, error: 'Please select a valid outlet (Adabraka or Dzorwulu).' });
     }
     if (!['Delivery', 'Pickup'].includes(orderType)) {
@@ -1292,51 +1425,98 @@ app.post(
     let orderDetails = b.order_details ? String(b.order_details).trim() : '';
     let computedSubtotal = 0;
     let hasValidCatalogItems = false;
+    const orderedItemIds: number[] = [];
+    const orderedItemNames = new Map<number, string>();
 
     if (Array.isArray(b.items) && b.items.length > 0) {
-      const allMenu = await query('SELECT id, food_name, price, discount_percent FROM menu_items');
-      const menuMap = new Map<number, { food_name: string; unitPrice: number }>();
+      if (b.items.length > 50) {
+        return res.status(400).json({ ok: false, error: 'An order can include up to 50 menu lines.' });
+      }
+      const itemIds = b.items.map((entry: any) => Number(entry?.id ?? entry?.menu_item_id));
+      if (itemIds.some((id: number) => !Number.isSafeInteger(id) || id <= 0)) {
+        return res.status(400).json({ ok: false, error: 'One or more menu item IDs are invalid.' });
+      }
+      const uniqueItemIds = Array.from(new Set(itemIds));
+      const placeholders = uniqueItemIds.map(() => '?').join(',');
+      const allMenu = await query(
+        `SELECT id, food_name, price, discount_percent, status FROM menu_items WHERE id IN (${placeholders})`,
+        uniqueItemIds
+      );
+      const menuMap = new Map<number, { food_name: string; unitPrice: number; status: string }>();
       for (const m of allMenu) {
-        const p = Number(m.price || 0);
-        const disc = Number(m.discount_percent || 0);
-        const eff = disc > 0 ? p - (p * disc) / 100 : p;
-        menuMap.set(Number(m.id), { food_name: String(m.food_name), unitPrice: eff });
+        const price = Number(m.price || 0);
+        const discountPercent = Number(m.discount_percent || 0);
+        const effectiveUnitPrice = discountPercent > 0 ? price - (price * discountPercent) / 100 : price;
+        menuMap.set(Number(m.id), {
+          food_name: String(m.food_name),
+          unitPrice: effectiveUnitPrice,
+          status: String(m.status || '').toLowerCase(),
+        });
       }
 
       const lines: string[] = [];
       let totalQty = 0;
-      for (const entry of b.items) {
-        const itemId = Number(entry?.id);
-        const itemQty = Math.max(1, Math.round(Number(entry?.quantity || 1)));
+      for (let index = 0; index < b.items.length; index += 1) {
+        const entry = b.items[index];
+        const itemId = itemIds[index];
+        const requestedQty = Number(entry?.quantity ?? 1);
+        if (!Number.isFinite(requestedQty) || requestedQty < 1) {
+          return res.status(400).json({ ok: false, error: 'Menu item quantities must be at least one.' });
+        }
+        const itemQty = Math.min(99, Math.round(requestedQty));
         const dbItem = menuMap.get(itemId);
         if (!dbItem) {
           return res.status(400).json({ ok: false, error: `Menu item #${itemId} does not exist.` });
         }
+        if (dbItem.status !== 'available') {
+          return res.status(409).json({
+            ok: false,
+            code: 'MENU_ITEM_UNLISTED',
+            error: `${dbItem.food_name} is no longer listed on the menu. Please update your basket.`,
+          });
+        }
         const lineTotal = dbItem.unitPrice * itemQty;
         computedSubtotal += lineTotal;
         totalQty += itemQty;
+        orderedItemIds.push(itemId);
+        orderedItemNames.set(itemId, dbItem.food_name);
         lines.push(`${dbItem.food_name} x ${itemQty} = GH₵ ${lineTotal.toFixed(2)}`);
       }
       if (deliveryFee > 0 && deliveryZoneLabel) {
         lines.push(`Delivery (${deliveryZoneLabel}) = GH₵ ${deliveryFee.toFixed(2)}`);
       }
-      foodItem = b.items.length === 1 ? menuMap.get(Number(b.items[0].id))!.food_name : 'Multiple Foods';
+      foodItem = b.items.length === 1 ? menuMap.get(itemIds[0])!.food_name : 'Multiple Foods';
       quantity = totalQty;
       orderDetails = lines.join('\n');
       hasValidCatalogItems = true;
     } else if (b.menu_item_id) {
       const itemId = Number(b.menu_item_id);
-      const rows = await query('SELECT id, food_name, price, discount_percent FROM menu_items WHERE id=?', [itemId]);
+      if (!Number.isSafeInteger(itemId) || itemId <= 0) {
+        return res.status(400).json({ ok: false, error: 'Selected menu item ID is invalid.' });
+      }
+      const rows = await query(
+        'SELECT id, food_name, price, discount_percent, status FROM menu_items WHERE id=?',
+        [itemId]
+      );
       const dbItem = rows[0];
       if (!dbItem) {
         return res.status(400).json({ ok: false, error: 'Selected menu item was not found.' });
       }
-      const p = Number(dbItem.price || 0);
-      const disc = Number(dbItem.discount_percent || 0);
-      const unitPrice = disc > 0 ? p - (p * disc) / 100 : p;
+      if (String(dbItem.status || '').toLowerCase() !== 'available') {
+        return res.status(409).json({
+          ok: false,
+          code: 'MENU_ITEM_UNLISTED',
+          error: `${String(dbItem.food_name)} is no longer listed on the menu. Please update your basket.`,
+        });
+      }
+      const price = Number(dbItem.price || 0);
+      const discountPercent = Number(dbItem.discount_percent || 0);
+      const unitPrice = discountPercent > 0 ? price - (price * discountPercent) / 100 : price;
       quantity = Math.max(1, quantity || 1);
       computedSubtotal = unitPrice * quantity;
       foodItem = String(dbItem.food_name);
+      orderedItemIds.push(itemId);
+      orderedItemNames.set(itemId, foodItem);
       const lines = [`${foodItem} x ${quantity} = GH₵ ${computedSubtotal.toFixed(2)}`];
       if (deliveryFee > 0 && deliveryZoneLabel) {
         lines.push(`Delivery (${deliveryZoneLabel}) = GH₵ ${deliveryFee.toFixed(2)}`);
@@ -1350,6 +1530,27 @@ app.post(
         ok: false,
         error: 'Please select valid menu items from the catalog. Direct price submission is disallowed.',
       });
+    }
+
+    // Resolve one fulfillment outlet for the entire basket in the database; pickup is never silently moved.
+    const resolution = await resolveFulfillmentOutlet(orderedItemIds, outlet, orderType as 'Delivery' | 'Pickup');
+    if (!resolution.available) {
+      const unavailableNames = resolution.unavailableIds.map((id) => orderedItemNames.get(id) || `Item #${id}`);
+      const message = resolution.availableOutlet
+        ? `Some items are out of stock at ${requestedOutlet}. Select ${resolution.availableOutlet} for ${orderType.toLowerCase()} fulfillment.`
+        : 'No single branch can fulfill the full basket right now. Please remove or replace unavailable items.';
+      return res.status(409).json({
+        ok: false,
+        code: 'OUTLET_STOCK_UNAVAILABLE',
+        error: message,
+        requested_outlet: requestedOutlet,
+        available_outlet: resolution.availableOutlet,
+        unavailable_items: unavailableNames,
+      });
+    }
+    outlet = resolution.outlet;
+    if (resolution.rerouted) {
+      orderDetails = `${orderDetails}\nFulfilled by ${outlet} branch because ${requestedOutlet} was out of stock.`;
     }
 
     const verifiedTotal = Number((computedSubtotal + deliveryFee).toFixed(2));
@@ -1491,6 +1692,7 @@ app.post(
         payment_reference: paymentRef,
         receipt_signature: receiptSignature,
         status: 'Pending',
+        notification_status: 'new',
         order_date: nowSql(),
       });
 
@@ -1519,6 +1721,9 @@ app.post(
       res.json({
         ok: true,
         id: result.insertId,
+        outlet,
+        requested_outlet: requestedOutlet,
+        fulfillment_rerouted: outlet !== requestedOutlet,
         total: verifiedTotal,
         delivery_zone: deliveryZoneLabel,
         delivery_fee: deliveryFee,
@@ -1792,10 +1997,19 @@ app.get('/api/admin/live-stream', requireAdmin, (req, res) => {
   );
 
   const onEvent = (eventPayload: { type: string; data: Record<string, any>; timestamp: string }) => {
-    // If outlet-scoped admin, filter out orders belonging to the other branch
-    if (req.session?.role !== 'super_admin' && eventPayload?.data?.outlet) {
-      const adminOutlet = req.session?.role === 'adabraka_admin' ? 'Adabraka' : 'Dzorwulu';
-      if (eventPayload.data.outlet !== adminOutlet) return;
+    if (req.session?.role !== 'super_admin') {
+      const adminOutlet = outletForRole(req.session?.role);
+      const branchOrderEvents = new Set([
+        'order_created',
+        'order_updated',
+        'order_status_updated',
+        'order_acknowledged',
+        'order_payment_updated',
+      ]);
+      const eventOutlet = String(eventPayload.data?.outlet || '');
+      const availabilityUpdate = eventPayload.type === 'menu_availability_updated' && OUTLETS.includes(eventOutlet as OutletName);
+      // Branch streams get their own order activity plus stock changes for either outlet; all other global or outlet-less events are withheld.
+      if (!adminOutlet || (!availabilityUpdate && (!branchOrderEvents.has(eventPayload.type) || eventOutlet !== adminOutlet))) return;
     }
     res.write(`data: ${JSON.stringify(eventPayload)}\n\n`);
   };
@@ -1899,15 +2113,38 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  const visitorsRow = (await query('SELECT total_visitors FROM visitor_counter WHERE id = 1'))[0];
-  const menuCountRow = (await query('SELECT COUNT(*) AS c FROM menu_items'))[0];
-  const catCountRow = (await query('SELECT COUNT(*) AS c FROM menu_categories'))[0];
-  const ratingRow = (await query('SELECT AVG(rating) AS avg_r, COUNT(*) AS c FROM ratings'))[0];
-  const cateringRow = (await query('SELECT COUNT(*) AS c FROM catering_bookings'))[0];
-  const trainingRow = (await query('SELECT COUNT(*) AS c FROM training_applications'))[0];
-  const messagesRow = (await query('SELECT COUNT(*) AS c FROM contact_messages'))[0];
+  let visitorsRow: any = null;
+  let menuCountRow: any = null;
+  let catCountRow: any = null;
+  let ratingRow: any = null;
+  let cateringRow: any = null;
+  let trainingRow: any = null;
+  let messagesRow: any = null;
+  const websiteSettingsRows = await query(
+    'SELECT adabraka_phone, dzorwulu_phone, opening_hours FROM website_settings ORDER BY id LIMIT 1'
+  );
+  const websiteSettings = websiteSettingsRows[0] || {};
+  if (role === 'super_admin') {
+    const [visitors, menuCount, categoryCount, ratings, catering, training, messages] = await Promise.all([
+      query('SELECT total_visitors FROM visitor_counter WHERE id = 1'),
+      query('SELECT COUNT(*) AS c FROM menu_items'),
+      query('SELECT COUNT(*) AS c FROM menu_categories'),
+      query('SELECT AVG(rating) AS avg_r, COUNT(*) AS c FROM ratings'),
+      query('SELECT COUNT(*) AS c FROM catering_bookings'),
+      query('SELECT COUNT(*) AS c FROM training_applications'),
+      query('SELECT COUNT(*) AS c FROM contact_messages'),
+    ]);
+    visitorsRow = visitors[0];
+    menuCountRow = menuCount[0];
+    catCountRow = categoryCount[0];
+    ratingRow = ratings[0];
+    cateringRow = catering[0];
+    trainingRow = training[0];
+    messagesRow = messages[0];
+  }
 
   const stats: Record<string, any> = {
+    database_mode: dbMode(),
     is_super: scope.isSuper,
     active_branch: scope.branchName,
     active_outlet_filter: scope.activeOutletFilter,
@@ -1915,11 +2152,11 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
       name: scope.branchName,
       phone:
         scope.branchName === 'Adabraka'
-          ? '0244143271'
+          ? String(websiteSettings.adabraka_phone || 'Not configured')
           : scope.branchName === 'Dzorwulu'
-          ? '0533634378'
-          : '0244143271 / 0533634378',
-      hours: 'Monday - Sunday 9:00 AM - 9:30 PM',
+          ? String(websiteSettings.dzorwulu_phone || 'Not configured')
+          : [websiteSettings.adabraka_phone, websiteSettings.dzorwulu_phone].filter(Boolean).join(' / ') || 'Not configured',
+      hours: String(websiteSettings.opening_hours || 'Not configured'),
       manager: req.session?.admin_name || 'Branch Manager',
       kitchen_queue: {
         pending: pending,
@@ -1938,15 +2175,17 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     completed_orders: completed,
     paid_orders: paidOrders,
     unpaid_orders: unpaidOrders,
-    total_visitors: Number(visitorsRow?.total_visitors || 0),
-    menu_items_count: Number(menuCountRow?.c || 0),
-    categories_count: Number(catCountRow?.c || 0),
-    avg_rating: Number(ratingRow?.avg_r || 0),
-    ratings_count: Number(ratingRow?.c || 0),
-    catering_bookings: Number(cateringRow?.c || 0),
-    training_applications: Number(trainingRow?.c || 0),
+    total_visitors: role === 'super_admin' ? Number(visitorsRow?.total_visitors || 0) : undefined,
+    menu_items_count: role === 'super_admin' ? Number(menuCountRow?.c || 0) : undefined,
+    categories_count: role === 'super_admin' ? Number(catCountRow?.c || 0) : undefined,
+    avg_rating: role === 'super_admin' ? Number(ratingRow?.avg_r || 0) : undefined,
+    ratings_count: role === 'super_admin' ? Number(ratingRow?.c || 0) : undefined,
+    catering_bookings: role === 'super_admin' ? Number(cateringRow?.c || 0) : undefined,
+    training_applications: role === 'super_admin' ? Number(trainingRow?.c || 0) : undefined,
     contact_messages: role === 'super_admin' ? Number(messagesRow?.c || 0) : undefined,
-    outlet_stats: Object.values(outletMap),
+    outlet_stats: scope.isSuper
+      ? Object.values(outletMap)
+      : Object.values(outletMap).filter((outlet) => outlet.outlet === scope.branchName),
     fulfillment_stats: [
       { type: 'Delivery', orders: deliveryCount },
       { type: 'Pickup', orders: pickupCount },
@@ -1964,11 +2203,13 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
 app.get('/api/admin/notifications', requireAdmin, async (req, res) => {
   const { where, params } = outletScope(req);
   const orders = (await query(`SELECT COUNT(*) AS c FROM orders WHERE ${where} AND notification_status='new'`, params))[0].c;
-  const applications = (await query("SELECT COUNT(*) AS c FROM training_applications WHERE notification_status='new'"))[0].c;
-  const messages =
-    req.session?.role === 'super_admin'
-      ? (await query("SELECT COUNT(*) AS c FROM contact_messages WHERE notification_status='new'"))[0].c
-      : 0;
+  const isSuper = req.session?.role === 'super_admin';
+  const applications = isSuper
+    ? (await query("SELECT COUNT(*) AS c FROM training_applications WHERE notification_status='new'"))[0].c
+    : 0;
+  const messages = isSuper
+    ? (await query("SELECT COUNT(*) AS c FROM contact_messages WHERE notification_status='new'"))[0].c
+    : 0;
   res.json({ orders: Number(orders), applications: Number(applications), messages: Number(messages) });
 });
 
@@ -2021,6 +2262,22 @@ app.post('/api/admin/orders/in-store', requireAdmin, async (req, res) => {
   const menuById = new Map<number, any>(menuRows.map((item) => [Number(item.id), item]));
   if (menuById.size !== itemIds.length) {
     return res.status(400).json({ ok: false, error: 'One or more selected menu items no longer exist.' });
+  }
+  const availabilityRows = await query(
+    `SELECT menu_item_id, status FROM menu_item_outlet_availability WHERE outlet=? AND menu_item_id IN (${placeholders})`,
+    [outlet, ...itemIds]
+  );
+  const availabilityById = new Map<number, string>(availabilityRows.map((row) => [Number(row.menu_item_id), String(row.status).toLowerCase()]));
+  const unavailableNames = itemIds
+    .filter((id) => availabilityById.get(id) !== 'available')
+    .map((id) => String(menuById.get(id)?.food_name || `Item #${id}`));
+  if (unavailableNames.length > 0) {
+    return res.status(409).json({
+      ok: false,
+      code: 'OUTLET_STOCK_UNAVAILABLE',
+      error: `These items are out of stock at ${outlet}: ${unavailableNames.join(', ')}.`,
+      unavailable_items: unavailableNames,
+    });
   }
 
   let subtotal = 0;
@@ -2110,11 +2367,44 @@ app.post('/api/admin/orders/in-store', requireAdmin, async (req, res) => {
       payment_reference: null,
     }),
     status,
+    notification_status: 'new',
     order_date: orderDate,
   };
 
   broadcastAdminEvent('order_created', order);
   res.status(201).json({ ok: true, order });
+});
+
+// Pending kitchen orders for the persistent order alarm. This read does not mark notifications as seen.
+app.get('/api/admin/orders/unacknowledged', requireAdmin, async (req, res) => {
+  const { where, params } = outletScope(req);
+  const orders = await query(
+    `SELECT id, customer_name, outlet, order_type, total, status FROM orders WHERE ${where} AND status='Pending' AND notification_status='new' ORDER BY id DESC`,
+    params
+  );
+  res.json({ ok: true, orders });
+});
+
+app.post('/api/admin/orders/:id/acknowledge', requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: 'Invalid order ID.' });
+  }
+  const { where, params } = outletScope(req);
+  const rows = await query(`SELECT id, outlet, status, notification_status FROM orders WHERE id=? AND ${where}`, [id, ...params]);
+  const order = rows[0];
+  if (!order) return res.status(404).json({ ok: false, error: 'Order not found or outside your branch scope.' });
+  if (String(order.status) !== 'Pending' || String(order.notification_status) !== 'new') {
+    return res.json({ ok: true, acknowledged: false });
+  }
+
+  await execute('UPDATE orders SET notification_status=\'seen\' WHERE id=?', [id]);
+  broadcastAdminEvent('order_acknowledged', {
+    id,
+    outlet: String(order.outlet),
+    status: String(order.status),
+  });
+  res.json({ ok: true, acknowledged: true });
 });
 
 // Orders list with search, status, outlet, source, and payment_status filters
@@ -2128,10 +2418,14 @@ app.get('/api/admin/orders', requireAdmin, async (req, res) => {
 
   let sql = `SELECT * FROM orders WHERE ${where}`;
   if (search) {
-    sql += ` AND (customer_name LIKE ? OR phone LIKE ? OR payment_reference LIKE ? OR food_item LIKE ?)`;
-    params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    sql += ` AND (CAST(id AS TEXT) LIKE ? OR customer_name LIKE ? OR phone LIKE ? OR payment_reference LIKE ? OR food_item LIKE ?)`;
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
   }
-  if (status) {
+  if (status === 'Live') {
+    sql += " AND status IN ('Pending','Preparing','Ready')";
+  } else if (status === 'Fulfilled') {
+    sql += " AND status='Completed'";
+  } else if (status) {
     sql += ' AND status=?';
     params.push(status);
   }
@@ -2158,7 +2452,8 @@ app.get('/api/admin/orders', requireAdmin, async (req, res) => {
       payment_reference: o.payment_reference ? String(o.payment_reference) : null,
     }),
   }));
-  await execute(`UPDATE orders SET notification_status='seen' WHERE ${where} AND notification_status='new'`, outletScope(req).params);
+  // Merely viewing or polling this list must not silence an active kitchen alert.
+  // Orders are acknowledged only by the explicit acknowledge action or by a status transition.
   res.json({ ok: true, orders: enriched });
 });
 
@@ -2190,10 +2485,15 @@ app.put('/api/admin/orders/:id', requireAdmin, async (req, res) => {
       : String(existing.order_type);
   const nextAddress = b.address !== undefined ? String(b.address).trim() : existing.address;
   const nextDetails = b.order_details !== undefined ? String(b.order_details).trim() : existing.order_details;
+  const nextNotificationStatus = nextStatus === 'Pending'
+    ? String(existing.status || '') === 'Pending'
+      ? String(existing.notification_status || 'new')
+      : 'new'
+    : 'seen';
 
   await execute(
-    'UPDATE orders SET status=?, payment_status=?, outlet=?, order_type=?, address=?, order_details=? WHERE id=?',
-    [nextStatus, nextPaymentStatus, nextOutlet, nextType, nextAddress, nextDetails, id]
+    'UPDATE orders SET status=?, payment_status=?, outlet=?, order_type=?, address=?, order_details=?, notification_status=? WHERE id=?',
+    [nextStatus, nextPaymentStatus, nextOutlet, nextType, nextAddress, nextDetails, nextNotificationStatus, id]
   );
 
   broadcastAdminEvent('order_updated', {
@@ -2202,6 +2502,7 @@ app.put('/api/admin/orders/:id', requireAdmin, async (req, res) => {
     outlet: nextOutlet,
     order_type: nextType,
     status: nextStatus,
+    notification_status: nextNotificationStatus,
     payment_status: nextPaymentStatus,
     address: nextAddress,
     order_details: nextDetails,
@@ -2231,8 +2532,13 @@ app.put('/api/admin/orders/:id/status', requireAdmin, async (req, res) => {
   if (existing.length === 0) {
     return res.status(404).json({ ok: false, error: 'Order not found or outside your branch scope' });
   }
-  await execute('UPDATE orders SET status=? WHERE id=?', [status, id]);
   const orderRow = existing[0];
+  const nextNotificationStatus = status === 'Pending'
+    ? String(orderRow.status || '') === 'Pending'
+      ? String(orderRow.notification_status || 'new')
+      : 'new'
+    : 'seen';
+  await execute('UPDATE orders SET status=?, notification_status=? WHERE id=?', [status, nextNotificationStatus, id]);
 
   broadcastAdminEvent('order_status_updated', {
     id,
@@ -2240,6 +2546,7 @@ app.put('/api/admin/orders/:id/status', requireAdmin, async (req, res) => {
     outlet: String(orderRow.outlet || 'Adabraka'),
     order_type: String(orderRow.order_type || 'Delivery'),
     status,
+    notification_status: nextNotificationStatus,
     payment_status: String(orderRow.payment_status || 'Pending'),
   });
 
@@ -2363,7 +2670,7 @@ function uploadedFile(req: express.Request, field: string): Express.Multer.File 
 // Signed uploads bypass Vercel's request-body limit for large video files. The
 // server chooses the bucket path and signs it only after checking the admin
 // session, route/field, extension and declared size.
-app.post('/api/admin/media/sign', requireAdmin, async (req, res) => {
+app.post('/api/admin/media/sign', requireAdmin, requireSuper, async (req, res) => {
   const files = Array.isArray(req.body?.files) ? (req.body.files as SignedUploadRequest[]) : [];
   if (files.length === 0 || files.length > 2 || new Set(files.map((file) => String(file?.field || ''))).size !== files.length) {
     return res.status(400).json({ ok: false, error: 'One or two distinct media fields are required.' });
@@ -2403,7 +2710,7 @@ app.post('/api/admin/media/sign', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/admin/media/finalize', requireAdmin, async (req, res) => {
+app.post('/api/admin/media/finalize', requireAdmin, requireSuper, async (req, res) => {
   const dir = String(req.body?.dir || '') as MediaDirectory;
   const key = String(req.body?.key || '');
   if (!['images', 'adverts', 'videos', 'community'].includes(dir)) {
@@ -2418,7 +2725,7 @@ app.post('/api/admin/media/finalize', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/admin/media/discard', requireAdmin, async (req, res) => {
+app.post('/api/admin/media/discard', requireAdmin, requireSuper, async (req, res) => {
   const uploads = Array.isArray(req.body?.uploads) ? req.body.uploads : [];
   for (const upload of uploads) {
     const dir = String(upload?.dir || '') as MediaDirectory;
@@ -2430,8 +2737,65 @@ app.post('/api/admin/media/discard', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Menu items CRUD (supports all food details + image upload on both create and update)
-app.post('/api/admin/menu', requireAdmin, multerUpload('images').single('image'), async (req, res) => {
+// Branch availability is deliberately separate from global catalog editing.
+app.get('/api/admin/menu-availability', requireAdmin, async (req, res) => {
+  const rows = await query(`SELECT item.id, item.food_name, item.category, item.status AS catalog_status,
+      COALESCE(ad.status, 'unavailable') AS adabraka_status,
+      COALESCE(dz.status, 'unavailable') AS dzorwulu_status
+    FROM menu_items AS item
+    LEFT JOIN menu_item_outlet_availability AS ad
+      ON ad.menu_item_id=item.id AND ad.outlet='Adabraka'
+    LEFT JOIN menu_item_outlet_availability AS dz
+      ON dz.menu_item_id=item.id AND dz.outlet='Dzorwulu'
+    ORDER BY item.category ASC, item.food_name ASC`);
+  res.json({
+    ok: true,
+    role: req.session?.role,
+    active_outlet: outletForRole(req.session?.role),
+    items: rows,
+  });
+});
+
+app.put('/api/admin/menu-availability/:id', requireAdmin, async (req, res) => {
+  const role = String(req.session?.role || '');
+  const ownOutlet = outletForRole(role);
+  const outlet = String(req.body?.outlet || ownOutlet || '') as OutletName;
+  const status = String(req.body?.status || '').toLowerCase();
+  if (!OUTLETS.includes(outlet) || !['available', 'unavailable'].includes(status)) {
+    return res.status(400).json({ ok: false, error: 'Choose a valid branch and availability status.' });
+  }
+  if (role !== 'super_admin' && outlet !== ownOutlet) {
+    return res.status(403).json({ ok: false, error: 'You can only update availability for your own branch.' });
+  }
+
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return res.status(400).json({ ok: false, error: 'Invalid menu item ID.' });
+  }
+  const item = await query('SELECT id FROM menu_items WHERE id=?', [id]);
+  if (!item[0]) return res.status(404).json({ ok: false, error: 'Menu item not found.' });
+
+  const existing = await query(
+    'SELECT menu_item_id FROM menu_item_outlet_availability WHERE menu_item_id=? AND outlet=?',
+    [id, outlet]
+  );
+  if (existing.length) {
+    await execute(
+      'UPDATE menu_item_outlet_availability SET status=?, updated_at=?, updated_by=? WHERE menu_item_id=? AND outlet=?',
+      [status, nowSql(), req.session?.admin_id || null, id, outlet]
+    );
+  } else {
+    await execute(
+      'INSERT INTO menu_item_outlet_availability (menu_item_id, outlet, status, updated_at, updated_by) VALUES (?,?,?,?,?)',
+      [id, outlet, status, nowSql(), req.session?.admin_id || null]
+    );
+  }
+  broadcastAdminEvent('menu_availability_updated', { menu_item_id: id, outlet, status });
+  res.json({ ok: true, menu_item_id: id, outlet, status });
+});
+
+// Global menu/catalog management is super-admin-only.
+app.post('/api/admin/menu', requireAdmin, requireSuper, multerUpload('images').single('image'), async (req, res) => {
   const b = req.body || {};
   const foodName = String(b.food_name || '').trim();
   const category = String(b.category || '').trim();
@@ -2456,10 +2820,16 @@ app.post('/api/admin/menu', requireAdmin, multerUpload('images').single('image')
       nowSql(),
     ]
   );
+  for (const outlet of OUTLETS) {
+    await execute(
+      'INSERT INTO menu_item_outlet_availability (menu_item_id, outlet, status, updated_at) VALUES (?,?,?,?)',
+      [result.insertId, outlet, 'available', nowSql()]
+    );
+  }
   res.json({ ok: true, id: result.insertId });
 });
 
-app.put('/api/admin/menu/:id', requireAdmin, multerUpload('images').single('image'), async (req, res) => {
+app.put('/api/admin/menu/:id', requireAdmin, requireSuper, multerUpload('images').single('image'), async (req, res) => {
   const b = req.body || {};
   const id = Number(req.params.id);
   const existingRows = await query('SELECT * FROM menu_items WHERE id=?', [id]);
@@ -2494,10 +2864,12 @@ app.put('/api/admin/menu/:id', requireAdmin, multerUpload('images').single('imag
   res.json({ ok: true });
 });
 
-app.delete('/api/admin/menu/:id', requireAdmin, async (req, res) => {
-  const rows = await query('SELECT image FROM menu_items WHERE id=?', [Number(req.params.id)]);
+app.delete('/api/admin/menu/:id', requireAdmin, requireSuper, async (req, res) => {
+  const id = Number(req.params.id);
+  const rows = await query('SELECT image FROM menu_items WHERE id=?', [id]);
   const image = rows[0] ? String(rows[0].image || '') : '';
-  await execute('DELETE FROM menu_items WHERE id=?', [Number(req.params.id)]);
+  await execute('DELETE FROM menu_item_outlet_availability WHERE menu_item_id=?', [id]);
+  await execute('DELETE FROM menu_items WHERE id=?', [id]);
   if (image) {
     await cleanupStoredMedia('images', image);
     removeLocalMedia('images', image);
@@ -2507,14 +2879,14 @@ app.delete('/api/admin/menu/:id', requireAdmin, async (req, res) => {
 });
 
 // Discounts
-app.put('/api/admin/menu/:id/discount', requireAdmin, async (req, res) => {
+app.put('/api/admin/menu/:id/discount', requireAdmin, requireSuper, async (req, res) => {
   const discount = Math.max(0, Math.min(90, Math.round(Number(req.body?.discount_percent || 0))));
   await execute('UPDATE menu_items SET discount_percent=? WHERE id=?', [discount, Number(req.params.id)]);
   res.json({ ok: true });
 });
 
 // Categories CRUD
-app.post('/api/admin/categories', requireAdmin, async (req, res) => {
+app.post('/api/admin/categories', requireAdmin, requireSuper, async (req, res) => {
   const name = String(req.body?.category_name || '').trim();
   if (!name) return res.status(400).json({ ok: false, error: 'Category name required' });
   const existing = await query('SELECT id FROM menu_categories WHERE category_name=?', [name]);
@@ -2523,7 +2895,7 @@ app.post('/api/admin/categories', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.put('/api/admin/categories/:id', requireAdmin, async (req, res) => {
+app.put('/api/admin/categories/:id', requireAdmin, requireSuper, async (req, res) => {
   const name = String(req.body?.category_name || '').trim();
   if (!name) return res.status(400).json({ ok: false, error: 'Category name required' });
   const id = Number(req.params.id);
@@ -2536,13 +2908,13 @@ app.put('/api/admin/categories/:id', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/admin/categories/:id', requireAdmin, async (req, res) => {
+app.delete('/api/admin/categories/:id', requireAdmin, requireSuper, async (req, res) => {
   await execute('DELETE FROM menu_categories WHERE id=?', [Number(req.params.id)]);
   res.json({ ok: true });
 });
 
 // Adverts CRUD (create, update, delete)
-app.post('/api/admin/adverts', requireAdmin, multerUpload('adverts').single('banner_image'), async (req, res) => {
+app.post('/api/admin/adverts', requireAdmin, requireSuper, multerUpload('adverts').single('banner_image'), async (req, res) => {
   const b = req.body || {};
   const imageUpload = uploadedReference(req, 'banner_image', 'adverts', uploadedFile(req, 'banner_image'));
   if (imageUpload.error) return res.status(400).json({ ok: false, error: imageUpload.error });
@@ -2562,7 +2934,7 @@ app.post('/api/admin/adverts', requireAdmin, multerUpload('adverts').single('ban
   res.json({ ok: true, id: result.insertId });
 });
 
-app.put('/api/admin/adverts/:id', requireAdmin, multerUpload('adverts').single('banner_image'), async (req, res) => {
+app.put('/api/admin/adverts/:id', requireAdmin, requireSuper, multerUpload('adverts').single('banner_image'), async (req, res) => {
   const b = req.body || {};
   const id = Number(req.params.id);
   const rows = await query('SELECT * FROM advertisement_banners WHERE id=?', [id]);
@@ -2592,7 +2964,7 @@ app.put('/api/admin/adverts/:id', requireAdmin, multerUpload('adverts').single('
   res.json({ ok: true });
 });
 
-app.delete('/api/admin/adverts/:id', requireAdmin, async (req, res) => {
+app.delete('/api/admin/adverts/:id', requireAdmin, requireSuper, async (req, res) => {
   const rows = await query('SELECT banner_image FROM advertisement_banners WHERE id=?', [Number(req.params.id)]);
   const image = rows[0] ? String(rows[0].banner_image || '') : '';
   await execute('DELETE FROM advertisement_banners WHERE id=?', [Number(req.params.id)]);
@@ -2605,27 +2977,27 @@ app.delete('/api/admin/adverts/:id', requireAdmin, async (req, res) => {
 });
 
 // Banners (marquee) CRUD (create, update, delete)
-app.post('/api/admin/banners', requireAdmin, async (req, res) => {
+app.post('/api/admin/banners', requireAdmin, requireSuper, async (req, res) => {
   const text = String(req.body?.banner_text || '').trim();
   if (!text) return res.status(400).json({ ok: false, error: 'Banner message is required' });
   await execute('INSERT INTO banners (banner_text, created_at) VALUES (?,?)', [text, nowSql()]);
   res.json({ ok: true });
 });
 
-app.put('/api/admin/banners/:id', requireAdmin, async (req, res) => {
+app.put('/api/admin/banners/:id', requireAdmin, requireSuper, async (req, res) => {
   const text = String(req.body?.banner_text || '').trim();
   if (!text) return res.status(400).json({ ok: false, error: 'Banner message is required' });
   await execute('UPDATE banners SET banner_text=? WHERE id=?', [text, Number(req.params.id)]);
   res.json({ ok: true });
 });
 
-app.delete('/api/admin/banners/:id', requireAdmin, async (req, res) => {
+app.delete('/api/admin/banners/:id', requireAdmin, requireSuper, async (req, res) => {
   await execute('DELETE FROM banners WHERE id=?', [Number(req.params.id)]);
   res.json({ ok: true });
 });
 
 // Hero slides CRUD (create, update, delete)
-app.post('/api/admin/slides', requireAdmin, multerUpload('images').single('image'), async (req, res) => {
+app.post('/api/admin/slides', requireAdmin, requireSuper, multerUpload('images').single('image'), async (req, res) => {
   const imageUpload = uploadedReference(req, 'image', 'images', uploadedFile(req, 'image'));
   if (imageUpload.error) return res.status(400).json({ ok: false, error: imageUpload.error });
   const img = imageUpload.value || keepAssetReference(req.body?.image || 'hero.png', 'images');
@@ -2634,7 +3006,7 @@ app.post('/api/admin/slides', requireAdmin, multerUpload('images').single('image
   res.json({ ok: true, id: result.insertId });
 });
 
-app.put('/api/admin/slides/:id', requireAdmin, multerUpload('images').single('image'), async (req, res) => {
+app.put('/api/admin/slides/:id', requireAdmin, requireSuper, multerUpload('images').single('image'), async (req, res) => {
   const id = Number(req.params.id);
   const rows = await query('SELECT * FROM slider_images WHERE id=?', [id]);
   const existing = rows[0];
@@ -2650,7 +3022,7 @@ app.put('/api/admin/slides/:id', requireAdmin, multerUpload('images').single('im
   res.json({ ok: true });
 });
 
-app.delete('/api/admin/slides/:id', requireAdmin, async (req, res) => {
+app.delete('/api/admin/slides/:id', requireAdmin, requireSuper, async (req, res) => {
   const rows = await query('SELECT image FROM slider_images WHERE id=?', [Number(req.params.id)]);
   const image = rows[0] ? String(rows[0].image || '') : '';
   await execute('DELETE FROM slider_images WHERE id=?', [Number(req.params.id)]);
@@ -2665,7 +3037,7 @@ app.delete('/api/admin/slides/:id', requireAdmin, async (req, res) => {
 // Advertisement videos CRUD
 app.post(
   '/api/admin/videos',
-  requireAdmin,
+  requireAdmin, requireSuper,
   multerUpload('videos').fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }]),
   async (req, res) => {
     const video = uploadedReference(req, 'video', 'videos', uploadedFile(req, 'video'));
@@ -2684,7 +3056,7 @@ app.post(
 
 app.put(
   '/api/admin/videos/:id',
-  requireAdmin,
+  requireAdmin, requireSuper,
   multerUpload('videos').fields([{ name: 'video', maxCount: 1 }, { name: 'poster', maxCount: 1 }]),
   async (req, res) => {
     const id = Number(req.params.id);
@@ -2712,7 +3084,7 @@ app.put(
   }
 );
 
-app.delete('/api/admin/videos/:id', requireAdmin, async (req, res) => {
+app.delete('/api/admin/videos/:id', requireAdmin, requireSuper, async (req, res) => {
   const rows = await query('SELECT * FROM advertisement_videos WHERE id=?', [Number(req.params.id)]);
   if (rows[0]) {
     await execute('DELETE FROM advertisement_videos WHERE id=?', [Number(req.params.id)]);
@@ -2727,7 +3099,7 @@ app.delete('/api/admin/videos/:id', requireAdmin, async (req, res) => {
 // Community media & activities CRUD (create, update, delete)
 app.post(
   '/api/admin/community',
-  requireAdmin,
+  requireAdmin, requireSuper,
   multerUpload('community').fields([{ name: 'media', maxCount: 1 }, { name: 'poster', maxCount: 1 }]),
   async (req, res) => {
     const b = req.body || {};
@@ -2756,7 +3128,7 @@ app.post(
 
 app.put(
   '/api/admin/community/:id',
-  requireAdmin,
+  requireAdmin, requireSuper,
   multerUpload('community').fields([{ name: 'media', maxCount: 1 }, { name: 'poster', maxCount: 1 }]),
   async (req, res) => {
     const b = req.body || {};
@@ -2805,7 +3177,7 @@ app.put(
   }
 );
 
-app.delete('/api/admin/community/:id', requireAdmin, async (req, res) => {
+app.delete('/api/admin/community/:id', requireAdmin, requireSuper, async (req, res) => {
   const rows = await query('SELECT * FROM community_media WHERE id=?', [Number(req.params.id)]);
   if (rows[0]) {
     await execute('DELETE FROM community_media WHERE id=?', [Number(req.params.id)]);
@@ -2832,7 +3204,7 @@ app.get('/api/public-ratings', async (_req, res) => {
   });
 });
 
-app.get('/api/admin/ratings', requireAdmin, async (_req, res) => {
+app.get('/api/admin/ratings', requireAdmin, requireSuper, async (_req, res) => {
   const rows = await query('SELECT * FROM ratings ORDER BY id DESC');
   const [total] = await query('SELECT COUNT(*) AS c FROM ratings');
   const [avg] = await query('SELECT AVG(rating) AS avg_rating FROM ratings');
@@ -2846,19 +3218,19 @@ app.get('/api/admin/ratings', requireAdmin, async (_req, res) => {
   });
 });
 
-app.delete('/api/admin/ratings/:id', requireAdmin, async (req, res) => {
+app.delete('/api/admin/ratings/:id', requireAdmin, requireSuper, async (req, res) => {
   await execute('DELETE FROM ratings WHERE id=?', [Number(req.params.id)]);
   res.json({ ok: true });
 });
 
 // Catering bookings (scoped to branch for branch admins)
-app.get('/api/admin/catering-bookings', requireAdmin, async (req, res) => {
+app.get('/api/admin/catering-bookings', requireAdmin, requireSuper, async (req, res) => {
   const { where, params } = outletScope(req);
   const rows = await query(`SELECT * FROM catering_bookings WHERE ${where} ORDER BY id DESC`, params);
   res.json({ ok: true, bookings: rows });
 });
 
-app.delete('/api/admin/catering-bookings/:id', requireAdmin, async (req, res) => {
+app.delete('/api/admin/catering-bookings/:id', requireAdmin, requireSuper, async (req, res) => {
   await execute('DELETE FROM catering_bookings WHERE id=?', [Number(req.params.id)]);
   res.json({ ok: true });
 });
@@ -2876,13 +3248,13 @@ app.delete('/api/admin/contact-messages/:id', requireAdmin, requireSuper, async 
 });
 
 // Training applications (with admin follow-up status, notes, and branded email preview)
-app.get('/api/admin/training-applications', requireAdmin, async (_req, res) => {
+app.get('/api/admin/training-applications', requireAdmin, requireSuper, async (_req, res) => {
   const rows = await query('SELECT * FROM training_applications ORDER BY id DESC');
   await execute("UPDATE training_applications SET notification_status='seen' WHERE notification_status='new'");
   res.json({ ok: true, applications: rows });
 });
 
-app.put('/api/admin/training-applications/:id', requireAdmin, async (req, res) => {
+app.put('/api/admin/training-applications/:id', requireAdmin, requireSuper, async (req, res) => {
   const id = Number(req.params.id);
   const rows = await query('SELECT * FROM training_applications WHERE id=?', [id]);
   const existing = rows[0];
@@ -2900,13 +3272,13 @@ app.put('/api/admin/training-applications/:id', requireAdmin, async (req, res) =
   res.json({ ok: true });
 });
 
-app.delete('/api/admin/training-applications/:id', requireAdmin, async (req, res) => {
+app.delete('/api/admin/training-applications/:id', requireAdmin, requireSuper, async (req, res) => {
   await execute('DELETE FROM training_applications WHERE id=?', [Number(req.params.id)]);
   res.json({ ok: true });
 });
 
 // System Status & Cloud Services Info (Supabase DB + Resend Email)
-app.get('/api/admin/system-status', requireAdmin, async (_req, res) => {
+app.get('/api/admin/system-status', requireAdmin, requireSuper, async (_req, res) => {
   const currentDb = dbMode();
   const resendKey = process.env.RESEND_API_KEY || '';
   const emailFrom = process.env.EMAIL_FROM || 'Mayford Foods GH <orders@mayfordfoodsgh.com>';
@@ -2939,7 +3311,7 @@ app.get('/api/admin/system-status', requireAdmin, async (_req, res) => {
           ? 'PostgreSQL Database'
           : currentDb === 'mysql'
           ? 'MySQL / MariaDB Database'
-          : 'SQLite Demo Mode (Active for Local Preview)',
+          : 'SQLite Local Database (not synced to cloud)',
       table_counts: tableCounts,
     },
     email: {

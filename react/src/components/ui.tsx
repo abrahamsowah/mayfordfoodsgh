@@ -13,6 +13,16 @@ import { useCart } from '../context/CartContext';
 import type { MenuItem } from '../types';
 import { assetUrl, effectivePrice, ghs } from '../utils';
 
+const SELECT_CHEVRON =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='m5 7.5 5 5 5-5' stroke='%236B6B6B' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")";
+
+export const selectArrowStyle = {
+  backgroundImage: SELECT_CHEVRON,
+  backgroundRepeat: 'no-repeat' as const,
+  backgroundPosition: 'right 12px center',
+  backgroundSize: '16px 16px',
+};
+
 export function Btn({
   className = '',
   variant = 'primary',
@@ -29,9 +39,9 @@ export function Btn({
     ghost: 'bg-transparent text-[#111111] hover:bg-neutral-100',
   };
   const sizes: Record<string, string> = {
-    sm: 'px-3.5 py-1.5 text-xs',
-    md: 'px-5 py-2.5 text-sm',
-    lg: 'px-6 py-3 text-sm',
+    sm: 'min-h-8 px-3.5 py-1.5 text-xs',
+    md: 'min-h-[42px] px-5 py-2.5 text-sm',
+    lg: 'min-h-12 px-6 py-3 text-sm',
   };
   return (
     <button
@@ -235,17 +245,18 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...rest}
-      className={`w-full rounded-md border border-neutral-300 bg-white px-3.5 py-2.5 text-sm text-[#111111] placeholder-neutral-400 outline-none transition-colors focus:border-[#111111] focus:ring-1 focus:ring-[#111111] ${className}`}
+      className={`min-h-[42px] w-full rounded-md border border-neutral-300 bg-white px-3.5 py-2.5 text-sm text-[#111111] placeholder-neutral-400 outline-none transition-colors focus:border-[#111111] focus:ring-1 focus:ring-[#111111] ${className}`}
     />
   );
 }
 
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  const { className = '', ...rest } = props;
+  const { className = '', style, ...rest } = props;
   return (
     <select
       {...rest}
-      className={`w-full rounded-md border border-neutral-300 bg-white px-3.5 py-2.5 text-sm text-[#111111] outline-none transition-colors focus:border-[#111111] focus:ring-1 focus:ring-[#111111] ${className}`}
+      style={{ ...selectArrowStyle, ...style }}
+      className={`min-h-[42px] w-full appearance-none rounded-md border border-neutral-300 bg-white py-2.5 pl-3.5 pr-10 text-sm text-[#111111] outline-none transition-colors focus:border-[#111111] focus:ring-1 focus:ring-[#111111] ${className}`}
     />
   );
 }
