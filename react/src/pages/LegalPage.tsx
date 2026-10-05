@@ -37,7 +37,7 @@ export default function LegalPage() {
               Ghana Food and Drugs Authority (FDA) and Accra Metropolitan Assembly food hygiene standards.
             </p>
 
-            <div className="rounded-md border border-neutral-200 bg-[#F7F7F7] p-4">
+            <div className="rounded-md border border-neutral-200 bg-[#FAF6E8] p-4">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#111111]">
                 <AlertTriangle className="h-4 w-4 text-mayford-600" />
                 <span>Important Allergen Notice</span>

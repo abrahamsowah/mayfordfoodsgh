@@ -952,6 +952,12 @@ app.post('/api/webhooks/paystack', async (req, res) => {
   res.json({ ok: true, updated: false });
 });
 
+// Never cache PIN, login, logout, or session responses.
+app.use('/api/auth', (_req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  next();
+});
+
 // ================================================================ AUTH
 app.post('/api/auth/admin-pin', (req, res) => {
   const rateKey = `pin:${req.ip || 'local'}`;
@@ -1034,7 +1040,6 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 app.get('/api/auth/session', (req, res) => {
-  res.set('Cache-Control', 'private, no-store, max-age=0');
   res.json({
     admin_access: !!req.session?.admin_access,
     admin: req.session?.admin_id

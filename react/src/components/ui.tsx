@@ -96,9 +96,9 @@ export function Section({
   tone?: 'default' | 'white' | 'tint';
 }) {
   const tones: Record<string, string> = {
-    default: 'bg-[#FAF7F0]',
+    default: 'bg-[#FBF8F1]',
     white: 'bg-white',
-    tint: 'bg-[#F5EBD7]',
+    tint: 'bg-[#F7EED6]',
   };
   return (
     <section id={id} className={`py-16 md:py-24 ${tones[tone]} ${className}`}>
@@ -180,7 +180,7 @@ export function SectionHeader({
   }
 
   return (
-    <Reveal className="mb-10 flex flex-col justify-between gap-4 border-b border-neutral-200/80 pb-6 md:mb-12 md:flex-row md:items-end">
+    <Reveal className="mb-10 flex flex-col justify-between gap-4 border-b border-[#E9DFC9] pb-6 md:mb-12 md:flex-row md:items-end">
       <div className="max-w-2xl">
         <Eyebrow light={light}>{eyebrow}</Eyebrow>
         <SectionTitle light={light}>{title}</SectionTitle>

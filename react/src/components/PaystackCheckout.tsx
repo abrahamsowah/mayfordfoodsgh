@@ -184,7 +184,7 @@ export function PaystackModal({
         </div>
 
         {/* Amount Banner */}
-        <div className="border-b border-neutral-100 bg-[#F7F7F7] px-5 py-3.5 flex items-center justify-between">
+        <div className="border-b border-neutral-100 bg-[#FAF6E8] px-5 py-3.5 flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[#6B6B6B]">Total Amount</p>
             <p className="text-xl font-bold tabular-nums text-[#111111]">{ghs(amountGhs)}</p>
@@ -246,7 +246,7 @@ export function PaystackModal({
                       className={`rounded-md border py-2 text-xs font-bold transition-colors ${
                         network === net
                           ? 'border-[#111111] bg-[#111111] text-white'
-                          : 'border-neutral-200 bg-[#F7F7F7] text-[#111111] hover:border-neutral-400'
+                          : 'border-neutral-200 bg-[#FAF6E8] text-[#111111] hover:border-neutral-400'
                       }`}
                     >
                       {net}

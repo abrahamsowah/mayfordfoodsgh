@@ -217,7 +217,7 @@ export default function CheckoutPage() {
                 className={`rounded-sm px-3 py-1 text-xs font-bold uppercase tracking-wider ${
                   receipt.payment_status === 'Paid'
                     ? 'bg-[#111111] text-white'
-                    : 'border border-neutral-300 bg-[#F7F7F7] text-[#111111]'
+                    : 'border border-neutral-300 bg-[#FAF6E8] text-[#111111]'
                 }`}
               >
                 {receipt.payment_status}
@@ -252,7 +252,7 @@ export default function CheckoutPage() {
               <p className="text-xs font-semibold uppercase tracking-wider text-[#6B6B6B]">
                 Server-Verified Order Summary
               </p>
-              <pre className="mt-2 whitespace-pre-wrap rounded-md border border-neutral-200 bg-[#F7F7F7] p-4 font-sans text-xs leading-relaxed text-[#111111]">
+              <pre className="mt-2 whitespace-pre-wrap rounded-md border border-neutral-200 bg-[#FAF6E8] p-4 font-sans text-xs leading-relaxed text-[#111111]">
                 {receipt.order_details.trim()}
               </pre>
               <div className="mt-4 flex items-center justify-between text-base font-bold text-[#111111]">
@@ -343,7 +343,7 @@ export default function CheckoutPage() {
                       }}
                       className={`flex items-start justify-between rounded-md border p-4 text-left transition-colors ${
                         active
-                          ? 'border-[#111111] bg-[#F7F7F7] text-[#111111]'
+                          ? 'border-[#111111] bg-[#FAF6E8] text-[#111111]'
                           : 'border-neutral-200 bg-white text-[#6B6B6B] hover:border-neutral-300'
                       }`}
                     >
@@ -385,7 +385,7 @@ export default function CheckoutPage() {
                       onClick={() => setOrderType(m.id)}
                       className={`flex items-start justify-between rounded-md border p-4 text-left transition-colors ${
                         active
-                          ? 'border-[#111111] bg-[#F7F7F7] text-[#111111]'
+                          ? 'border-[#111111] bg-[#FAF6E8] text-[#111111]'
                           : 'border-neutral-200 bg-white text-[#6B6B6B] hover:border-neutral-300'
                       }`}
                     >
@@ -475,7 +475,7 @@ export default function CheckoutPage() {
                   onClick={() => setPaymentMethod('Paystack')}
                   className={`flex items-start justify-between rounded-md border p-4 text-left transition-colors ${
                     paymentMethod === 'Paystack'
-                      ? 'border-[#111111] bg-[#F7F7F7] text-[#111111]'
+                      ? 'border-[#111111] bg-[#FAF6E8] text-[#111111]'
                       : 'border-neutral-200 bg-white text-[#6B6B6B] hover:border-neutral-300'
                   }`}
                 >
@@ -500,7 +500,7 @@ export default function CheckoutPage() {
                   onClick={() => setPaymentMethod('Pay on Delivery')}
                   className={`flex items-start justify-between rounded-md border p-4 text-left transition-colors ${
                     paymentMethod === 'Pay on Delivery'
-                      ? 'border-[#111111] bg-[#F7F7F7] text-[#111111]'
+                      ? 'border-[#111111] bg-[#FAF6E8] text-[#111111]'
                       : 'border-neutral-200 bg-white text-[#6B6B6B] hover:border-neutral-300'
                   }`}
                 >
@@ -612,7 +612,7 @@ export default function CheckoutPage() {
             <span className="text-2xl font-bold tabular-nums text-[#111111]">{ghs(grandTotal)}</span>
           </div>
 
-          <div className="mt-5 flex items-center gap-2 rounded-md border border-neutral-200 bg-[#F7F7F7] px-3.5 py-2.5 text-xs text-[#111111]">
+          <div className="mt-5 flex items-center gap-2 rounded-md border border-neutral-200 bg-[#FAF6E8] px-3.5 py-2.5 text-xs text-[#111111]">
             <MapPin className="h-3.5 w-3.5 shrink-0 text-mayford-600" />
             <span>Dispatched fresh from Mayford {outlet}, Accra.</span>
           </div>

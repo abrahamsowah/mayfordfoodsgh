@@ -502,7 +502,7 @@ function WhatsAppFloat({ settings }: { settings: Settings | null }) {
       <div className="fixed bottom-5 right-5 z-50">
         {menuOpen && (
           <div className="absolute bottom-14 right-0 w-64 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-lift">
-            <div className="border-b border-neutral-200 bg-[#F7F7F7] px-4 py-2.5">
+            <div className="border-b border-neutral-200 bg-[#FAF6E8] px-4 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-[#111111]">
                 Mayford Support &amp; Direct Line
               </p>
@@ -582,7 +582,7 @@ function WhatsAppFloat({ settings }: { settings: Settings | null }) {
             <p
               className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2.5 text-sm font-medium ${
                 feedbackMsg.ok
-                  ? 'border-neutral-300 bg-[#F7F7F7] text-[#111111]'
+                  ? 'border-neutral-300 bg-[#FAF6E8] text-[#111111]'
                   : 'border-red-300 bg-white text-red-700'
               }`}
             >
@@ -627,7 +627,7 @@ function WhatsAppFloat({ settings }: { settings: Settings | null }) {
             <p
               className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2.5 text-sm font-medium ${
                 ratingMsg.ok
-                  ? 'border-neutral-300 bg-[#F7F7F7] text-[#111111]'
+                  ? 'border-neutral-300 bg-[#FAF6E8] text-[#111111]'
                   : 'border-red-300 bg-white text-red-700'
               }`}
             >
@@ -659,7 +659,7 @@ function WhatsAppFloat({ settings }: { settings: Settings | null }) {
             </Field>
             <Field label="Your Rating">
               <input type="hidden" name="rating" value={selectedRating} />
-              <div className="flex items-center justify-between rounded-md border border-neutral-300 bg-[#F7F7F7] px-3.5 py-2.5">
+              <div className="flex items-center justify-between rounded-md border border-neutral-300 bg-[#FAF6E8] px-3.5 py-2.5">
                 <div className="flex items-center gap-1.5">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button

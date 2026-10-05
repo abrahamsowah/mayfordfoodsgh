@@ -252,14 +252,14 @@ export default function OrderPage() {
                 className={`rounded-sm px-3 py-1 text-xs font-bold uppercase tracking-wider ${
                   completedReceipt.payment_status === 'Paid'
                     ? 'bg-[#111111] text-white'
-                    : 'border border-neutral-300 bg-[#F7F7F7] text-[#111111]'
+                    : 'border border-neutral-300 bg-[#FAF6E8] text-[#111111]'
                 }`}
               >
                 {completedReceipt.payment_status}
               </span>
             </div>
 
-            <div className="mt-6 flex items-center justify-between rounded-md border border-neutral-200 bg-[#F7F7F7] p-4 text-sm">
+            <div className="mt-6 flex items-center justify-between rounded-md border border-neutral-200 bg-[#FAF6E8] p-4 text-sm">
               <div>
                 <p className="font-bold text-[#111111]">
                   {food.food_name} (Qty {completedReceipt.quantity})
@@ -322,7 +322,7 @@ export default function OrderPage() {
       <Card className="mx-auto max-w-5xl overflow-hidden">
         <div className="grid lg:grid-cols-2">
           {/* Dish Preview Side */}
-          <div className="flex flex-col justify-between border-b border-neutral-200 bg-[#F7F7F7] p-6 sm:p-8 lg:border-b-0 lg:border-r">
+          <div className="flex flex-col justify-between border-b border-neutral-200 bg-[#FAF6E8] p-6 sm:p-8 lg:border-b-0 lg:border-r">
             <div>
               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-neutral-200">
                 <SmartImage
@@ -513,7 +513,7 @@ export default function OrderPage() {
                 </div>
               </div>
 
-              <div className="mb-5 space-y-1.5 rounded-md border border-neutral-200 bg-[#F7F7F7] px-4 py-3 text-xs">
+              <div className="mb-5 space-y-1.5 rounded-md border border-neutral-200 bg-[#FAF6E8] px-4 py-3 text-xs">
                 <div className="flex justify-between text-[#6B6B6B]">
                   <span>
                     Food Subtotal ({qty} x {ghs(unitPrice)})

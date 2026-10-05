@@ -22,7 +22,7 @@ export default function CartPage() {
     return (
       <Section tone="default">
         <div className="mx-auto max-w-md rounded-lg border border-neutral-200 bg-white p-10 text-center sm:p-12">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-[#F7F7F7] text-[#111111]">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-[#FAF6E8] text-[#111111]">
             <ShoppingBag className="h-6 w-6" />
           </div>
           <h1 className="mt-5 text-2xl font-bold tracking-tight text-[#111111]">Your cart is empty</h1>
@@ -167,7 +167,7 @@ export default function CartPage() {
             <ArrowRight className="h-4 w-4" />
           </Btn>
 
-          <div className="mt-4 flex items-start gap-2.5 rounded-md bg-[#F7F7F7] p-3 text-xs text-[#6B6B6B]">
+          <div className="mt-4 flex items-start gap-2.5 rounded-md bg-[#FAF6E8] p-3 text-xs text-[#6B6B6B]">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#111111]" />
             <span>
               Select your preferred branch (Adabraka or Dzorwulu) at checkout and confirm instantly via WhatsApp.
