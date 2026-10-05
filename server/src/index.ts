@@ -1,6 +1,6 @@
 /**
  * Mayford Foods GH - API server
- * Express + TypeScript + MySQL (with automatic SQLite demo fallback).
+ * Express + TypeScript + Supabase PostgreSQL (optional MySQL/SQLite fallback outside Supabase-only mode).
  */
 import path from 'path';
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
@@ -117,7 +117,7 @@ async function dispatchOrderStatusNotification(order: {
 
   const digits = String(order.phone || '').replace(/\D/g, '');
   const intlPhone = digits.startsWith('0') ? `233${digits.slice(1)}` : digits;
-  const whatsappUrl = `https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`;
+  const whatsappUrl = intlPhone.length >= 7 ? `https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}` : '';
 
   // 1. Optional Arkesel SMS API (Ghana)
   const arkeselKey = process.env.ARKESEL_API_KEY;
@@ -1559,13 +1559,27 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     outletMap[key].revenue += Number(o.total || 0);
   }
 
-  // Fulfillment breakdown
+  // Fulfillment and sales channel breakdown
   const deliveryCount = allOrders.filter((o) => o.order_type === 'Delivery').length;
   const pickupCount = allOrders.filter((o) => o.order_type === 'Pickup').length;
+  const orderSourceMap: Record<string, { source: string; orders: number; revenue: number; paid_revenue: number }> = {
+    Online: { source: 'Online', orders: 0, revenue: 0, paid_revenue: 0 },
+    'In-Store': { source: 'In-Store', orders: 0, revenue: 0, paid_revenue: 0 },
+  };
+  const paymentMap: Record<string, { method: string; orders: number; revenue: number; paid_revenue: number }> = {};
+  for (const order of allOrders) {
+    const source = String(order.order_source || 'Online') === 'In-Store' ? 'In-Store' : 'Online';
+    const orderTotal = Number(order.total || 0);
+    orderSourceMap[source].orders += 1;
+    orderSourceMap[source].revenue += orderTotal;
+    if ((order.payment_status || 'Pending') === 'Paid') orderSourceMap[source].paid_revenue += orderTotal;
 
-  // Payment method breakdown
-  const paystackOrders = allOrders.filter((o) => (o.payment_method || 'Paystack') === 'Paystack');
-  const podOrders = allOrders.filter((o) => o.payment_method === 'Pay on Delivery');
+    const method = String(order.payment_method || 'Paystack');
+    if (!paymentMap[method]) paymentMap[method] = { method, orders: 0, revenue: 0, paid_revenue: 0 };
+    paymentMap[method].orders += 1;
+    paymentMap[method].revenue += orderTotal;
+    if ((order.payment_status || 'Pending') === 'Paid') paymentMap[method].paid_revenue += orderTotal;
+  }
 
   // Top ordered foods parsed from orders
   const foodCounts: Record<string, { name: string; count: number; revenue: number }> = {};
@@ -1587,8 +1601,11 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
         if (match) {
           const name = match[1].trim();
           const qty = Number(match[2] || 1);
+          const amountMatch = line.match(/=\s*(?:GH₵\s*)?([\d,]+(?:\.\d+)?)/i);
+          const lineRevenue = amountMatch ? Number(amountMatch[1].replace(/,/g, '')) : 0;
           if (!foodCounts[name]) foodCounts[name] = { name, count: 0, revenue: 0 };
           foodCounts[name].count += qty;
+          foodCounts[name].revenue += Number.isFinite(lineRevenue) ? lineRevenue : 0;
         }
       }
     }
@@ -1649,18 +1666,8 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
       { type: 'Delivery', orders: deliveryCount },
       { type: 'Pickup', orders: pickupCount },
     ],
-    payment_stats: [
-      {
-        method: 'Paystack',
-        orders: paystackOrders.length,
-        revenue: paystackOrders.reduce((s, o) => s + Number(o.total || 0), 0),
-      },
-      {
-        method: 'Pay on Delivery',
-        orders: podOrders.length,
-        revenue: podOrders.reduce((s, o) => s + Number(o.total || 0), 0),
-      },
-    ],
+    order_source_stats: Object.values(orderSourceMap),
+    payment_stats: Object.values(paymentMap).sort((a, b) => b.revenue - a.revenue),
     top_foods: topFoods,
     recent_orders: allOrders.slice(0, 8),
   };
@@ -1680,12 +1687,158 @@ app.get('/api/admin/notifications', requireAdmin, async (req, res) => {
   res.json({ orders: Number(orders), applications: Number(applications), messages: Number(messages) });
 });
 
-// Orders list with search, status, outlet, and payment_status filters
+// Create a cashier-entered in-store sale. Branch admins are hard-scoped to their own outlet.
+app.post('/api/admin/orders/in-store', requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const role = String(req.session?.role || '');
+  let outlet = '';
+
+  if (role === 'adabraka_admin') {
+    outlet = 'Adabraka';
+  } else if (role === 'dzorwulu_admin') {
+    outlet = 'Dzorwulu';
+  } else if (role === 'super_admin') {
+    outlet = String(body.outlet || '').trim();
+  } else {
+    return res.status(403).json({ ok: false, error: 'A branch or super admin role is required to create an in-store order.' });
+  }
+
+  if (!['Adabraka', 'Dzorwulu'].includes(outlet)) {
+    return res.status(400).json({ ok: false, error: 'Please select Adabraka or Dzorwulu.' });
+  }
+
+  const rawItems = Array.isArray(body.items) ? body.items : [];
+  if (rawItems.length === 0 || rawItems.length > 30) {
+    return res.status(400).json({ ok: false, error: 'Add between 1 and 30 menu items to the sale.' });
+  }
+
+  const quantityById = new Map<number, number>();
+  for (const item of rawItems) {
+    const id = Number(item?.id);
+    const quantity = Math.floor(Number(item?.quantity));
+    if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 100) {
+      return res.status(400).json({ ok: false, error: 'Each item must have a valid menu item ID and quantity.' });
+    }
+    quantityById.set(id, (quantityById.get(id) || 0) + quantity);
+  }
+
+  const totalQuantity = Array.from(quantityById.values()).reduce((sum, quantity) => sum + quantity, 0);
+  if (totalQuantity > 500) {
+    return res.status(400).json({ ok: false, error: 'The total item quantity is too large for one sale.' });
+  }
+
+  const itemIds = Array.from(quantityById.keys());
+  const placeholders = itemIds.map(() => '?').join(',');
+  const menuRows = await query(
+    `SELECT id, food_name, price, discount_percent, status FROM menu_items WHERE id IN (${placeholders})`,
+    itemIds
+  );
+  const menuById = new Map<number, any>(menuRows.map((item) => [Number(item.id), item]));
+  if (menuById.size !== itemIds.length) {
+    return res.status(400).json({ ok: false, error: 'One or more selected menu items no longer exist.' });
+  }
+
+  let subtotal = 0;
+  const detailLines: string[] = [];
+  const saleItems: Array<{ id: number; food_name: string; quantity: number; line_total: number }> = [];
+  for (const id of itemIds) {
+    const menuItem = menuById.get(id)!;
+    if (String(menuItem.status || '').toLowerCase() !== 'available') {
+      return res.status(400).json({ ok: false, error: `${String(menuItem.food_name)} is not currently available.` });
+    }
+    const price = Number(menuItem.price || 0);
+    const discount = Number(menuItem.discount_percent || 0);
+    if (!Number.isFinite(price) || price < 0 || !Number.isFinite(discount) || discount < 0 || discount > 90) {
+      return res.status(400).json({ ok: false, error: `Invalid price configuration for ${String(menuItem.food_name)}.` });
+    }
+    const unitPrice = discount > 0 ? price - (price * discount) / 100 : price;
+    const quantity = quantityById.get(id)!;
+    const lineTotal = Number((unitPrice * quantity).toFixed(2));
+    subtotal += lineTotal;
+    detailLines.push(`${String(menuItem.food_name)} x ${quantity} = GH₵ ${lineTotal.toFixed(2)}`);
+    saleItems.push({ id, food_name: String(menuItem.food_name), quantity, line_total: lineTotal });
+  }
+
+  const total = Number(subtotal.toFixed(2));
+  if (!Number.isFinite(total) || total <= 0) {
+    return res.status(400).json({ ok: false, error: 'The sale total must be greater than zero.' });
+  }
+
+  const customerNameInput = String(body.customer_name || '').trim();
+  if (customerNameInput && customerNameInput.length < 2) {
+    return res.status(400).json({ ok: false, error: 'Customer name must be at least 2 characters.' });
+  }
+  const customerName = customerNameInput ? customerNameInput.slice(0, 255) : 'Walk-in Customer';
+  const phoneInput = String(body.phone || '').trim();
+  if (phoneInput && phoneInput.replace(/\D/g, '').length < 7) {
+    return res.status(400).json({ ok: false, error: 'Enter at least 7 phone digits or leave the phone blank.' });
+  }
+  const phone = phoneInput ? phoneInput.slice(0, 50) : 'N/A';
+  const notes = String(body.notes || '').trim().slice(0, 500);
+  const address = notes || 'In-store counter';
+  const paymentMethod = String(body.payment_method || 'Cash').trim();
+  const allowedPaymentMethods = ['Cash', 'Mobile Money', 'Card', 'Bank Transfer', 'Other'];
+  if (!allowedPaymentMethods.includes(paymentMethod)) {
+    return res.status(400).json({ ok: false, error: 'Choose a valid in-store payment method.' });
+  }
+  const paymentStatus = String(body.payment_status || 'Paid');
+  if (!['Paid', 'Pending'].includes(paymentStatus)) {
+    return res.status(400).json({ ok: false, error: 'Payment status must be Paid or Pending.' });
+  }
+  const status = String(body.status || 'Pending');
+  if (!['Pending', 'Preparing', 'Ready', 'Completed'].includes(status)) {
+    return res.status(400).json({ ok: false, error: 'Choose a valid kitchen status.' });
+  }
+
+  const foodItem = saleItems.length === 1 ? saleItems[0].food_name : 'Multiple Foods';
+  const orderDetails = detailLines.join('\n');
+  const orderDate = nowSql();
+  const result = await execute(
+    `INSERT INTO orders
+       (customer_name, customer_email, phone, food_item, quantity, outlet, order_type, order_source, address, order_details, total, payment_method, payment_status, payment_reference, delivery_zone, delivery_fee, status, notification_status, order_date)
+     VALUES (?, NULL, ?, ?, ?, ?, 'Pickup', 'In-Store', ?, ?, ?, ?, ?, NULL, NULL, 0, ?, 'new', ?)`,
+    [customerName, phone, foodItem, totalQuantity, outlet, address, orderDetails, total, paymentMethod, paymentStatus, status, orderDate]
+  );
+
+  const order = {
+    id: result.insertId,
+    customer_name: customerName,
+    customer_email: null,
+    phone,
+    food_item: foodItem,
+    quantity: totalQuantity,
+    outlet,
+    order_type: 'Pickup',
+    order_source: 'In-Store',
+    address,
+    order_details: orderDetails,
+    total,
+    payment_method: paymentMethod,
+    payment_status: paymentStatus,
+    payment_reference: null,
+    delivery_zone: null,
+    delivery_fee: 0,
+    receipt_signature: computeReceiptSignature({
+      id: result.insertId,
+      total,
+      payment_status: paymentStatus,
+      payment_reference: null,
+    }),
+    status,
+    order_date: orderDate,
+  };
+
+  broadcastAdminEvent('order_created', order);
+  res.status(201).json({ ok: true, order });
+});
+
+// Orders list with search, status, outlet, source, and payment_status filters
 app.get('/api/admin/orders', requireAdmin, async (req, res) => {
   const { where, params } = outletScope(req);
   const search = String(req.query.search || '');
   const status = String(req.query.status || '');
   const outlet = String(req.query.outlet || '');
+  const source = String(req.query.source || '');
   const paymentStatus = String(req.query.payment_status || '');
 
   let sql = `SELECT * FROM orders WHERE ${where}`;
@@ -1700,6 +1853,10 @@ app.get('/api/admin/orders', requireAdmin, async (req, res) => {
   if (outlet && req.session?.role === 'super_admin') {
     sql += ' AND outlet=?';
     params.push(outlet);
+  }
+  if (source === 'Online' || source === 'In-Store') {
+    sql += ' AND order_source=?';
+    params.push(source);
   }
   if (paymentStatus) {
     sql += ' AND payment_status=?';

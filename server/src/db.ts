@@ -2,9 +2,9 @@
  * Database layer for Mayford Foods GH.
  *
  * Supported engines:
- *   1. Supabase / PostgreSQL (pg)  -> Direct connection pool via DATABASE_URL or SUPABASE_DB_URL
- *   2. MySQL / MariaDB (mysql2)     -> Classic MySQL configuration
- *   3. SQLite (node:sqlite)         -> Automatic zero-config demo fallback
+ *   1. Supabase / PostgreSQL (pg)  -> Direct connection pool via SUPABASE_DB_URL or DATABASE_URL
+ *   2. MySQL / MariaDB (mysql2)     -> Optional legacy fallback when SUPABASE_ONLY is unset
+ *   3. SQLite (node:sqlite)         -> Optional demo fallback when SUPABASE_ONLY is unset
  */
 import path from 'path';
 import fs from 'fs';
@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS orders (
   quantity INTEGER NOT NULL,
   outlet TEXT NOT NULL,
   order_type TEXT NOT NULL,
+  order_source TEXT NOT NULL DEFAULT 'Online',
   address TEXT,
   order_details TEXT,
   total REAL NOT NULL,
@@ -335,7 +336,12 @@ async function tryConnectSupabase(): Promise<boolean> {
   if (!connString) return false;
 
   try {
-    const isSupabase = connString.includes('supabase') || connString.includes('pooler.supabase');
+    const isSupabase = connString.toLowerCase().includes('supabase');
+    const supabaseOnly = /^(1|true|yes)$/i.test(process.env.SUPABASE_ONLY || '');
+    if (supabaseOnly && !isSupabase) {
+      console.warn('[db] SUPABASE_ONLY is enabled, but the configured PostgreSQL URL is not a Supabase host.');
+      return false;
+    }
     const pool = new PgPool({
       connectionString: connString,
       ssl: { rejectUnauthorized: false },
@@ -414,6 +420,7 @@ function initSqlite(): void {
     "ALTER TABLE orders ADD COLUMN payment_reference TEXT",
     "ALTER TABLE orders ADD COLUMN delivery_zone TEXT",
     "ALTER TABLE orders ADD COLUMN delivery_fee REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE orders ADD COLUMN order_source TEXT NOT NULL DEFAULT 'Online'",
     "ALTER TABLE community_media ADD COLUMN title TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE community_media ADD COLUMN description TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE training_applications ADD COLUMN application_ref TEXT",
@@ -448,9 +455,13 @@ function initSqlite(): void {
 
 export async function initDb(): Promise<void> {
   const mode = process.env.DEMO_MODE || 'auto';
+  const supabaseOnly = /^(1|true|yes)$/i.test(process.env.SUPABASE_ONLY || '');
 
-  // 1. Try Supabase / PostgreSQL first if configured
+  // Supabase-only mode is strict: never connect to MySQL or fall back to local SQLite.
   if (await tryConnectSupabase()) return;
+  if (supabaseOnly) {
+    throw new Error('SUPABASE_ONLY is enabled, but a Supabase PostgreSQL connection could not be established.');
+  }
 
   // 2. Try MySQL next if configured
   if (mode !== 'force') {

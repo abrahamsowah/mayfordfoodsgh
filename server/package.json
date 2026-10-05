@@ -2,7 +2,7 @@
   "name": "mayford-foods-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Mayford Foods GH API (Express + TypeScript + MySQL)",
+  "description": "Mayford Foods GH API (Express + TypeScript + Supabase PostgreSQL)",
   "type": "commonjs",
   "main": "dist/index.js",
   "scripts": {

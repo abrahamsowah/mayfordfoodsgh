@@ -245,6 +245,29 @@ export default function AdminDashboard() {
             </div>
           </div>
 
+          {/* Branch sales totals include online and cashier-entered sales. */}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-lg border border-neutral-200 bg-white p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#6B6B6B]">Branch Revenue</p>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-[#111111]">{ghs(stats?.revenue || 0)}</p>
+              <p className="mt-1 text-xs text-[#6B6B6B]">All recorded orders</p>
+            </div>
+            <div className="rounded-lg border border-neutral-200 bg-white p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#6B6B6B]">Paid Revenue</p>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-emerald-700">{ghs(stats?.paid_revenue || 0)}</p>
+              <p className="mt-1 text-xs text-[#6B6B6B]">{stats?.paid_orders || 0} settled orders</p>
+            </div>
+            <div className="rounded-lg border border-neutral-200 bg-white p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#6B6B6B]">In-Store Sales</p>
+              <p className="mt-3 text-2xl font-bold tabular-nums text-[#111111]">
+                {ghs(stats?.order_source_stats?.find((source) => source.source === 'In-Store')?.revenue || 0)}
+              </p>
+              <p className="mt-1 text-xs text-[#6B6B6B]">
+                {stats?.order_source_stats?.find((source) => source.source === 'In-Store')?.orders || 0} cashier-entered orders
+              </p>
+            </div>
+          </div>
+
           {/* Live Kitchen Fulfillment Queue Board */}
           <div className="rounded-lg border border-neutral-200 bg-white p-6">
             <div className="flex flex-col justify-between gap-4 border-b border-neutral-100 pb-4 sm:flex-row sm:items-center">
@@ -297,6 +320,11 @@ export default function AdminDashboard() {
                           <span className="ml-2 rounded bg-neutral-200 px-2 py-0.5 text-[11px] font-semibold text-neutral-800">
                             {ord.order_type}
                           </span>
+                          {ord.order_source === 'In-Store' && (
+                            <span className="ml-1 rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900">
+                              In-Store
+                            </span>
+                          )}
                         </div>
                         <span
                           className={`rounded px-2 py-0.5 text-[11px] font-bold ${
@@ -471,7 +499,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* Row 2: Multi-Branch Breakdown & Kitchen Pipeline */}
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
             {/* Multi-Branch Side-by-Side Performance */}
             <div className="rounded-lg border border-neutral-200 bg-white p-6">
               <div className="mb-4 flex items-center justify-between border-b border-neutral-100 pb-3">
@@ -578,6 +606,45 @@ export default function AdminDashboard() {
                 ))}
               </div>
             </div>
+
+            {/* Online vs cashier-entered performance and tender breakdown */}
+            <div className="rounded-lg border border-neutral-200 bg-white p-6">
+              <div className="mb-4 flex items-center gap-2 border-b border-neutral-100 pb-3">
+                <Store className="h-4 w-4 text-neutral-700" />
+                <h2 className="text-sm font-bold uppercase tracking-wider text-[#111111]">Sales Channels</h2>
+              </div>
+              <div className="space-y-3">
+                {(stats?.order_source_stats || []).map((channel) => (
+                  <div key={channel.source} className="rounded-md border border-neutral-200 bg-[#F7F7F7] p-3.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-bold text-[#111111]">{channel.source}</p>
+                        <p className="text-[11px] text-[#6B6B6B]">{channel.orders} orders</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold tabular-nums text-[#111111]">{ghs(channel.revenue)}</p>
+                        <p className="text-[10px] font-semibold text-emerald-700">Paid {ghs(channel.paid_revenue)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {(stats?.order_source_stats || []).length === 0 && (
+                  <p className="text-xs text-[#6B6B6B]">No sales recorded yet.</p>
+                )}
+              </div>
+              <div className="mt-4 border-t border-neutral-100 pt-3">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[#6B6B6B]">Payment Mix</p>
+                <div className="space-y-1.5">
+                  {(stats?.payment_stats || []).map((payment) => (
+                    <div key={payment.method} className="flex items-center justify-between gap-2 text-[11px]">
+                      <span className="truncate text-[#6B6B6B]">{payment.method} · {payment.orders}</span>
+                      <span className="shrink-0 font-semibold tabular-nums text-[#111111]">{ghs(payment.paid_revenue)} paid</span>
+                    </div>
+                  ))}
+                  {(stats?.payment_stats || []).length === 0 && <p className="text-[11px] text-[#6B6B6B]">No payments yet.</p>}
+                </div>
+              </div>
+            </div>
           </div>
         </>
       )}
@@ -624,7 +691,14 @@ export default function AdminDashboard() {
                   <tr key={o.id} className="hover:bg-[#F7F7F7] transition-colors">
                     <td className="py-3 font-mono font-bold text-[#111111]">#{o.id}</td>
                     <td className="py-3 font-medium text-[#111111]">{o.customer_name}</td>
-                    <td className="py-3 text-neutral-600">{o.outlet}</td>
+                    <td className="py-3 text-neutral-600">
+                      <span>{o.outlet}</span>
+                      {o.order_source === 'In-Store' && (
+                        <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-900">
+                          In-store
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 text-[#6B6B6B] truncate max-w-[200px]">
                       {o.order_details ? o.order_details.split('\n')[0] : o.food_item}
                     </td>

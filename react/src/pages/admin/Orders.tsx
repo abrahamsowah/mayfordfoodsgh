@@ -5,6 +5,7 @@ import {
   Edit3,
   MapPin,
   MessageCircle,
+  Plus,
   Search,
   X,
 } from 'lucide-react';
@@ -13,8 +14,10 @@ import { useAdminSession, useAdminLive } from '../../components/AdminLayout';
 import type { Order } from '../../types';
 import { Btn, EmptyRow, Field, Input, Select, Textarea } from '../../components/ui';
 import { ghs, waLink } from '../../utils';
+import InStoreOrderModal from './InStoreOrderModal';
 
 const STATUS_FILTERS = ['All', 'Pending', 'Preparing', 'Ready', 'Completed'];
+const hasContactPhone = (phone?: string | null) => String(phone || '').replace(/\D/g, '').length >= 7;
 
 interface StatusNotification {
   orderId: number;
@@ -33,7 +36,9 @@ export default function AdminOrders() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [outlet, setOutlet] = useState('');
+  const [source, setSource] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('');
+  const [createInStoreOpen, setCreateInStoreOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [lastNotify, setLastNotify] = useState<StatusNotification | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -45,6 +50,7 @@ export default function AdminOrders() {
     if (search) params.set('search', search);
     if (status) params.set('status', status);
     if (outlet) params.set('outlet', outlet);
+    if (source) params.set('source', source);
     if (paymentStatus) params.set('payment_status', paymentStatus);
     return api
       .get<{ orders: Order[] }>(`/admin/orders${params.toString() ? `?${params}` : ''}`)
@@ -52,7 +58,7 @@ export default function AdminOrders() {
       .catch(() => {
         if (!silent) setOrders([]);
       });
-  }, [search, status, outlet, paymentStatus]);
+  }, [search, status, outlet, source, paymentStatus]);
 
   useEffect(() => {
     void load();
@@ -203,26 +209,32 @@ export default function AdminOrders() {
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 border-t border-neutral-100 pt-4 sm:flex sm:flex-wrap sm:items-center sm:gap-6 md:border-t-0 md:pt-0">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B6B6B] sm:text-[11px]">
-              Orders
-            </p>
-            <p className="text-lg font-bold tabular-nums text-[#111111] sm:text-xl">{summary.count}</p>
-          </div>
-          <div className="border-l border-neutral-200 pl-4 sm:pl-6">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B6B6B] sm:text-[11px]">
-              Paid Revenue
-            </p>
-            <p className="text-lg font-bold tabular-nums text-[#111111] sm:text-xl">
-              {ghs(summary.paidTotal)}
-            </p>
-          </div>
-          <div className="border-l border-neutral-200 pl-4 sm:pl-6">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B6B6B] sm:text-[11px]">
-              Total Value
-            </p>
-            <p className="text-lg font-bold tabular-nums text-[#111111] sm:text-xl">{ghs(summary.total)}</p>
+        <div className="flex flex-col gap-3 border-t border-neutral-100 pt-4 md:items-end md:border-t-0 md:pt-0">
+          <Btn type="button" onClick={() => setCreateInStoreOpen(true)} className="self-start md:self-end">
+            <Plus className="h-4 w-4" />
+            <span>New In-Store Order</span>
+          </Btn>
+          <div className="grid grid-cols-3 gap-4 sm:flex sm:flex-wrap sm:items-center sm:gap-6">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B6B6B] sm:text-[11px]">
+                Orders
+              </p>
+              <p className="text-lg font-bold tabular-nums text-[#111111] sm:text-xl">{summary.count}</p>
+            </div>
+            <div className="border-l border-neutral-200 pl-4 sm:pl-6">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B6B6B] sm:text-[11px]">
+                Paid Revenue
+              </p>
+              <p className="text-lg font-bold tabular-nums text-[#111111] sm:text-xl">
+                {ghs(summary.paidTotal)}
+              </p>
+            </div>
+            <div className="border-l border-neutral-200 pl-4 sm:pl-6">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B6B6B] sm:text-[11px]">
+                Total Value
+              </p>
+              <p className="text-lg font-bold tabular-nums text-[#111111] sm:text-xl">{ghs(summary.total)}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -239,20 +251,24 @@ export default function AdminOrders() {
               <p className="mt-0.5 text-[#6B6B6B]">
                 {lastNotify.smsDispatched
                   ? `Automated SMS dispatched via ${lastNotify.provider.toUpperCase()}. Client tracking page updated in real time.`
-                  : 'Customer status alert ready. Click below to send an instant WhatsApp update to guest.'}
+                  : lastNotify.whatsappUrl
+                  ? 'Customer status alert ready. Click below to send an instant WhatsApp update to guest.'
+                  : 'No customer phone was provided for this in-store order.'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <a
-              href={lastNotify.whatsappUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md bg-[#111111] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#262626]"
-            >
-              <MessageCircle className="h-3.5 w-3.5 text-whatsapp" />
-              <span>Send WhatsApp Alert</span>
-            </a>
+            {lastNotify.whatsappUrl && (
+              <a
+                href={lastNotify.whatsappUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md bg-[#111111] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#262626]"
+              >
+                <MessageCircle className="h-3.5 w-3.5 text-whatsapp" />
+                <span>Send WhatsApp Alert</span>
+              </a>
+            )}
             <button
               type="button"
               onClick={() => setLastNotify(null)}
@@ -303,6 +319,16 @@ export default function AdminOrders() {
                 <option value="Dzorwulu">Dzorwulu</option>
               </Select>
             )}
+
+            <Select
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              className="sm:!w-36 !py-2 !text-xs"
+            >
+              <option value="">All Channels</option>
+              <option value="Online">Online</option>
+              <option value="In-Store">In-Store</option>
+            </Select>
 
             <Select
               value={paymentStatus}
@@ -372,6 +398,11 @@ export default function AdminOrders() {
                       <span className="rounded-sm border border-neutral-300 bg-[#F7F7F7] px-2 py-0.5 text-[10px] font-semibold text-[#111111]">
                         {o.order_type}
                       </span>
+                      {o.order_source === 'In-Store' && (
+                        <span className="rounded-sm bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                          In-Store
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1.5 text-sm font-bold text-[#111111]">{o.customer_name}</p>
                     <p className="text-[11px] text-[#6B6B6B]">
@@ -443,15 +474,17 @@ export default function AdminOrders() {
                       <Edit3 className="h-3 w-3" />
                       <span>Edit</span>
                     </button>
-                    <a
-                      href={waLink(o.phone, statusWaMsg)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 font-semibold text-[#111111] hover:text-mayford-600"
-                    >
-                      <MessageCircle className="h-3.5 w-3.5 text-whatsapp" />
-                      <span>WhatsApp</span>
-                    </a>
+                    {hasContactPhone(o.phone) && (
+                      <a
+                        href={waLink(o.phone, statusWaMsg)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-semibold text-[#111111] hover:text-mayford-600"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5 text-whatsapp" />
+                        <span>WhatsApp</span>
+                      </a>
+                    )}
                   </div>
                 </div>
 
@@ -490,7 +523,7 @@ export default function AdminOrders() {
                 <th className="p-4">Branch &amp; Type</th>
                 <th className="p-4">Address</th>
                 <th className="p-4">Order Details</th>
-                <th className="p-4">Payment (Paystack)</th>
+                <th className="p-4">Payment</th>
                 <th className="p-4">Kitchen Status</th>
                 <th className="p-4">Quick Update</th>
                 <th className="p-4 text-right">Total &amp; Actions</th>
@@ -521,21 +554,32 @@ export default function AdminOrders() {
                       </td>
                       <td className="p-4">
                         <p className="font-bold text-[#111111]">{o.customer_name}</p>
-                        <a
-                          href={waLink(o.phone, statusWaMsg)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-0.5 inline-flex items-center gap-1 font-mono text-[11px] text-[#6B6B6B] hover:text-[#111111]"
-                        >
-                          <MessageCircle className="h-3 w-3 text-whatsapp" />
-                          <span>{o.phone}</span>
-                        </a>
+                        {hasContactPhone(o.phone) ? (
+                          <a
+                            href={waLink(o.phone, statusWaMsg)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-0.5 inline-flex items-center gap-1 font-mono text-[11px] text-[#6B6B6B] hover:text-[#111111]"
+                          >
+                            <MessageCircle className="h-3 w-3 text-whatsapp" />
+                            <span>{o.phone}</span>
+                          </a>
+                        ) : (
+                          <p className="mt-0.5 font-mono text-[11px] text-[#6B6B6B]">No customer phone</p>
+                        )}
                       </td>
                       <td className="p-4">
                         <span className="rounded-sm bg-[#111111] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
                           {o.outlet}
                         </span>
-                        <p className="mt-1 font-semibold text-[#111111]">{o.order_type}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className="font-semibold text-[#111111]">{o.order_type}</span>
+                          {o.order_source === 'In-Store' && (
+                            <span className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-900">
+                              In-Store
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="max-w-[200px] p-4 text-[#6B6B6B]">
                         <p className="line-clamp-2">{o.address || 'N/A'}</p>
@@ -635,6 +679,23 @@ export default function AdminOrders() {
       </div>
 
       {/* Full Edit Order Modal */}
+      {createInStoreOpen && (
+        <InStoreOrderModal
+          isSuperAdmin={admin?.role === 'super_admin'}
+          defaultOutlet={
+            admin?.role === 'dzorwulu_admin' || (admin?.role === 'super_admin' && outlet === 'Dzorwulu')
+              ? 'Dzorwulu'
+              : 'Adabraka'
+          }
+          onClose={() => setCreateInStoreOpen(false)}
+          onCreated={(order) => {
+            setHighlightedId(order.id);
+            window.setTimeout(() => setHighlightedId(null), 8000);
+            void load(true);
+          }}
+        />
+      )}
+
       {editingOrder && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
