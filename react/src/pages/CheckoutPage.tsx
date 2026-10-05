@@ -20,6 +20,7 @@ import { useCart } from '../context/CartContext';
 import { useSettings } from '../components/SiteLayout';
 import { launchOfficialPaystack, PaystackModal } from '../components/PaystackCheckout';
 import { Alert, Btn, Card, Eyebrow, Field, Input, LinkBtn, Section, Select, Textarea } from '../components/ui';
+import { SmartImage } from '../components/SmartImage';
 import { ghs, outletWhatsApp, waLink } from '../utils';
 
 export const ACCRA_DELIVERY_ZONES = [
@@ -565,9 +566,11 @@ export default function CheckoutPage() {
           <ul className="mt-5 divide-y divide-neutral-100">
             {items.map((item) => (
               <li key={item.id} className="flex items-center gap-3.5 py-3 first:pt-0 last:pb-0">
-                <img
+                <SmartImage
                   src={`/assets/images/${item.image}`}
                   alt={item.food_name}
+                  sizes="56px"
+                  fallbackSrc="/assets/images/Jollof.png"
                   className="h-12 w-14 shrink-0 rounded-md bg-neutral-100 object-cover"
                 />
                 <div className="min-w-0 flex-1">

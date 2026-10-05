@@ -8,6 +8,7 @@ import type {
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Check, Minus, Plus, Star as StarIcon, Trash2 } from 'lucide-react';
 import { Reveal } from './motion';
+import { SmartImage } from './SmartImage';
 import { useCart } from '../context/CartContext';
 import type { MenuItem } from '../types';
 import { effectivePrice, ghs } from '../utils';
@@ -207,7 +208,14 @@ export function HeroSmall({
 }) {
   return (
     <section className="relative flex min-h-[300px] items-end overflow-hidden bg-[#111111] py-14 md:min-h-[360px] md:py-20">
-      <img src={image} alt={title} className="absolute inset-0 h-full w-full object-cover opacity-55" />
+      <SmartImage
+        src={image}
+        alt={title}
+        priority
+        sizes="100vw"
+        position="50% 35%"
+        className="absolute inset-0 h-full w-full object-cover opacity-55"
+      />
       <div className="absolute inset-0 bg-gradient-to-t from-[#111111] via-[#111111]/60 to-transparent" />
       <div className="relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl">
@@ -396,9 +404,10 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
 export function ZoomImg({ src, alt, className = '' }: { src: string; alt: string; className?: string }) {
   return (
     <div className="group/img overflow-hidden bg-neutral-100">
-      <img
+      <SmartImage
         src={src}
         alt={alt}
+        sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
         className={`${className} w-full object-cover transition-transform duration-500 ease-out group-hover/img:scale-[1.03]`}
       />
     </div>
@@ -421,17 +430,11 @@ export function FoodCard({ item }: { item: MenuItem }) {
     <article className="group flex h-full flex-col">
       {/* Image Frame */}
       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-neutral-100">
-        <img
+        <SmartImage
           src={`/assets/images/${item.image}`}
-          onError={(e) => {
-            const img = e.currentTarget;
-            if (!img.dataset.fallback) {
-              img.dataset.fallback = '1';
-              img.src = '/assets/images/Jollof.png';
-            }
-          }}
           alt={item.food_name}
-          loading="lazy"
+          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+          fallbackSrc="/assets/images/Jollof.png"
           className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
         />
 

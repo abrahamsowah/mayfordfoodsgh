@@ -176,6 +176,58 @@ By default it serves its own dashboard and `/api/shield` API on port `5000`. In 
 
 ---
 
+## Image Handling & Media Performance
+
+Every photo on the site is delivered as a small, modern, responsive image so pages
+stay fast on Ghanaian mobile connections.
+
+- **Two ways an image can arrive, both covered.**
+  1. *Committed to the repo* (`react/public/assets/images/`): run `npm run images`
+     (or let `predev`/`prebuild` do it) — this is the pipeline below.
+  2. *Uploaded from the admin panel* (new dish, hero slide, advert, community
+     photo): the API generates the same WebP ladder at runtime with `sharp`, so no
+     rebuild or deploy is needed. Sizes are produced on demand, cached next to the
+     uploads and served as static files, and `GET /api/image-manifest` tells the
+     frontend the dimensions, placeholder colour and variant URLs.
+- **Build-time pipeline.** `npm run images` (in `react/`) reads every file in
+  `react/public/assets/images/`, writes WebP variants at 480 / 960 / 1600 px into
+  `react/public/assets/images/optimized/`, and regenerates
+  `react/src/generated/imageManifest.ts` (intrinsic size, dominant colour, variant
+  URLs). Variants are committed, so installs, builds and deploys never need
+  ImageMagick — only `npm run images` does (`magick` or `convert` on `PATH`).
+  - Drop in a new photo and it is picked up automatically (`predev`/`prebuild`
+    run the script in `--auto` mode, which skips quietly when ImageMagick is
+    missing — the committed variants keep working). Use
+    `npm run images -- --force` to rebuild, and `-- --shrink-originals` to also
+    downscale oversized JPEG/PNG originals (these serve only as the
+    `<picture>` fallback). Variants of renamed or deleted photos are pruned.
+  - A file that cannot be processed still renders: the API scans the images
+    folder, reports it in the manifest and builds its variants on first request,
+    so nothing can silently drop out of the optimization path.
+- **`<SmartImage>` component** (`react/src/components/SmartImage.tsx`) is used for
+  every photo in the app. It emits a `<picture>` with the WebP `srcset`, an
+  intrinsic `width`/`height` (no layout shift while loading), the photo's average
+  colour as the placeholder tint (no white flash), `loading="lazy"` +
+  `decoding="async"` by default, and a `fallbackSrc` chain instead of the old
+  `onError` handlers. Use `priority` for the LCP image only (hero, dish preview)
+  and pass `sizes` matching the layout, e.g.
+  `sizes="(min-width: 1024px) 33vw, 100vw"`. `position` maps to
+  `object-position` when a tall photo is cropped by a wide frame.
+- **Admin uploads are optimized twice.** The browser re-encodes photos over
+  ~350 KB to WebP with a 1600 px longest edge before sending them
+  (`prepareImageForUpload` in `react/src/utils.ts`), and the API then generates
+  the 480/960/1600 px ladder with `sharp` (`server/src/images.ts`) when the upload
+  is saved. Deleting a slide, advert or community item also removes its generated
+  variants. Video, GIF and SVG uploads pass through untouched.
+- **Static media is cached** for a day with a week of `stale-while-revalidate`
+  (`server/src/index.ts` + `vercel.json`); Vercel uploads under `/tmp` keep a
+  1 hour TTL.
+- Before the runtime manifest answers, an upload simply renders through
+  `<SmartImage>` as a plain lazy `<img>` and upgrades to responsive variants as
+  soon as the metadata lands — nothing ever appears broken.
+
+---
+
 ## Deploying to Vercel
 
 The repo is set up for Vercel out of the box (`vercel.json` + `api/index.ts`):
@@ -184,5 +236,5 @@ The repo is set up for Vercel out of the box (`vercel.json` + `api/index.ts`):
 - All `/api/*` routes run the Express app as a serverless function (`api/index.ts`).
 - Import the repo in Vercel with the **Root Directory left as the repo root** (don't pick `react/` or `server/`), and Node.js **22.x**.
 - Add the environment variables listed above in **Project → Settings → Environment Variables**. A Supabase Postgres URI (`SUPABASE_DB_URL` or `DATABASE_URL`) is required. Set `SUPABASE_ONLY=true` so the server fails closed instead of connecting to MySQL or temporary SQLite if Supabase is unavailable.
-- Vercel's filesystem is temporary, so admin media uploads won't stick around between function instances. Use Supabase Storage or another external store for durable uploads.
+- Vercel's filesystem is temporary, so admin media uploads won't stick around between function instances. Use Supabase Storage or another external store for durable uploads. The runtime image derivatives (`sharp`) are generated on the same ephemeral disk and are cheap to rebuild, but they disappear with it — durable uploads on Supabase Storage would need the same treatment server-side.
 - Server-Sent Events (`/api/admin/live-stream`) get cut off at the function's max duration (60s). The client reconnects automatically.

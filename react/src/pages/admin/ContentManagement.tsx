@@ -3,6 +3,8 @@ import { Bell, Check, Edit3, Film, Image as ImageIcon, Megaphone, Plus, Users, X
 import { api } from '../../api';
 import { Alert, Btn, DeleteBtn, EmptyRow, Field, Input, Select, Textarea } from '../../components/ui';
 import type { AdVideo, Advert, Banner, CommunityMedia, Slide } from '../../types';
+import { SmartImage } from '../../components/SmartImage';
+import { prepareFormImage, prepareImageForUpload } from '../../utils';
 
 const COMMUNITY_PRESETS = [
   { file: 'community1.png', label: 'Meal Donation Drive' },
@@ -31,6 +33,7 @@ export function AdminAdverts() {
     e.preventDefault();
     const form = e.currentTarget;
     const fd = new FormData(form);
+    await prepareFormImage(fd, 'banner_image');
     setBusy(true);
     setError('');
     setSaved('');
@@ -50,6 +53,7 @@ export function AdminAdverts() {
     e.preventDefault();
     if (!editing) return;
     const fd = new FormData(e.currentTarget);
+    await prepareFormImage(fd, 'banner_image');
     setEditBusy(true);
     setError('');
     try {
@@ -160,10 +164,11 @@ export function AdminAdverts() {
                   <tr key={a.id} className="hover:bg-[#F7F7F7]">
                     <td className="p-4 font-mono font-bold text-[#6B6B6B]">#{a.id}</td>
                     <td className="p-4">
-                      <img
+                      <SmartImage
                         src={`/assets/adverts/${a.banner_image}`}
-                        onError={(e) => ((e.target as HTMLImageElement).src = `/assets/images/${a.banner_image}`)}
                         alt=""
+                        sizes="80px"
+                        fallbackSrc={`/assets/images/${a.banner_image}`}
                         className="h-12 w-20 rounded-md border border-neutral-200 object-cover"
                       />
                     </td>
@@ -441,6 +446,7 @@ export function AdminSlides() {
     e.preventDefault();
     const form = e.currentTarget;
     const fd = new FormData(form);
+    await prepareFormImage(fd, 'image');
     setBusy(true);
     setError('');
     setSaved('');
@@ -458,7 +464,7 @@ export function AdminSlides() {
 
   async function replaceSlide(id: number, file: File) {
     const fd = new FormData();
-    fd.append('image', file);
+    fd.append('image', await prepareImageForUpload(file));
     setReplacingId(id);
     try {
       await api.uploadPut(`/admin/slides/${id}`, fd);
@@ -505,7 +511,13 @@ export function AdminSlides() {
           ? null
           : slides.map((s) => (
               <div key={s.id} className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-                <img src={`/assets/images/${s.image}`} alt="" className="h-44 w-full object-cover" />
+                <SmartImage
+                  src={`/assets/images/${s.image}`}
+                  alt=""
+                  sizes="(min-width: 768px) 33vw, 50vw"
+                  fallbackSrc="/assets/images/hero.png"
+                  className="h-44 w-full object-cover"
+                />
                 <div className="flex items-center justify-between gap-2 p-4">
                   <span className="truncate text-xs font-bold text-[#111111]">
                     #{s.id} ({s.image})
@@ -642,6 +654,8 @@ export function AdminCommunity() {
     if (imageMode === 'preset') {
       fd.delete('media');
       fd.set('file_name', presetFile);
+    } else {
+      await prepareFormImage(fd, 'media');
     }
     setBusy(true);
     setError('');
@@ -662,6 +676,7 @@ export function AdminCommunity() {
     e.preventDefault();
     if (!editing) return;
     const fd = new FormData(e.currentTarget);
+    await prepareFormImage(fd, 'media');
     setEditBusy(true);
     setError('');
     try {
@@ -762,7 +777,12 @@ export function AdminCommunity() {
                         : 'border-neutral-200 hover:border-neutral-400'
                     }`}
                   >
-                    <img src={`/assets/images/${p.file}`} alt={p.label} className="h-24 w-full object-cover" />
+                    <SmartImage
+                      src={`/assets/images/${p.file}`}
+                      alt={p.label}
+                      sizes="(min-width: 768px) 25vw, 50vw"
+                      className="h-24 w-full object-cover"
+                    />
                     <p className="p-2 text-xs font-semibold text-[#111111]">{p.label}</p>
                   </button>
                 ))}
@@ -794,16 +814,11 @@ export function AdminCommunity() {
                       <source src={`/assets/videos/${m.file_name}`} type="video/mp4" />
                     </video>
                   ) : (
-                    <img
+                    <SmartImage
                       src={`/assets/community/${m.file_name}`}
-                      onError={(e) => {
-                        const img = e.currentTarget;
-                        if (!img.dataset.fallback) {
-                          img.dataset.fallback = '1';
-                          img.src = `/assets/images/${m.file_name}`;
-                        }
-                      }}
                       alt={m.title || ''}
+                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                      fallbackSrc={`/assets/images/${m.file_name}`}
                       className="h-48 w-full object-cover"
                     />
                   )}

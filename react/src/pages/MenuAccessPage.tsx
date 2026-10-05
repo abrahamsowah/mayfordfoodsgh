@@ -1,5 +1,6 @@
 import { ArrowRight, QrCode, Smartphone } from 'lucide-react';
 import { Card, Eyebrow, LinkBtn, Section } from '../components/ui';
+import { SmartImage } from '../components/SmartImage';
 
 export default function MenuAccessPage() {
   return (
@@ -31,9 +32,10 @@ export default function MenuAccessPage() {
             </div>
 
             <div className="mx-auto shrink-0 rounded-lg border border-neutral-200 bg-[#F7F7F7] p-3">
-              <img
+              <SmartImage
                 src="/assets/images/menuqr.jpeg"
                 alt="Mayford Foods Menu QR Code"
+                sizes="208px"
                 className="h-48 w-48 rounded-md object-contain bg-white sm:h-52 sm:w-52"
               />
             </div>

@@ -24,6 +24,7 @@ import { useCart } from '../context/CartContext';
 import type { Banner, Settings } from '../types';
 import { ghs, waLink } from '../utils';
 import { Btn, FacebookIcon, Field, Input, Select, Textarea } from './ui';
+import { SmartImage } from './SmartImage';
 
 const NAV_LINKS = [
   { to: '/', label: 'Home' },
@@ -94,9 +95,11 @@ function Header() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:h-[72px] lg:px-8">
         {/* Brand Identity */}
         <Link to="/" className="flex items-center gap-3">
-          <img
+          <SmartImage
             src="/assets/images/logo.png"
             alt="Mayford Foods GH"
+            sizes="40px"
+            eager
             className="h-10 w-10 rounded-md border border-neutral-200 object-cover"
           />
           <div className="leading-none">
@@ -279,9 +282,10 @@ function Footer({ settings }: { settings: Settings | null }) {
           {/* Column 1: Brand */}
           <div>
             <div className="flex items-center gap-3">
-              <img
+              <SmartImage
                 src="/assets/images/logo.png"
                 alt="Mayford Foods GH"
+                sizes="40px"
                 className="h-10 w-10 rounded-md object-cover"
               />
               <div className="leading-none">

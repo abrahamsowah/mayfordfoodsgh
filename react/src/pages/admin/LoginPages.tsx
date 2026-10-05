@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff, KeyRound, Lock, ShieldCheck } from 'lucide-react';
 import { api } from '../../api';
 import { Btn, Field, Input } from '../../components/ui';
+import { SmartImage } from '../../components/SmartImage';
 
 export function AdminPinPage() {
   const [pin, setPin] = useState('');
@@ -44,9 +45,11 @@ export function AdminPinPage() {
       <div className="w-full max-w-md rounded-lg border border-neutral-200 bg-white p-8 shadow-soft">
         <div className="mb-6 flex items-center justify-between border-b border-neutral-100 pb-5">
           <div className="flex items-center gap-3">
-            <img
+            <SmartImage
               src="/assets/images/logo.png"
               alt="Mayford Foods"
+              sizes="40px"
+              eager
               className="h-10 w-10 rounded-md border border-neutral-200 object-cover"
             />
             <div>
@@ -159,9 +162,11 @@ export function AdminLoginPage() {
       <div className="w-full max-w-md rounded-lg border border-neutral-800 bg-white p-8 shadow-lift">
         <div className="mb-6 flex items-center justify-between border-b border-neutral-100 pb-5">
           <div className="flex items-center gap-3">
-            <img
+            <SmartImage
               src="/assets/images/logo.png"
               alt="Mayford Foods"
+              sizes="44px"
+              eager
               className="h-11 w-11 rounded-md border border-neutral-200 object-cover"
             />
             <div>

@@ -19,6 +19,7 @@ import { useSettings } from '../components/SiteLayout';
 import { launchOfficialPaystack, PaystackModal } from '../components/PaystackCheckout';
 import { ACCRA_DELIVERY_ZONES } from './CheckoutPage';
 import { Alert, Btn, Card, Eyebrow, Field, Input, LinkBtn, Section, Select, Spinner, Textarea } from '../components/ui';
+import { SmartImage } from '../components/SmartImage';
 import type { MenuItem } from '../types';
 import { effectivePrice, ghs, outletWhatsApp, waLink } from '../utils';
 
@@ -324,9 +325,12 @@ export default function OrderPage() {
           <div className="flex flex-col justify-between border-b border-neutral-200 bg-[#F7F7F7] p-6 sm:p-8 lg:border-b-0 lg:border-r">
             <div>
               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-neutral-200">
-                <img
+                <SmartImage
                   src={`/assets/images/${food.image}`}
                   alt={food.food_name}
+                  priority
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  fallbackSrc="/assets/images/Jollof.png"
                   className="h-full w-full object-cover"
                 />
                 {hasDiscount && (

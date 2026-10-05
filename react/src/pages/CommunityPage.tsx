@@ -3,6 +3,7 @@ import { HeartHandshake, Users, Utensils } from 'lucide-react';
 import { api } from '../api';
 import { Reveal } from '../components/motion';
 import { Card, Eyebrow, HeroSmall, LinkBtn, MediaCardSkeleton, Section, SectionHeader } from '../components/ui';
+import { SmartImage } from '../components/SmartImage';
 import type { CommunityMedia } from '../types';
 
 export default function CommunityPage() {
@@ -83,17 +84,11 @@ export default function CommunityPage() {
                     </div>
                   ) : (
                     <div className="group aspect-[4/3] overflow-hidden bg-neutral-100">
-                      <img
+                      <SmartImage
                         src={`/assets/community/${m.file_name}`}
-                        onError={(e) => {
-                          const img = e.currentTarget;
-                          if (!img.dataset.fallback) {
-                            img.dataset.fallback = '1';
-                            img.src = `/assets/images/${m.file_name}`;
-                          }
-                        }}
                         alt={m.title || 'Mayford Community Impact'}
-                        loading="lazy"
+                        sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                        fallbackSrc={`/assets/images/${m.file_name}`}
                         className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
                       />
                     </div>

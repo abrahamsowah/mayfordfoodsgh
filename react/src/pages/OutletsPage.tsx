@@ -3,6 +3,7 @@ import { ArrowUpRight, Bike, Clock, MapPin, MessageCircle, Phone } from 'lucide-
 import { api } from '../api';
 import { useSettings } from '../components/SiteLayout';
 import { Card, Eyebrow, LinkBtn, Section } from '../components/ui';
+import { SmartImage } from '../components/SmartImage';
 import { Reveal } from '../components/motion';
 import type { Settings } from '../types';
 import { outletWhatsApp, waLink } from '../utils';
@@ -70,9 +71,10 @@ export default function OutletsPage() {
             <Reveal key={o.name} delay={i * 80}>
               <Card className="group flex h-full flex-col">
                 <div className="relative aspect-[16/9] overflow-hidden bg-neutral-100">
-                  <img
+                  <SmartImage
                     src={o.image}
                     alt={o.name}
+                    sizes="(min-width: 768px) 50vw, 100vw"
                     className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
                   />
                   <span className="absolute left-4 top-4 rounded-sm bg-[#111111] px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">
